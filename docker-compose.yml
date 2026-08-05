@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   db:
     image: postgis/postgis:15-3.4
@@ -54,8 +52,11 @@ services:
     restart: unless-stopped
     hostname: gpx-report-server
     environment:
-      PUID: ${SYNCTHING_PUID:-1000}
-      PGID: ${SYNCTHING_PGID:-1000}
+      # The official image chown's $HOME non-recursively on boot, which never
+      # reaches /var/syncthing/config since it's a separate mounted volume
+      # (owned by root by default) — running as root avoids that mismatch.
+      PUID: ${SYNCTHING_PUID:-0}
+      PGID: ${SYNCTHING_PGID:-0}
     volumes:
       - syncthing_config:/var/syncthing/config
       - ./data/gpx:/var/syncthing/gpx
