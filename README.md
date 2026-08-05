@@ -1,4 +1,4 @@
-# [Your Project Name]
+# GPX Report
 
 A personal, self-hosted platform for analyzing and visualizing your athletic activity data from GPX files. Built with React and powered by a PostgreSQL backend with PostGIS.
 
@@ -24,7 +24,16 @@ The goal is to create a private, self-hosted alternative to services like Strava
 
 ## Getting Started
 
-(Details on setup, installation, and running the application will be in `docs/SETUP.md`)
+```
+cp .env.example .env
+docker compose up --build
+```
+
+- Frontend: http://localhost:3000
+- GraphQL API: http://localhost:4000/graphql
+- Drop `.gpx` files into `data/gpx/` — they're picked up automatically and ingested.
+
+See `docs/SETUP.md` for details.
 
 ## Future Considerations (Post v1)
 
