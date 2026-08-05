@@ -1,0 +1,70 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgis/postgis:15-3.4
+    container_name: gpx-report-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-gpxuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gpxpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-gpxreport}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gpxuser} -d ${POSTGRES_DB:-gpxreport}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: gpx-report-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gpxuser}:${POSTGRES_PASSWORD:-gpxpassword}@db:5432/${POSTGRES_DB:-gpxreport}
+      GRAPHQL_PORT: 4000
+      GPX_FILES_DIRECTORY: /gpx-files
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./data/gpx:/gpx-files
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_GRAPHQL_URL: http://localhost:4000/graphql
+    container_name: gpx-report-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+  syncthing:
+    image: syncthing/syncthing:latest
+    container_name: gpx-report-syncthing
+    restart: unless-stopped
+    hostname: gpx-report-server
+    environment:
+      PUID: ${SYNCTHING_PUID:-1000}
+      PGID: ${SYNCTHING_PGID:-1000}
+    volumes:
+      - syncthing_config:/var/syncthing/config
+      - ./data/gpx:/var/syncthing/gpx
+    ports:
+      - "8384:8384" # Web GUI
+      - "22000:22000/tcp" # Sync protocol
+      - "22000:22000/udp"
+      - "21027:21027/udp" # Local discovery
+
+volumes:
+  db_data:
+  syncthing_config:

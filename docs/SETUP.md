@@ -117,6 +117,51 @@ your-project-root/
         *   **Triggered by API mutation:** The `reanalyze` mutation could explicitly call this script.
         *   **File watcher daemon:** Automatically watches the GPX directory.
 
+## 6. Syncing GPX Files from Your Phone (Syncthing)
+
+`docker-compose.yml` includes a `syncthing` service that syncs `.gpx` files directly from your Android phone into `data/gpx/`, no cloud intermediary. One-time setup:
+
+1.  **Start it:** `docker compose up -d syncthing`
+2.  **Open the web GUI:** `http://<server-ip>:8384` (use the server's LAN IP if not on the same machine, e.g. `http://192.168.1.50:8384`). On first run it walks you through basic setup (set a GUI username/password when prompted — it's reachable by anyone on your LAN otherwise).
+3.  **Get the server's Device ID:** Actions (top right) → Show ID. This shows an ID string and a QR code.
+4.  **Install Syncthing on Android:** from F-Droid (recommended) or the Play Store.
+5.  **Pair the phone with the server:**
+    *   In the Android app, tap **+** → **Add Remote Device**.
+    *   Scan the QR code from step 3, or type in the Device ID.
+    *   Give it a name (e.g. "gpx-report-server") and save.
+    *   Back on the server web GUI, a popup will appear asking to accept the new device — accept it.
+6.  **Create a drop folder on your phone and share it:**
+    *   In the Syncthing Android app, add a new folder — e.g. call it "GPX Uploads" — it can be any empty folder, since you'll be saving files into it manually (see step 8).
+    *   Under that folder's **Sharing** tab, check the server device.
+    *   Set the folder type to **Send Only** on the phone (the phone should never receive changes back).
+7.  **Accept the folder on the server:**
+    *   The server web GUI will show an incoming folder offer — click **Add**.
+    *   Set the folder path to `/var/syncthing/gpx` (this is mounted to `./data/gpx` on the host).
+    *   Set the folder type to **Receive Only** (the server should never push changes to your phone).
+8.  **Export tracks from Organic Maps into that folder:**
+    *   Organic Maps has no auto-export-to-folder option, so this is a manual step per activity: open **Bookmarks and Tracks**, tap the track you just recorded, tap **Share**, and choose **GPX** as the format.
+    *   In the Android share sheet, pick **Syncthing** (it registers itself as a share target), then choose the "GPX Uploads" folder from step 6.
+    *   Avoid the bulk "export whole list" option in Organic Maps — it bundles every track into one multi-track file, and this app treats one GPX file as one activity, so a bundle would get merged into a single record instead of many.
+9.  **Done.** Once saved into the shared folder, the file syncs to the server automatically (over LAN when home, or via Syncthing's relay/discovery servers when away), lands in `data/gpx/`, and is picked up immediately by the backend's file watcher.
+
+Note: Syncthing works over the internet by default via its global discovery and relay servers, so this keeps working even when your phone isn't on the same network as the server — just slower than a direct LAN connection.
+
+### Exposing the GUI Through a Reverse Proxy (e.g. Caddy over Tailscale)
+
+If you're putting the Syncthing **web GUI** behind a reverse proxy on a custom domain (as opposed to hitting `http://<ip>:8384` directly), there's one Syncthing-specific gotcha:
+
+*   **Host header check:** Syncthing rejects requests whose `Host` header doesn't look like `localhost`/its own bind address, as anti-DNS-rebinding protection — proxying `gpx-report-syncthing.example.com` straight through without touching the `Host` header will get you a `Host check error`. Fix it in the proxy, not in Syncthing: rewrite the `Host` header to the upstream address, matching [Syncthing's own documented Caddy v2 example](https://docs.syncthing.net/users/reverseproxy.html):
+    ```
+    handle_path /syncthing/* {
+        reverse_proxy http://localhost:8384 {
+            header_up Host {upstream_hostport}
+        }
+    }
+    ```
+    Adapt this to a dedicated site block (`gpx-report-syncthing.example.com { reverse_proxy localhost:8384 { header_up Host {upstream_hostport} } }`) rather than a path prefix, since that's how it's set up here. If for some reason you can't control the `Host` header at the proxy, the alternative is setting `insecureSkipHostcheck` to `true` in the `<gui>` block of Syncthing's `config.xml` ([documented here](https://docs.syncthing.net/users/config.html)) — lower-risk than usual since this is only reachable over Tailscale, but the header rewrite is the cleaner fix.
+
+*   **Sync protocol port (22000) is not HTTP** — it's a raw TCP/QUIC(UDP) protocol between Syncthing instances, so it can't go through a normal Caddy `reverse_proxy` directive the way the GUI can (that's HTTP/1.1 or HTTP/2 aware, not a raw TCP/UDP passthrough, unless you're using Caddy's non-default `layer4` plugin). Since you're already on Tailscale, there's no need to proxy this through Caddy or a public domain at all — Syncthing will connect device-to-device directly over the Tailscale interface. Don't route port 22000 through the Caddy site meant for the GUI; if a Caddyfile block for it exists, it's likely a no-op at best.
+
 ## Running the Application
 
 1.  Ensure the database is running.
