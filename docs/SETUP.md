@@ -162,6 +162,16 @@ If you're putting the Syncthing **web GUI** behind a reverse proxy on a custom d
 
 *   **Sync protocol port (22000) is not HTTP** — it's a raw TCP/QUIC(UDP) protocol between Syncthing instances, so it can't go through a normal Caddy `reverse_proxy` directive the way the GUI can (that's HTTP/1.1 or HTTP/2 aware, not a raw TCP/UDP passthrough, unless you're using Caddy's non-default `layer4` plugin). Since you're already on Tailscale, there's no need to proxy this through Caddy or a public domain at all — Syncthing will connect device-to-device directly over the Tailscale interface. Don't route port 22000 through the Caddy site meant for the GUI; if a Caddyfile block for it exists, it's likely a no-op at best.
 
+## 7. Deployment Notes (Proxmox LXC)
+
+Running this in a Proxmox LXC container (as opposed to a full VM) has a couple of quirks worth knowing before you deploy:
+
+*   **Surviving a power cycle needs no extra systemd unit.** Every service in `docker-compose.yml` already has `restart: unless-stopped`. As long as the Docker daemon itself is enabled at the systemd level (`systemctl enable docker` — check with `systemctl is-enabled docker`), a reboot brings the daemon back up, and Docker restarts every container that wasn't manually `docker compose down`'d beforehand. No cron job, no custom `.service` file, no `@reboot` entry needed — this was verified working on the actual deployment host.
+*   **`.env` isn't committed** (it's gitignored) — after cloning onto a fresh host, `cp .env.example .env` and replace the placeholder `POSTGRES_PASSWORD` with a real generated value (e.g. `openssl rand -hex 16`) before the first `docker compose up`. The example password is a placeholder, not something to run with.
+*   **The frontend image build is the slow step** — its multi-stage Dockerfile runs `npm install` (~4 min) and then `vite build` (~3–4 min) for the production bundle. A first `docker compose up -d --build` on a fresh host can take 8–10 minutes total; don't assume a hung terminal is a stuck build.
+*   **Docker isn't guaranteed to be preinstalled on a fresh LXC** — check with `docker --version` before assuming it's there; on Debian-based LXCs it's a standard `apt-get install docker.io docker-compose-plugin` (or Docker's official convenience script) away.
+*   **Syncthing crash-loops on first boot with `save cert: ... permission denied`** if `PUID`/`PGID` are left at the image's default of `1000:1000`. The official image's entrypoint only `chown`s `$HOME` (`/var/syncthing`) non-recursively on startup — it never reaches `/var/syncthing/config`, since that's a *separate* mounted volume that Docker creates owned by `root`. Syncthing then drops privileges to UID 1000 and can't write its own certificate into a root-owned directory. `docker-compose.yml` sets `PUID`/`PGID` to `0` (root) to sidestep this, which is fine on a single-user host where everything else (the `data/gpx` bind mount, the config volume) is root-owned anyway. You'll see a harmless `Syncthing should not run as a privileged or system user` warning in the logs as a result — expected, not a problem here.
+
 ## Running the Application
 
 1.  Ensure the database is running.
