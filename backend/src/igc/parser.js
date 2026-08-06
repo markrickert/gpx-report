@@ -1,9 +1,5 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { haversineMeters } from "../track/geo.js";
-import { filterOutlierPoints } from "../track/outliers.js";
-
-export { haversineMeters };
 
 // IGC B-record: B HHMMSS DDMMmmm N/S DDDMMmmm E/W A PPPPP GGGGG ...
 // Fixed-width fields per the IGC spec (http://www.fai.org/igc-documents).
@@ -19,6 +15,19 @@ function parseLatLon(degStr, minStr, minFracStr, hemisphere, negativeHemisphere)
   const min = Number(minStr) + Number(minFracStr) / 1000;
   const value = deg + min / 60;
   return hemisphere === negativeHemisphere ? -value : value;
+}
+
+// Haversine distance in meters, since IGC gives no precomputed distances
+// the way gpxparser does for GPX. Also used by slpz/parser.js for the same reason.
+export function haversineMeters(a, b) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
 }
 
 function resolveTitle(filePath) {
@@ -72,34 +81,32 @@ export async function parseIgcFile(filePath) {
     throw new Error(`IGC file ${filePath} does not contain enough B-records`);
   }
 
-  const filteredPoints = filterOutlierPoints(points);
-
   let distanceMeters = 0;
   let elevationGain = 0;
   let elevationLoss = 0;
   let maxSpeedMps = 0;
   const elevationProfile = [];
 
-  for (let i = 0; i < filteredPoints.length; i++) {
+  for (let i = 0; i < points.length; i++) {
     if (i > 0) {
-      const segmentDistance = haversineMeters(filteredPoints[i - 1], filteredPoints[i]);
+      const segmentDistance = haversineMeters(points[i - 1], points[i]);
       distanceMeters += segmentDistance;
 
-      const elevationDelta = filteredPoints[i].elevation - filteredPoints[i - 1].elevation;
+      const elevationDelta = points[i].elevation - points[i - 1].elevation;
       if (elevationDelta > 0) elevationGain += elevationDelta;
       else elevationLoss += -elevationDelta;
 
-      const dtSeconds = (filteredPoints[i].timestamp - filteredPoints[i - 1].timestamp) / 1000;
+      const dtSeconds = (points[i].timestamp - points[i - 1].timestamp) / 1000;
       if (dtSeconds > 0) {
         const speed = segmentDistance / dtSeconds;
         if (speed > maxSpeedMps) maxSpeedMps = speed;
       }
     }
-    elevationProfile.push({ distanceMeters, elevation: filteredPoints[i].elevation });
+    elevationProfile.push({ distanceMeters, elevation: points[i].elevation });
   }
 
-  const startTime = new Date(filteredPoints[0].timestamp);
-  const endTime = new Date(filteredPoints[filteredPoints.length - 1].timestamp);
+  const startTime = new Date(points[0].timestamp);
+  const endTime = new Date(points[points.length - 1].timestamp);
   const durationSeconds = Math.max(0, Math.round((endTime - startTime) / 1000));
   const avgSpeedMps = durationSeconds > 0 ? distanceMeters / durationSeconds : null;
 
@@ -114,7 +121,7 @@ export async function parseIgcFile(filePath) {
     maxSpeedMps: maxSpeedMps || null,
     totalElevationGain: elevationGain,
     totalElevationLoss: elevationLoss,
-    points: filteredPoints.map((p) => ({
+    points: points.map((p) => ({
       lat: p.lat,
       lon: p.lon,
       elevation: p.elevation,

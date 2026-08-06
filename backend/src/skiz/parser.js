@@ -1,7 +1,6 @@
 import path from "node:path";
 import AdmZip from "adm-zip";
-import { haversineMeters } from "../track/geo.js";
-import { filterOutlierPoints } from "../track/outliers.js";
+import { haversineMeters } from "../igc/parser.js";
 
 // Ski Tracks app export (.skiz): a zip archive containing Track.xml (a
 // single <track> element with name/activity attributes and precomputed
@@ -54,34 +53,32 @@ export async function parseSkizFile(filePath) {
     throw new Error(`Skiz file ${filePath} does not contain enough GPS points`);
   }
 
-  const filteredPoints = filterOutlierPoints(points);
-
   let distanceMeters = 0;
   let elevationGain = 0;
   let elevationLoss = 0;
   let maxSpeedMps = 0;
   const elevationProfile = [];
 
-  for (let i = 0; i < filteredPoints.length; i++) {
+  for (let i = 0; i < points.length; i++) {
     if (i > 0) {
-      const segmentDistance = haversineMeters(filteredPoints[i - 1], filteredPoints[i]);
+      const segmentDistance = haversineMeters(points[i - 1], points[i]);
       distanceMeters += segmentDistance;
 
-      const elevationDelta = filteredPoints[i].elevation - filteredPoints[i - 1].elevation;
+      const elevationDelta = points[i].elevation - points[i - 1].elevation;
       if (elevationDelta > 0) elevationGain += elevationDelta;
       else elevationLoss += -elevationDelta;
 
-      const dtSeconds = (filteredPoints[i].timestamp - filteredPoints[i - 1].timestamp) / 1000;
+      const dtSeconds = (points[i].timestamp - points[i - 1].timestamp) / 1000;
       if (dtSeconds > 0) {
         const speed = segmentDistance / dtSeconds;
         if (speed > maxSpeedMps) maxSpeedMps = speed;
       }
     }
-    elevationProfile.push({ distanceMeters, elevation: filteredPoints[i].elevation });
+    elevationProfile.push({ distanceMeters, elevation: points[i].elevation });
   }
 
-  const startTime = new Date(filteredPoints[0].timestamp);
-  const endTime = new Date(filteredPoints[filteredPoints.length - 1].timestamp);
+  const startTime = new Date(points[0].timestamp);
+  const endTime = new Date(points[points.length - 1].timestamp);
   const durationSeconds = Math.max(0, Math.round((endTime - startTime) / 1000));
   const avgSpeedMps = durationSeconds > 0 ? distanceMeters / durationSeconds : null;
 
@@ -96,7 +93,7 @@ export async function parseSkizFile(filePath) {
     maxSpeedMps: maxSpeedMps || null,
     totalElevationGain: elevationGain,
     totalElevationLoss: elevationLoss,
-    points: filteredPoints.map((p) => ({
+    points: points.map((p) => ({
       lat: p.lat,
       lon: p.lon,
       elevation: p.elevation,
