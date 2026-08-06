@@ -149,6 +149,16 @@ select {
   overflow: hidden;
 }
 
+:root[data-theme="dark"] .leaflet-control-zoom a {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] .leaflet-control-zoom a:hover {
+  background: var(--bg-subtle);
+}
+
 .record-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
