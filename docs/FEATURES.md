@@ -48,6 +48,7 @@ This document details the features of gpx-report, and reflects what is actually 
 *   **Activity Type Editing:** Same inline Edit/Save/Cancel affordance next to the activity-type badge, backed by a dropdown of the same preselected activity types used for the dashboard filter; saving rewrites the `<trk><type>` element in the source `.gpx` file and re-runs processing. Same `.gpx`-only restriction as title editing.
 *   **Map View:** An interactive map displaying the geographical path of the activity.
 *   **Elevation Profile:** A graph showing elevation changes plotted against the distance traveled, with the Y-axis scaled to the activity's actual elevation range (not a fixed 0-based domain) so variation stays visible regardless of altitude.
+*   **Hover-Synced Position Dot:** Hovering the elevation profile shows a dot on the map at the corresponding point, and hovering the map route shows the corresponding point on the elevation profile — both tracking the same point-in-time index. Desktop-oriented (hover-based); no touchscreen equivalent.
 
 ## 4. Settings Page
 
