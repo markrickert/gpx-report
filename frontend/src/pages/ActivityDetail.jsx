@@ -20,7 +20,6 @@ export default function ActivityDetail() {
 
   const activity = data.activity;
   const positions = activity.route.coordinates.map((p) => [p.lat, p.lon]);
-  const center = positions[Math.floor(positions.length / 2)] || [0, 0];
   const elevationData = activity.route.elevationProfile.map((p) => ({
     km: (p.distanceMeters / 1000).toFixed(2),
     elevation: p.elevation,
@@ -41,7 +40,7 @@ export default function ActivityDetail() {
       </div>
 
       {positions.length > 0 && (
-        <MapContainer center={center} zoom={13} style={{ height: 400, width: "100%" }}>
+        <MapContainer bounds={positions} boundsOptions={{ padding: [20, 20] }} className="activity-map">
           <TileLayer
             attribution='&copy; OpenStreetMap contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
