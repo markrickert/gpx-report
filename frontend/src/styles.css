@@ -30,6 +30,17 @@ body {
   font-weight: 600;
 }
 
+.units-toggle {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid #4b5563;
+  color: white;
+  border-radius: 4px;
+  padding: 0.25rem 0.6rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .content {
   padding: 1.5rem 2rem;
   max-width: 1400px;
