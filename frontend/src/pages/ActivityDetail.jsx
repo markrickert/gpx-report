@@ -73,6 +73,12 @@ export default function ActivityDetail() {
     km: (p.distanceMeters / 1000).toFixed(2),
     elevation: p.elevation,
   }));
+  const elevations = elevationData.map((p) => p.elevation);
+  const elevationPadding = 10;
+  const elevationDomain =
+    elevations.length > 0
+      ? [Math.floor(Math.min(...elevations) - elevationPadding), Math.ceil(Math.max(...elevations) + elevationPadding)]
+      : [0, "auto"];
 
   return (
     <div>
@@ -106,7 +112,7 @@ export default function ActivityDetail() {
         <LineChart data={elevationData}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="km" label={{ value: "Distance (km)", position: "insideBottom", offset: -5 }} />
-          <YAxis label={{ value: "Elevation (m)", angle: -90, position: "insideLeft" }} />
+          <YAxis domain={elevationDomain} label={{ value: "Elevation (m)", angle: -90, position: "insideLeft" }} />
           <Tooltip />
           <Line type="monotone" dataKey="elevation" stroke="#2563eb" dot={false} />
         </LineChart>
