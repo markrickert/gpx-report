@@ -117,6 +117,8 @@ your-project-root/
         *   **Triggered by API mutation:** The `reanalyze` mutation could explicitly call this script.
         *   **File watcher daemon:** Automatically watches the GPX directory.
 
+Note: both the file watcher (on startup, when it sees every pre-existing file) and the `reanalyze*` mutations process files with bounded concurrency (a small in-process queue / batches of 5) rather than firing all of them at Postgres at once. This matters in practice — the default `pg.Pool` size is 10, and syncing in a large backlog (e.g. seeding the app with hundreds of historical tracks at once) will otherwise open far more simultaneous connections than the pool can serve, causing a chunk of files to fail with `Connection terminated unexpectedly`. If you ever see that error on a bulk ingest, it's a concurrency/pool-exhaustion symptom, not a bad GPX file — re-running `reanalyzeAllActivities` is safe (upserts are idempotent) but shouldn't be necessary now that both ingestion paths are queued.
+
 ## 6. Syncing GPX Files from Your Phone (Syncthing)
 
 `docker-compose.yml` includes a `syncthing` service that syncs `.gpx` files directly from your Android phone into `data/gpx/`, no cloud intermediary. One-time setup:
@@ -136,8 +138,9 @@ your-project-root/
     *   Set the folder type to **Send Only** on the phone (the phone should never receive changes back).
 7.  **Accept the folder on the server:**
     *   The server web GUI will show an incoming folder offer — click **Add**.
-    *   Set the folder path to `/var/syncthing/gpx` (this is mounted to `./data/gpx` on the host).
+    *   Set the folder path to the **absolute** path `/var/syncthing/gpx` (this is mounted to `./data/gpx` on the host). Don't leave it as a relative path (e.g. just `gpx` or a label like `GpxSync`) — Syncthing resolves a relative path against its working directory, which in this container is filesystem root (`/`), not `$HOME`/`/var/syncthing`. A relative path silently lands files outside any mounted volume, in the container's writable layer — they'd vanish on the next `docker compose up --build`, and the backend's watcher (which only sees `./data/gpx`) would never ingest them. This bit us once already; the absolute path is the fix.
     *   Set the folder type to **Receive Only** (the server should never push changes to your phone).
+    *   If you ever repoint an existing folder's path via the GUI or REST API rather than accepting it fresh, Syncthing requires a `.stfolder` marker file at the folder root before it'll scan — a safety guard against operating on an accidentally-empty/unmounted path. Create it with `touch /var/syncthing/gpx/.stfolder` (from inside the container) if a rescan fails with `folder marker missing`.
 8.  **Export tracks from Organic Maps into that folder:**
     *   Organic Maps has no auto-export-to-folder option, so this is a manual step per activity: open **Bookmarks and Tracks**, tap the track you just recorded, tap **Share**, and choose **GPX** as the format.
     *   In the Android share sheet, pick **Syncthing** (it registers itself as a share target), then choose the "GPX Uploads" folder from step 6.
@@ -161,6 +164,20 @@ If you're putting the Syncthing **web GUI** behind a reverse proxy on a custom d
     Adapt this to a dedicated site block (`gpx-report-syncthing.example.com { reverse_proxy localhost:8384 { header_up Host {upstream_hostport} } }`) rather than a path prefix, since that's how it's set up here. If for some reason you can't control the `Host` header at the proxy, the alternative is setting `insecureSkipHostcheck` to `true` in the `<gui>` block of Syncthing's `config.xml` ([documented here](https://docs.syncthing.net/users/config.html)) — lower-risk than usual since this is only reachable over Tailscale, but the header rewrite is the cleaner fix.
 
 *   **Sync protocol port (22000) is not HTTP** — it's a raw TCP/QUIC(UDP) protocol between Syncthing instances, so it can't go through a normal Caddy `reverse_proxy` directive the way the GUI can (that's HTTP/1.1 or HTTP/2 aware, not a raw TCP/UDP passthrough, unless you're using Caddy's non-default `layer4` plugin). Since you're already on Tailscale, there's no need to proxy this through Caddy or a public domain at all — Syncthing will connect device-to-device directly over the Tailscale interface. Don't route port 22000 through the Caddy site meant for the GUI; if a Caddyfile block for it exists, it's likely a no-op at best.
+
+### Exposing the GraphQL API Through a Reverse Proxy
+
+The frontend is a static bundle — Vite bakes `VITE_GRAPHQL_URL` into the built JS at **image build time**, not at container runtime. `docker-compose.yml`'s `frontend` build arg sets this to `https://gpx-report-api.example.com/graphql`, meaning the browser (wherever it's running — your laptop, your phone) needs to be able to resolve and reach that domain directly; it does **not** matter what the backend container's address looks like from inside the Docker network.
+
+*   **`http://localhost:4000/graphql` will not work** as this value once it's baked into a bundle served to a browser on a different machine than the server — "localhost" then means the browser's own device, which has nothing listening on port 4000. This caused an initial "Failed to fetch" on the dashboard; the fix was adding a real routable domain.
+*   **Add a Caddy site for it**, matching the pattern already used for Syncthing's GUI:
+    ```
+    gpx-report-api.example.com {
+        reverse_proxy localhost:4000
+    }
+    ```
+    Unlike Syncthing, Apollo Server doesn't do `Host`-header validation, so no header rewrite is needed here.
+*   **Any time `VITE_GRAPHQL_URL` changes, the frontend image must be rebuilt** (`docker compose up -d --build frontend`) — restarting the existing container alone won't pick up a new build arg, since it's compiled into the static JS, not read from the environment at runtime.
 
 ## 7. Deployment Notes (Proxmox LXC)
 
