@@ -62,3 +62,4 @@ Deployed via `docker compose` on a Proxmox LXC host behind Caddy (see `docs/SETU
 - `.env` is gitignored; a fresh host needs `cp .env.example .env` with a real `POSTGRES_PASSWORD` before first `docker compose up`.
 - The frontend image build (`npm install` + `vite build`) is the slow step (~8–10 min on a fresh host) — don't assume a long `docker compose up --build` is hung.
 - Syncthing needs `PUID`/`PGID` left at `0` (root) in `docker-compose.yml`, or it crash-loops on first boot trying to write its cert into a root-owned config volume.
+- `code-server` (browser-based VS Code, port 8443) is bind-mounted read-write at the repo root and runs with `--auth none` — no login. It relies entirely on the Tailscale/LAN network boundary for access control, same as the Syncthing GUI and Postgres port. Never add a public Caddy site for it. See `docs/SETUP.md` §7.
