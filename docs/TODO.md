@@ -8,6 +8,7 @@ Tracks work that is planned/wanted but not yet implemented, plus gaps found when
 
 ## Known gaps
 
+- [ ] **No way to edit activity metadata (e.g. title) from the app.** Wanted: an edit affordance on the Activity Detail page for title/other metadata, and the edit needs to write back to the source `.gpx` file in `data/gpx/`, not just the DB row — otherwise a `reanalyzeAllActivities` re-parse would silently overwrite the edit with whatever the GPX file still says. Needs a GraphQL mutation plus a GPX writer (nothing in `backend/src/gpx/` currently writes files, only reads/parses).
 - [ ] **Dashboard activity list has no visual per-activity indicator.** Each list item (`frontend/src/pages/Dashboard.jsx`) is text-only (type, date, distance, duration). Wanted: a small representative map thumbnail or activity-type icon per row, so the list is scannable at a glance instead of by reading text.
 - [ ] **No pagination / "load more" on the Dashboard activity list.** `activities(limit, offset)` supports paging, but `frontend/src/pages/Dashboard.jsx` calls it with a hardcoded `limit: 50` and never passes `offset`. Activities beyond the 50 most recent (optionally filtered by type) are currently invisible in the UI with no way to reach them.
 - [ ] **`aggregatedStatsByType` query is unused.** It's fully implemented in the resolvers/schema but no frontend page calls it — there's no per-activity-type breakdown view (e.g. "total running distance this year").
