@@ -359,6 +359,7 @@ export default function ActivityDetail() {
           <XAxis dataKey="idx" xAxisId="idx" hide allowDuplicatedCategory={false} />
           <YAxis
             domain={elevationDomain}
+            tickFormatter={(value) => Math.round(value)}
             label={{ value: `Elevation (${elevationUnitLabel(unit)})`, angle: -90, position: "insideLeft" }}
           />
           <Tooltip
