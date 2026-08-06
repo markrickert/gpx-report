@@ -15,7 +15,7 @@ There is no Python anywhere in this stack — GPX parsing is done in Node via th
 ```
 gpx-report/
 ├── .env.example
-├── docker-compose.yml       # db (postgis), backend, frontend, syncthing services
+├── docker-compose.yml       # db (postgis), backend, frontend, syncthing, code-server services
 ├── data/gpx/                # GPX drop directory, bind-mounted into backend + syncthing
 ├── frontend/                 # React (Vite) application
 │   ├── src/
@@ -127,7 +127,17 @@ The frontend is a static bundle — Vite bakes `VITE_GRAPHQL_URL` into the built
     Unlike Syncthing, Apollo Server doesn't do `Host`-header validation, so no header rewrite is needed here.
 *   **Any time `VITE_GRAPHQL_URL` changes, the frontend image must be rebuilt** (`docker compose up -d --build frontend`) — restarting the existing container alone won't pick up a new build arg, since it's compiled into the static JS, not read from the environment at runtime.
 
-## 7. Deployment Notes (Proxmox LXC)
+## 7. Browser-Based Editing (code-server)
+
+`docker-compose.yml` includes a `code-server` service (`codercom/code-server`) — a full VS Code instance in the browser, with a terminal, bind-mounted read-write at the repo root (`./:/home/coder/project`).
+
+*   **Start it:** `docker compose up -d code-server`, then open `http://<server-ip>:8443` (or `http://localhost:8443` if you're on the same machine).
+*   **No login.** It's started with `--auth none`, so anyone who can reach port 8443 has a shell and write access to the whole repo — no password, no prompt. This is intentional for this deployment (see below), not an oversight.
+*   **Never expose this publicly.** Do not add a Caddy site for it the way there is for the GraphQL API or Syncthing GUI, and do not port-forward 8443 anywhere but a private network. It's meant to be reached only over Tailscale (or LAN), the same trust boundary the rest of this deployment already relies on for anything unauthenticated (see the pool/Postgres port, the Syncthing GUI before its own login is set, etc.). If you ever need this reachable from an untrusted network, set a real password instead (`PASSWORD=...` env var in place of `--auth none` in the `command:`) before opening it up.
+*   **Editor state (extensions, settings) persists** in the `code_server_data` named volume, separate from the repo bind mount, so `docker compose down`/`up` doesn't lose installed extensions.
+*   Changes made through it land directly on the host filesystem (it's a bind mount, not a copy) — `git status` on the host will show them immediately, same as editing the files directly.
+
+## 8. Deployment Notes (Proxmox LXC)
 
 Running this in a Proxmox LXC container (as opposed to a full VM) has a couple of quirks worth knowing before you deploy:
 

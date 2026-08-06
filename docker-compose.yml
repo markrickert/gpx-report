@@ -66,6 +66,23 @@ services:
       - "22000:22000/udp"
       - "21027:21027/udp" # Local discovery
 
+  code-server:
+    image: codercom/code-server:latest
+    container_name: gpx-report-code-server
+    restart: unless-stopped
+    # No built-in auth (--auth none): this container has full read/write
+    # access to the repo (and a shell) via the browser. It must never be
+    # reachable except over Tailscale — do not add a public Caddy site for
+    # it the way there is for the Syncthing GUI / GraphQL API. See
+    # docs/SETUP.md.
+    command: --auth none --bind-addr 0.0.0.0:8080 /home/coder/project
+    volumes:
+      - ./:/home/coder/project
+      - code_server_data:/home/coder/.local
+    ports:
+      - "8443:8080"
+
 volumes:
   db_data:
   syncthing_config:
+  code_server_data:
