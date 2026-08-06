@@ -5,10 +5,9 @@ Tracks work that is planned/wanted but not yet implemented, plus gaps found when
 ## Planned features
 
 - [ ] **Graceful degradation without JavaScript.** The frontend is a pure client-rendered Vite/React SPA with an empty `<div id="root">` — JS disabled currently means a blank page. Fixing this for real needs SSR/static pre-rendering, a genuine architecture shift, not a small tweak. Scope (which routes, read-only vs. the editing/trim features that need client interactivity anyway) still needs a decision before committing to a framework.
-- [ ] **Audit test coverage and write unit tests where missing.** No test runner/tests exist anywhere in the repo (see Known gaps below) — needs an inventory of what most needs coverage (parsers — `gpx/parser.js`, `igc/parser.js`, `skiz/parser.js` — are the highest-value target, being pure functions with tricky edge cases) before picking a test runner and writing tests. Docs (`CLAUDE.md`/`docs/*.md`) should gain a "running tests" section once a runner exists, and new-feature docs going forward should note what tests back them.
-
 ## Done
 
+- [x] **Unit tests for GPX/IGC/`.skiz` parsers, Vitest added as test runner** (2026-08-06) — `backend/src/{gpx,igc,skiz}/parser.test.js`, 23 tests covering happy-path metric computation, title/activity-type resolution and fallbacks, malformed-input handling, and the "too few points" error paths. `npm test` (backend) runs `vitest run`. Backend-only for now — no parser/pure-function code on the frontend to prioritize next.
 - [x] **Dark-mode map background flashes white before tiles load** (2026-08-06) — `.activity-map`/`.heatmap-map` get `var(--bg-elevated)` background under `:root[data-theme="dark"]`, so no white flash before CARTO's dark tiles finish loading.
 - [x] **Thousands separators on Dashboard summary stats** (2026-08-06) — `formatDistance`/`formatElevation` in `units.jsx` and `totalActivities` in Dashboard.jsx now use `toLocaleString()` for grouping.
 - [x] **`.skiz` file support (Ski Tracks app exports)** (2026-08-06) — new `skiz/parser.js` unzips the export via `adm-zip` and parses its headerless `Nodes.csv`, with title/activity type regex-extracted from `Track.xml`; reuses `igc/parser.js`'s `haversineMeters` for distance/speed/elevation stats. `processor.js`/watcher dispatch by extension. First implementation guessed the wrong format entirely (researched a similarly-named but unrelated "Slopes" app export before any real sample was available); corrected once 91 real `.skiz` files turned up — recovered from the Syncthing container's writable layer, where they'd been stranded at `/GpxSync` (a stale pre-bind-mount sync path, not a volume) since before `data/gpx` was bind-mounted — and copied into `data/gpx`, all 91 parsing and ingesting cleanly.
@@ -50,7 +49,7 @@ Tracks work that is planned/wanted but not yet implemented, plus gaps found when
 ## Known gaps
 
 - [ ] **No DB migration tooling.** `backend/db/init.sql` only runs against a fresh volume. Any schema change to an already-deployed instance needs a manual `psql`/`ALTER` step. Fine for now (single-user, low change rate) but worth a lightweight migration runner if schema churn picks up.
-- [ ] **No automated tests or typecheck config anywhere in the repo.** ESLint/Prettier now exist (see Done above); tests and typechecking are still unaddressed.
+- [ ] **No typecheck config anywhere in the repo.** ESLint/Prettier and backend parser unit tests now exist (see Done above); typechecking is still unaddressed, and frontend/GraphQL-layer test coverage remains thin.
 - [ ] **No auth on the API or frontend.** Acceptable for now since the intended deployment is Caddy + Tailscale (see `docs/SETUP.md` §6 reverse-proxy notes), but if the API/frontend domains are ever exposed outside Tailscale, this becomes a real gap, not just a v1 simplification.
 
 ## Explicitly out of scope for v1 (not gaps, just noting so they don't get re-litigated)

@@ -18,7 +18,7 @@ docker compose up --build
 - Postgres/PostGIS: localhost:5432
 - Syncthing GUI (GPX sync from phone, optional): http://localhost:8384 — start separately with `docker compose up -d syncthing`
 
-There is no test suite. ESLint (flat config, `backend/eslint.config.js` and `frontend/eslint.config.js`) and Prettier (`.prettierrc.json` at repo root) are set up — see "Linting/formatting" below.
+The backend has a Vitest suite covering the GPX/IGC/`.skiz` parsers (`backend/src/{gpx,igc,skiz}/parser.test.js`) — run with `cd backend && npm test`. Nothing else in the repo (resolvers, processor, frontend) has test coverage yet. ESLint (flat config, `backend/eslint.config.js` and `frontend/eslint.config.js`) and Prettier (`.prettierrc.json` at repo root) are set up — see "Linting/formatting" below.
 
 ### Getting code changes live (this deployment)
 
