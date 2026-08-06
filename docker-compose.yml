@@ -41,8 +41,8 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_GRAPHQL_URL: https://gpx-report-api.example.com/graphql
-        VITE_CODE_SERVER_URL: https://gpx-report-code.example.com
+        VITE_GRAPHQL_URL: ${VITE_GRAPHQL_URL}
+        VITE_CODE_SERVER_URL: ${VITE_CODE_SERVER_URL}
     container_name: gpx-report-frontend
     restart: unless-stopped
     depends_on:
