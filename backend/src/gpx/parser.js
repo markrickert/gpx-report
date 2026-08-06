@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import GpxParser from "gpxparser";
+import { haversineMeters } from "../track/geo.js";
+import { filterOutlierPoints } from "../track/outliers.js";
 
 const KNOWN_ACTIVITY_TYPES = [
   "running",
@@ -33,7 +35,7 @@ const ACTIVITY_TYPE_LABELS = {
 // the frontend's preselected list back into the raw <trk><type> value that
 // resolveActivityType() above will read back as that same label.
 const LABEL_TO_ACTIVITY_TYPE = Object.fromEntries(
-  Object.entries(ACTIVITY_TYPE_LABELS).map(([raw, label]) => [label, raw])
+  Object.entries(ACTIVITY_TYPE_LABELS).map(([raw, label]) => [label, raw]),
 );
 
 export function activityTypeToRawType(label) {
@@ -82,40 +84,66 @@ export async function parseGpxFile(filePath) {
   const gpx = new GpxParser();
   gpx.parse(xml);
 
-  const points = gpx.tracks.flatMap((track) => track.points);
-  if (points.length < 2) {
+  const totalRawPoints = gpx.tracks.reduce((sum, t) => sum + t.points.length, 0);
+  if (totalRawPoints < 2) {
     throw new Error(`GPX file ${filePath} does not contain enough track points`);
   }
 
-  const distanceMeters = gpx.tracks.reduce((sum, t) => sum + t.distance.total, 0);
-  const elevationGain = gpx.tracks.reduce((sum, t) => sum + (t.elevation.pos || 0), 0);
-  const elevationLoss = gpx.tracks.reduce((sum, t) => sum + (t.elevation.neg || 0), 0);
-
-  const startTime = points[0].time ? new Date(points[0].time) : null;
-  const endTime = points[points.length - 1].time ? new Date(points[points.length - 1].time) : null;
-  const durationSeconds =
-    startTime && endTime ? Math.max(0, Math.round((endTime - startTime) / 1000)) : 0;
-
-  const avgSpeedMps = durationSeconds > 0 ? distanceMeters / durationSeconds : null;
-  const maxSpeedMps = computeMaxSpeed(gpx.tracks);
-
+  let distanceMeters = 0;
+  let elevationGain = 0;
+  let elevationLoss = 0;
+  let maxSpeedMps = 0;
   let cumulativeDistance = 0;
   const elevationProfile = [];
-  gpx.tracks.forEach((track) => {
-    track.points.forEach((p, i) => {
-      const segmentDistance = i === 0 ? 0 : track.distance.cumul[i] - track.distance.cumul[i - 1];
-      cumulativeDistance += segmentDistance;
+  const allPoints = [];
+
+  for (const track of gpx.tracks) {
+    const normalized = track.points.map((p) => ({
+      lat: p.lat,
+      lon: p.lon,
+      elevation: p.ele ?? null,
+      timestamp: p.time ? new Date(p.time).getTime() : null,
+    }));
+    const points = filterOutlierPoints(normalized);
+
+    points.forEach((p, i) => {
       let speedMps = null;
       if (i > 0) {
-        const prev = track.points[i - 1];
-        if (prev.time && p.time) {
-          const dtSeconds = (new Date(p.time) - new Date(prev.time)) / 1000;
-          if (dtSeconds > 0) speedMps = segmentDistance / dtSeconds;
+        const prev = points[i - 1];
+        const segmentDistance = haversineMeters(prev, p);
+        distanceMeters += segmentDistance;
+        cumulativeDistance += segmentDistance;
+
+        if (p.elevation != null && prev.elevation != null) {
+          const elevationDelta = p.elevation - prev.elevation;
+          if (elevationDelta > 0) elevationGain += elevationDelta;
+          else elevationLoss += -elevationDelta;
+        }
+
+        if (prev.timestamp && p.timestamp) {
+          const dtSeconds = (p.timestamp - prev.timestamp) / 1000;
+          if (dtSeconds > 0) {
+            speedMps = segmentDistance / dtSeconds;
+            if (speedMps > maxSpeedMps) maxSpeedMps = speedMps;
+          }
         }
       }
-      elevationProfile.push({ distanceMeters: cumulativeDistance, elevation: p.ele ?? null, speedMps });
+      elevationProfile.push({
+        distanceMeters: cumulativeDistance,
+        elevation: p.elevation,
+        speedMps,
+      });
+      allPoints.push(p);
     });
-  });
+  }
+
+  const startTime = allPoints[0].timestamp ? new Date(allPoints[0].timestamp) : null;
+  const endTime = allPoints[allPoints.length - 1].timestamp
+    ? new Date(allPoints[allPoints.length - 1].timestamp)
+    : null;
+  const durationSeconds =
+    startTime && endTime ? Math.max(0, Math.round((endTime - startTime) / 1000)) : 0;
+  const avgSpeedMps = durationSeconds > 0 ? distanceMeters / durationSeconds : null;
 
   const primaryTrack = gpx.tracks[0];
 
@@ -127,32 +155,15 @@ export async function parseGpxFile(filePath) {
     durationSeconds,
     distanceMeters,
     avgSpeedMps,
-    maxSpeedMps,
+    maxSpeedMps: maxSpeedMps || null,
     totalElevationGain: elevationGain,
     totalElevationLoss: elevationLoss,
-    points: points.map((p) => ({
+    points: allPoints.map((p) => ({
       lat: p.lat,
       lon: p.lon,
-      elevation: p.ele ?? null,
-      timestamp: p.time ? new Date(p.time).getTime() : null,
+      elevation: p.elevation,
+      timestamp: p.timestamp,
     })),
     elevationProfile,
   };
-}
-
-function computeMaxSpeed(tracks) {
-  let maxSpeed = 0;
-  for (const track of tracks) {
-    for (let i = 1; i < track.points.length; i++) {
-      const prev = track.points[i - 1];
-      const curr = track.points[i];
-      if (!prev.time || !curr.time) continue;
-      const dtSeconds = (new Date(curr.time) - new Date(prev.time)) / 1000;
-      if (dtSeconds <= 0) continue;
-      const dDistance = track.distance.cumul[i] - track.distance.cumul[i - 1];
-      const speed = dDistance / dtSeconds;
-      if (speed > maxSpeed) maxSpeed = speed;
-    }
-  }
-  return maxSpeed || null;
 }
