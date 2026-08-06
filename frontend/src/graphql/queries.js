@@ -71,3 +71,17 @@ export const REANALYZE_RANGE = gql`
     }
   }
 `;
+
+export const GET_STATS_BY_TYPE = gql`
+  query GetStatsByType {
+    aggregatedStatsByType {
+      activityType
+      count
+      totalDistanceMeters
+      totalDurationSeconds
+      averageDistanceMeters
+      averageDurationSeconds
+      averageElevationGainMeters
+    }
+  }
+`;
