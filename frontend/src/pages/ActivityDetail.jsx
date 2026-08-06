@@ -1,10 +1,35 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client";
-import { MapContainer, TileLayer, Polyline } from "react-leaflet";
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceArea, ReferenceLine, ReferenceDot } from "recharts";
-import { GET_ACTIVITY, UPDATE_ACTIVITY_TITLE, UPDATE_ACTIVITY_TYPE, TRIM_ACTIVITY } from "../graphql/queries.js";
-import { useUnits, formatDistance, formatElevation, formatSpeed, distanceValue, elevationValue, distanceUnitLabel, elevationUnitLabel } from "../units.jsx";
+import { MapContainer, TileLayer, Polyline, CircleMarker } from "react-leaflet";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+  ReferenceArea,
+  ReferenceLine,
+  ReferenceDot,
+} from "recharts";
+import {
+  GET_ACTIVITY,
+  UPDATE_ACTIVITY_TITLE,
+  UPDATE_ACTIVITY_TYPE,
+  TRIM_ACTIVITY,
+} from "../graphql/queries.js";
+import {
+  useUnits,
+  formatDistance,
+  formatElevation,
+  formatSpeed,
+  distanceValue,
+  elevationValue,
+  distanceUnitLabel,
+  elevationUnitLabel,
+} from "../units.jsx";
 import { useTheme } from "../theme.jsx";
 import { ACTIVITY_TYPES } from "../activityTypes.js";
 
@@ -91,11 +116,17 @@ function ActivityHeader({ activity, editMode, onEditModeChange }) {
       />
       <select value={typeDraft} onChange={(e) => setTypeDraft(e.target.value)} disabled={saving}>
         {ACTIVITY_TYPES.map((type) => (
-          <option key={type} value={type}>{type}</option>
+          <option key={type} value={type}>
+            {type}
+          </option>
         ))}
       </select>
-      <button onClick={save} disabled={saving}>Save</button>
-      <button onClick={() => onEditModeChange(false)} disabled={saving}>Cancel</button>
+      <button onClick={save} disabled={saving}>
+        Save
+      </button>
+      <button onClick={() => onEditModeChange(false)} disabled={saving}>
+        Cancel
+      </button>
       {error && <p className="title-edit-error">Failed to save: {error}</p>}
     </div>
   );
@@ -187,7 +218,7 @@ function TrimControls({ activity, pointCount, trimRange, onSaved }) {
   const save = async () => {
     if (
       !window.confirm(
-        "Trimming permanently deletes the selected track points from the source GPX file. This cannot be undone. Continue?"
+        "Trimming permanently deletes the selected track points from the source GPX file. This cannot be undone. Continue?",
       )
     ) {
       return;
@@ -206,8 +237,12 @@ function TrimControls({ activity, pointCount, trimRange, onSaved }) {
 
   return (
     <div className="trim-controls">
-      <p className="chart-hint">Drag the two vertical handles on the chart above to set the trim range.</p>
-      <button onClick={save} disabled={saving || !trimmed}>Trim &amp; Save</button>
+      <p className="chart-hint">
+        Drag the two vertical handles on the chart above to set the trim range.
+      </p>
+      <button onClick={save} disabled={saving || !trimmed}>
+        Trim &amp; Save
+      </button>
       {error && <p className="title-edit-error">Failed to save: {error}</p>}
     </div>
   );
@@ -221,6 +256,7 @@ export default function ActivityDetail() {
   const [editMode, setEditMode] = useState(false);
   const [trimRange, setTrimRange] = useState(null);
   const [dragging, setDragging] = useState(null); // null | "start" | "end"
+  const [hoverIndex, setHoverIndex] = useState(null); // synced chart<->map hover position
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p>Error loading activity: {error.message}</p>;
@@ -238,7 +274,10 @@ export default function ActivityDetail() {
   const elevationPadding = unit === "imperial" ? 30 : 10;
   const elevationDomain =
     elevations.length > 0
-      ? [Math.floor(Math.min(...elevations) - elevationPadding), Math.ceil(Math.max(...elevations) + elevationPadding)]
+      ? [
+          Math.floor(Math.min(...elevations) - elevationPadding),
+          Math.ceil(Math.max(...elevations) + elevationPadding),
+        ]
       : [0, "auto"];
   const elevationMid = elevations.length > 0 ? (elevationDomain[0] + elevationDomain[1]) / 2 : 0;
   const speedGradientStops = buildSpeedGradientStops(elevationData, activity.maxSpeedMps);
@@ -254,7 +293,11 @@ export default function ActivityDetail() {
   // chart margins/axis width. Same handler serves mouse and touch since
   // recharts passes the same shape of state for both.
   const handleChartDrag = (state) => {
-    if (!dragging) return;
+    if (!dragging) {
+      const idx = state?.activeTooltipIndex;
+      setHoverIndex(idx == null ? null : idx);
+      return;
+    }
     const idx = state?.activeTooltipIndex;
     if (idx == null) return;
     if (dragging === "start") {
@@ -264,6 +307,26 @@ export default function ActivityDetail() {
     }
   };
   const endDrag = () => setDragging(null);
+  const clearHover = () => setHoverIndex(null);
+
+  // Finds the closest track point to a map mousemove event, so hovering the
+  // route on the map can drive the same hoverIndex the elevation chart uses.
+  // Nearest-neighbor scan over visiblePositions is fine here: single-activity
+  // tracks top out at a few thousand points, no spatial index needed.
+  const handleMapHover = (e) => {
+    if (visiblePositions.length === 0) return;
+    const { lat, lng } = e.latlng;
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    visiblePositions.forEach(([plat, plon], i) => {
+      const d = (plat - lat) ** 2 + (plon - lng) ** 2;
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    });
+    setHoverIndex(bestIdx + trimStart);
+  };
 
   const enterEditMode = () => {
     setTrimRange([0, elevationData.length - 1]);
@@ -284,51 +347,71 @@ export default function ActivityDetail() {
 
       <div className="metrics-grid">
         <div className="metric-tile">
-          <span className="metric-icon" aria-hidden="true">⏱</span>
+          <span className="metric-icon" aria-hidden="true">
+            ⏱
+          </span>
           <span className="metric-body">
             <span className="metric-value">{formatDuration(activity.durationSeconds)}</span>
             <span className="metric-label">Duration</span>
           </span>
         </div>
         <div className="metric-tile">
-          <span className="metric-icon" aria-hidden="true">📏</span>
+          <span className="metric-icon" aria-hidden="true">
+            📏
+          </span>
           <span className="metric-body">
             <span className="metric-value">{formatDistance(activity.distanceMeters, unit)}</span>
             <span className="metric-label">Distance</span>
           </span>
         </div>
         <div className="metric-tile">
-          <span className="metric-icon" aria-hidden="true">⚡</span>
+          <span className="metric-icon" aria-hidden="true">
+            ⚡
+          </span>
           <span className="metric-body">
             <span className="metric-value">{formatSpeed(activity.avgSpeedMps, unit)}</span>
             <span className="metric-label">Avg Speed</span>
           </span>
         </div>
         <div className="metric-tile">
-          <span className="metric-icon" aria-hidden="true">🚀</span>
+          <span className="metric-icon" aria-hidden="true">
+            🚀
+          </span>
           <span className="metric-body">
             <span className="metric-value">{formatSpeed(activity.maxSpeedMps, unit)}</span>
             <span className="metric-label">Max Speed</span>
           </span>
         </div>
         <div className="metric-tile">
-          <span className="metric-icon" aria-hidden="true">⛰️</span>
+          <span className="metric-icon" aria-hidden="true">
+            ⛰️
+          </span>
           <span className="metric-body">
-            <span className="metric-value">{formatElevation(activity.totalElevationGain, unit)}</span>
+            <span className="metric-value">
+              {formatElevation(activity.totalElevationGain, unit)}
+            </span>
             <span className="metric-label">Elevation Gain</span>
           </span>
         </div>
         <div className="metric-tile">
-          <span className="metric-icon" aria-hidden="true">📉</span>
+          <span className="metric-icon" aria-hidden="true">
+            📉
+          </span>
           <span className="metric-body">
-            <span className="metric-value">{formatElevation(activity.totalElevationLoss, unit)}</span>
+            <span className="metric-value">
+              {formatElevation(activity.totalElevationLoss, unit)}
+            </span>
             <span className="metric-label">Elevation Loss</span>
           </span>
         </div>
       </div>
 
       {visiblePositions.length > 0 && (
-        <MapContainer bounds={visiblePositions} boundsOptions={{ padding: [20, 20] }} className="activity-map">
+        <MapContainer
+          bounds={visiblePositions}
+          boundsOptions={{ padding: [20, 20] }}
+          className="activity-map"
+        >
           {theme === "dark" ? (
             <TileLayer
               attribution='&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -337,22 +420,44 @@ export default function ActivityDetail() {
             />
           ) : (
             <TileLayer
-              attribution='&copy; OpenStreetMap contributors'
+              attribution="&copy; OpenStreetMap contributors"
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
           )}
-          <Polyline positions={visiblePositions} />
+          <Polyline
+            positions={visiblePositions}
+            eventHandlers={{
+              mousemove: handleMapHover,
+              mouseout: clearHover,
+            }}
+          />
+          {hoverIndex != null &&
+            hoverIndex >= trimStart &&
+            hoverIndex <= trimEnd &&
+            positions[hoverIndex] && (
+              <CircleMarker
+                center={positions[hoverIndex]}
+                radius={6}
+                pathOptions={{ color: "#fff", weight: 2, fillColor: "#2563eb", fillOpacity: 1 }}
+                interactive={false}
+              />
+            )}
         </MapContainer>
       )}
 
       <h2>Elevation Profile</h2>
-      <p className="chart-hint">Line color shows speed (blue = fast, red = slow); shaded bands mark rest stops.</p>
+      <p className="chart-hint">
+        Line color shows speed (blue = fast, red = slow); shaded bands mark rest stops.
+      </p>
       <ResponsiveContainer width="100%" height={250} className="elevation-chart">
         <LineChart
           data={elevationData}
           onMouseMove={handleChartDrag}
           onMouseUp={endDrag}
-          onMouseLeave={endDrag}
+          onMouseLeave={() => {
+            endDrag();
+            clearHover();
+          }}
           onTouchMove={handleChartDrag}
           onTouchEnd={endDrag}
         >
@@ -366,7 +471,11 @@ export default function ActivityDetail() {
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis
             dataKey="dist"
-            label={{ value: `Distance (${distanceUnitLabel(unit)})`, position: "insideBottom", offset: -5 }}
+            label={{
+              value: `Distance (${distanceUnitLabel(unit)})`,
+              position: "insideBottom",
+              offset: -5,
+            }}
           />
           {/* Hidden axis keyed by point index rather than "dist": recharts'
               category-axis Reference* lookup silently fails to render at all
@@ -377,7 +486,11 @@ export default function ActivityDetail() {
           <YAxis
             domain={elevationDomain}
             tickFormatter={(value) => Math.round(value)}
-            label={{ value: `Elevation (${elevationUnitLabel(unit)})`, angle: -90, position: "insideLeft" }}
+            label={{
+              value: `Elevation (${elevationUnitLabel(unit)})`,
+              angle: -90,
+              position: "insideLeft",
+            }}
           />
           <Tooltip
             contentStyle={{ background: "rgba(17, 24, 39, 0.92)", border: "none", borderRadius: 6 }}
@@ -396,12 +509,32 @@ export default function ActivityDetail() {
             />
           ))}
           {trimActive && trimStart > 0 && (
-            <ReferenceArea xAxisId="idx" x1={0} x2={trimStart} fill="#ef4444" fillOpacity={0.4} strokeOpacity={0} />
+            <ReferenceArea
+              xAxisId="idx"
+              x1={0}
+              x2={trimStart}
+              fill="#ef4444"
+              fillOpacity={0.4}
+              strokeOpacity={0}
+            />
           )}
           {trimActive && trimEnd < elevationData.length - 1 && (
-            <ReferenceArea xAxisId="idx" x1={trimEnd} x2={elevationData.length - 1} fill="#ef4444" fillOpacity={0.4} strokeOpacity={0} />
+            <ReferenceArea
+              xAxisId="idx"
+              x1={trimEnd}
+              x2={elevationData.length - 1}
+              fill="#ef4444"
+              fillOpacity={0.4}
+              strokeOpacity={0}
+            />
           )}
-          <Line type="monotone" dataKey="elevation" stroke="url(#speedGradient)" strokeWidth={2} dot={false} />
+          <Line
+            type="monotone"
+            dataKey="elevation"
+            stroke="url(#speedGradient)"
+            strokeWidth={2}
+            dot={false}
+          />
           {/* Recharts only recognizes Reference* components as direct chart
               children, not ones nested inside a Fragment/wrapper — each must
               be its own top-level conditional expression here. */}
@@ -457,6 +590,19 @@ export default function ActivityDetail() {
               style={{ cursor: "ew-resize" }}
               onMouseDown={() => setDragging("end")}
               onTouchStart={() => setDragging("end")}
+            />
+          )}
+          {hoverIndex != null && !dragging && elevationData[hoverIndex] && (
+            <ReferenceDot
+              xAxisId="idx"
+              x={hoverIndex}
+              y={elevationData[hoverIndex].elevation}
+              r={5}
+              fill="#2563eb"
+              stroke="#fff"
+              strokeWidth={2}
+              isFront
+              ifOverflow="visible"
             />
           )}
         </LineChart>
