@@ -90,6 +90,12 @@ export const REANALYZE_RANGE = gql`
   }
 `;
 
+export const GET_HEATMAP_POINTS = gql`
+  query GetHeatmapPoints {
+    heatmapPoints
+  }
+`;
+
 export const GET_STATS_BY_TYPE = gql`
   query GetStatsByType {
     aggregatedStatsByType {

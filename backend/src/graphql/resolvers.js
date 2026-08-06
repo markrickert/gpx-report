@@ -24,6 +24,22 @@ function mapActivityRow(row) {
 
 const GPX_FILES_DIRECTORY = process.env.GPX_FILES_DIRECTORY;
 
+// Heatmap points are sent to the browser as [lat, lon, elevation] triples
+// for every activity at once, so each route is capped/sampled rather than
+// sent at full resolution (a few hundred activities at full GPS density
+// would be tens of MB of JSON).
+const MAX_HEATMAP_POINTS_PER_ROUTE = 300;
+
+function sampleRoutePoints(points) {
+  if (!points || points.length <= MAX_HEATMAP_POINTS_PER_ROUTE) return points ?? [];
+  const step = points.length / MAX_HEATMAP_POINTS_PER_ROUTE;
+  const sampled = [];
+  for (let i = 0; i < MAX_HEATMAP_POINTS_PER_ROUTE; i++) {
+    sampled.push(points[Math.floor(i * step)]);
+  }
+  return sampled;
+}
+
 export const resolvers = {
   DateTime: DateTimeScalar,
   JSON: JSONScalar,
@@ -58,7 +74,7 @@ export const resolvers = {
         `SELECT * FROM activities ${whereClause}
          ORDER BY start_time DESC
          LIMIT $${params.length - 1} OFFSET $${params.length}`,
-        params
+        params,
       );
       return rows.map(mapActivityRow);
     },
@@ -101,7 +117,8 @@ export const resolvers = {
       }
       const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
-      const { rows } = await pool.query(`
+      const { rows } = await pool.query(
+        `
         SELECT
           activity_type,
           COUNT(*)::int AS count,
@@ -114,7 +131,9 @@ export const resolvers = {
         ${whereClause}
         GROUP BY activity_type
         ORDER BY activity_type
-      `, params);
+      `,
+        params,
+      );
 
       return rows.map((row) => ({
         activityType: row.activity_type,
@@ -124,8 +143,21 @@ export const resolvers = {
         averageDistanceMeters: Number(row.average_distance_meters),
         averageDurationSeconds: Number(row.average_duration_seconds),
         averageElevationGainMeters:
-          row.average_elevation_gain_meters !== null ? Number(row.average_elevation_gain_meters) : null,
+          row.average_elevation_gain_meters !== null
+            ? Number(row.average_elevation_gain_meters)
+            : null,
       }));
+    },
+
+    heatmapPoints: async () => {
+      const { rows } = await pool.query("SELECT points_data FROM activity_routes");
+      const points = [];
+      for (const row of rows) {
+        for (const p of sampleRoutePoints(row.points_data)) {
+          points.push([p.lat, p.lon, p.elevation ?? null]);
+        }
+      }
+      return points;
     },
   },
 
@@ -184,7 +216,7 @@ export const resolvers = {
     route: async (parent) => {
       const { rows } = await pool.query(
         "SELECT points_data, elevation_profile_data FROM activity_routes WHERE activity_id = $1",
-        [parent.id]
+        [parent.id],
       );
       const row = rows[0];
       return {
