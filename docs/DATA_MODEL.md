@@ -8,14 +8,14 @@ Uses the PostGIS extension for geospatial data.
 
 ### `activities` Table
 
-Stores the primary information for each recorded activity, one row per source file (GPX or IGC).
+Stores the primary information for each recorded activity, one row per source file (GPX, IGC, or Slopes `.slpz`/`.slopes`).
 
 | Column Name        | Data Type         | Constraints                                     | Description                                                 |
 | :----------------- | :---------------- | :----------------------------------------------- | :---------------------------------------------------------- |
 | `id`               | `SERIAL`          | `PRIMARY KEY`                                   | Unique identifier for the activity.                         |
-| `gpx_filename`     | `VARCHAR(255)`    | `NOT NULL`, `UNIQUE`                            | Original filename of the source file (`.gpx` or `.igc`, despite the column name). Upsert key for re-analysis. |
-| `title`            | `VARCHAR(255)`    | `NOT NULL`                                      | Track/metadata name from the GPX file, falling back to the filename stem; always the filename stem for IGC (no equivalent header). |
-| `activity_type`    | `VARCHAR(50)`     | `NOT NULL`                                      | From the GPX `<trk><type>` tag (mapped to a display label) or guessed from the filename; `'Unknown'` if neither yields a match. Fixed to `'Paragliding'` for IGC files. |
+| `gpx_filename`     | `VARCHAR(255)`    | `NOT NULL`, `UNIQUE`                            | Original filename of the source file (`.gpx`, `.igc`, `.slpz`, or `.slopes`, despite the column name). Upsert key for re-analysis. |
+| `title`            | `VARCHAR(255)`    | `NOT NULL`                                      | Track/metadata name from the GPX file, falling back to the filename stem; always the filename stem for IGC/Slopes (no equivalent header). |
+| `activity_type`    | `VARCHAR(50)`     | `NOT NULL`                                      | From the GPX `<trk><type>` tag (mapped to a display label) or guessed from the filename; `'Unknown'` if neither yields a match. Fixed to `'Paragliding'` for IGC files, `'Skiing'` for Slopes files. |
 | `start_time`       | `TIMESTAMPTZ`     | `NOT NULL`                                      | Timestamp of the first track point.                         |
 | `end_time`         | `TIMESTAMPTZ`     | `NOT NULL`                                      | Timestamp of the last track point.                          |
 | `duration_seconds` | `INTEGER`         | `NOT NULL`                                      | `end_time - start_time`, in seconds.                         |
@@ -146,8 +146,8 @@ type Mutation {
 
   # Rewrites the <trk><name> element in the source .gpx file (string
   # replacement, no XML DOM lib) and re-runs processFile() so the DB row
-  # and file stay in sync. Only .gpx activities support this; .igc has no
-  # writer path and the mutation rejects it.
+  # and file stay in sync. Only .gpx activities support this; .igc/.slpz/
+  # .slopes have no writer path and the mutation rejects them.
   updateActivityTitle(id: ID!, title: String!): Activity!
 
   # Same string-replacement approach, targeting <trk><type>. activityType is
@@ -155,7 +155,7 @@ type Mutation {
   # raw <type> value (e.g. "mountain_biking") that parser.js's
   # resolveActivityType() maps back to that same label, via
   # activityTypeToRawType() in gpx/parser.js. Only .gpx activities support
-  # this; .igc has no writer path and the mutation rejects it.
+  # this; .igc/.slpz/.slopes have no writer path and the mutation rejects them.
   updateActivityType(id: ID!, activityType: String!): Activity!
 }
 ```
