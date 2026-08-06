@@ -1,13 +1,62 @@
+import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { useQuery } from "@apollo/client";
+import { useQuery, useMutation } from "@apollo/client";
 import { MapContainer, TileLayer, Polyline } from "react-leaflet";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
-import { GET_ACTIVITY } from "../graphql/queries.js";
+import { GET_ACTIVITY, UPDATE_ACTIVITY_TITLE } from "../graphql/queries.js";
 
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function ActivityTitle({ activity }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(activity.title);
+  const [updateTitle, { loading, error }] = useMutation(UPDATE_ACTIVITY_TITLE);
+
+  if (!editing) {
+    return (
+      <h1>
+        {activity.title}{" "}
+        <button
+          className="title-edit-button"
+          onClick={() => {
+            setDraft(activity.title);
+            setEditing(true);
+          }}
+          aria-label="Edit title"
+        >
+          Edit
+        </button>
+      </h1>
+    );
+  }
+
+  const save = async () => {
+    const title = draft.trim();
+    if (!title || title === activity.title) {
+      setEditing(false);
+      return;
+    }
+    await updateTitle({ variables: { id: activity.id, title } });
+    setEditing(false);
+  };
+
+  return (
+    <div className="title-edit-row">
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        autoFocus
+        disabled={loading}
+      />
+      <button onClick={save} disabled={loading}>Save</button>
+      <button onClick={() => setEditing(false)} disabled={loading}>Cancel</button>
+      {error && <p className="title-edit-error">Failed to save: {error.message}</p>}
+    </div>
+  );
 }
 
 export default function ActivityDetail() {
@@ -27,7 +76,7 @@ export default function ActivityDetail() {
 
   return (
     <div>
-      <h1>{activity.title}</h1>
+      <ActivityTitle activity={activity} />
       <p>
         <span className="activity-type-badge">{activity.activityType}</span>{" "}
         {new Date(activity.startTime).toLocaleString()}

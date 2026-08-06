@@ -10,6 +10,12 @@ body {
   overflow-x: hidden;
 }
 
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
 .nav {
   display: flex;
   flex-wrap: wrap;
@@ -28,6 +34,20 @@ body {
   padding: 1.5rem 2rem;
   max-width: 960px;
   margin: 0 auto;
+}
+
+.content-full {
+  padding: 0;
+  max-width: none;
+  flex: 1;
+  display: flex;
+}
+
+.code-editor-frame {
+  display: block;
+  width: 100%;
+  border: none;
+  flex: 1;
 }
 
 .activity-map {
@@ -101,6 +121,48 @@ body {
   padding: 0.15rem 0.6rem;
   font-size: 0.8rem;
   font-weight: 600;
+}
+
+.title-edit-button {
+  font-size: 0.8rem;
+  font-weight: 400;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.title-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.title-edit-row input {
+  font-size: 1.5rem;
+  padding: 0.2rem 0.5rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.title-edit-row button {
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
+}
+
+.title-edit-error {
+  width: 100%;
+  color: #dc2626;
+  font-size: 0.85rem;
+  margin: 0;
 }
 
 .metrics-row {
