@@ -123,6 +123,10 @@ body {
   height: 48px;
 }
 
+.activity-list-sentinel {
+  height: 1px;
+}
+
 .activity-list-title {
   font-weight: 600;
 }
