@@ -1,11 +1,30 @@
 import path from "node:path";
-import { writeFile, readFile, mkdir } from "node:fs/promises";
+import os from "node:os";
+import { writeFile, readFile, mkdir, copyFile, rm } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { pool } from "../db.js";
-import { reanalyzeAll, reanalyzeByDateRange, processFile } from "../gpx/processor.js";
-import { updateGpxTitle, updateGpxType, trimGpxTrack } from "../gpx/writer.js";
-import { updateSkizTitle, updateSkizType, trimSkizTrack } from "../skiz/writer.js";
+import {
+  reanalyzeAll,
+  reanalyzeByDateRange,
+  processFile,
+  parseActivityFile,
+} from "../gpx/processor.js";
+import {
+  updateGpxTitle,
+  updateGpxType,
+  trimGpxTrack,
+  removeGpxTrackPoints,
+} from "../gpx/writer.js";
+import {
+  updateSkizTitle,
+  updateSkizType,
+  trimSkizTrack,
+  removeSkizTrackPoints,
+} from "../skiz/writer.js";
+import { removeIgcTrackPoints } from "../igc/writer.js";
 import { activityTypeToRawType } from "../gpx/parser.js";
+import { detectOutliers } from "../track/outliers.js";
+import { haversineMeters } from "../track/geo.js";
 import { DateTimeScalar, JSONScalar } from "./scalars.js";
 
 function mapActivityRow(row) {
@@ -50,6 +69,13 @@ const MAX_RECORDED_GPX_BYTES = 10 * 1024 * 1024;
 // sent at full resolution (a few hundred activities at full GPS density
 // would be tens of MB of JSON).
 const MAX_HEATMAP_POINTS_PER_ROUTE = 300;
+
+async function removeTrackPointsByFormat(filePath, filename, indices) {
+  if (filename.endsWith(".skiz")) return removeSkizTrackPoints(filePath, indices);
+  if (filename.endsWith(".igc")) return removeIgcTrackPoints(filePath, indices);
+  if (filename.endsWith(".gpx")) return removeGpxTrackPoints(filePath, indices);
+  throw new Error("Cleaning is only supported for .gpx, .skiz, and .igc files");
+}
 
 function sampleRoutePoints(points) {
   if (!points || points.length <= MAX_HEATMAP_POINTS_PER_ROUTE) return points ?? [];
@@ -180,6 +206,99 @@ export const resolvers = {
       }
       return points;
     },
+
+    activitiesWithOutliers: async () => {
+      const { rows } = await pool.query(`
+        SELECT a.id, a.title, a.activity_type, a.start_time, a.gpx_filename, r.points_data
+        FROM activities a
+        JOIN activity_routes r ON r.activity_id = a.id
+      `);
+      return rows
+        .map((row) => ({
+          activityId: row.id,
+          title: row.title,
+          activityType: row.activity_type,
+          startTime: row.start_time,
+          gpxFilename: row.gpx_filename,
+          outlierPointCount: detectOutliers(row.points_data || []).length,
+        }))
+        .filter((r) => r.outlierPointCount > 0)
+        .sort((a, b) => b.outlierPointCount - a.outlierPointCount);
+    },
+
+    // Runs the removal against a throwaway copy of the source file and
+    // re-parses it with the real format parser, rather than estimating
+    // post-clean distance/speed with a generic haversine pass over
+    // points_data: gpx/parser.js trusts gpxparser's own distance/elevation
+    // algorithm (not haversine) for .gpx files, so a haversine estimate here
+    // would silently disagree with what cleanActivityOutliers actually
+    // produces once saved.
+    activityOutlierDiff: async (_parent, { id }) => {
+      const { rows } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
+      if (!rows[0]) throw new Error(`Activity ${id} not found`);
+      const activityRow = rows[0];
+
+      const { rows: routeRows } = await pool.query(
+        "SELECT points_data FROM activity_routes WHERE activity_id = $1",
+        [id],
+      );
+      const points = routeRows[0]?.points_data || [];
+      const removedIndices = detectOutliers(points);
+
+      const outlierPoints = removedIndices.map((i) => {
+        const prev = points[i - 1];
+        const curr = points[i];
+        let impliedSpeedMps = null;
+        if (prev?.timestamp && curr?.timestamp) {
+          const dtSeconds = (curr.timestamp - prev.timestamp) / 1000;
+          if (dtSeconds > 0) impliedSpeedMps = haversineMeters(prev, curr) / dtSeconds;
+        }
+        return {
+          index: i,
+          lat: curr.lat,
+          lon: curr.lon,
+          elevation: curr.elevation ?? null,
+          timestamp: curr.timestamp ?? null,
+          impliedSpeedMps,
+        };
+      });
+
+      let cleanedPointCount = points.length;
+      let cleanedMaxSpeedMps =
+        activityRow.max_speed_mps !== null ? Number(activityRow.max_speed_mps) : null;
+      let cleanedDistanceMeters = Number(activityRow.distance_meters);
+
+      if (removedIndices.length > 0) {
+        const filename = activityRow.gpx_filename.toLowerCase();
+        const originalPath = path.join(GPX_FILES_DIRECTORY, activityRow.gpx_filename);
+        const tempPath = path.join(
+          os.tmpdir(),
+          `outlier-preview-${randomBytes(6).toString("hex")}${path.extname(activityRow.gpx_filename)}`,
+        );
+        await copyFile(originalPath, tempPath);
+        try {
+          await removeTrackPointsByFormat(tempPath, filename, removedIndices);
+          const parsed = await parseActivityFile(tempPath);
+          cleanedPointCount = parsed.points.length;
+          cleanedMaxSpeedMps = parsed.maxSpeedMps;
+          cleanedDistanceMeters = parsed.distanceMeters;
+        } finally {
+          await rm(tempPath, { force: true });
+        }
+      }
+
+      return {
+        activityId: id,
+        outlierPoints,
+        originalPointCount: points.length,
+        cleanedPointCount,
+        originalMaxSpeedMps:
+          activityRow.max_speed_mps !== null ? Number(activityRow.max_speed_mps) : null,
+        cleanedMaxSpeedMps,
+        originalDistanceMeters: Number(activityRow.distance_meters),
+        cleanedDistanceMeters,
+      };
+    },
   },
 
   Mutation: {
@@ -261,6 +380,27 @@ export const resolvers = {
       // path as any synced file. The frontend polls for the resulting
       // activity rather than blocking on it.
       return { filename };
+    },
+
+    cleanActivityOutliers: async (_parent, { id }) => {
+      const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
+      if (!rows[0]) throw new Error(`Activity ${id} not found`);
+      const filename = rows[0].gpx_filename.toLowerCase();
+
+      const { rows: routeRows } = await pool.query(
+        "SELECT points_data FROM activity_routes WHERE activity_id = $1",
+        [id],
+      );
+      const removedIndices = detectOutliers(routeRows[0]?.points_data || []);
+
+      if (removedIndices.length > 0) {
+        const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
+        await removeTrackPointsByFormat(filePath, filename, removedIndices);
+        await processFile(filePath);
+      }
+
+      const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
+      return mapActivityRow(updated[0]);
     },
 
     setCodeServerTheme: async (_parent, { theme }) => {

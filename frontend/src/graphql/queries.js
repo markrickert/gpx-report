@@ -123,6 +123,49 @@ export const GET_RECENT_ACTIVITIES_FOR_POLL = gql`
   }
 `;
 
+export const GET_ACTIVITIES_WITH_OUTLIERS = gql`
+  query GetActivitiesWithOutliers {
+    activitiesWithOutliers {
+      activityId
+      title
+      activityType
+      startTime
+      gpxFilename
+      outlierPointCount
+    }
+  }
+`;
+
+export const GET_ACTIVITY_OUTLIER_DIFF = gql`
+  query GetActivityOutlierDiff($id: ID!) {
+    activityOutlierDiff(id: $id) {
+      activityId
+      outlierPoints {
+        index
+        lat
+        lon
+        elevation
+        timestamp
+        impliedSpeedMps
+      }
+      originalPointCount
+      cleanedPointCount
+      originalMaxSpeedMps
+      cleanedMaxSpeedMps
+      originalDistanceMeters
+      cleanedDistanceMeters
+    }
+  }
+`;
+
+export const CLEAN_ACTIVITY_OUTLIERS = gql`
+  mutation CleanActivityOutliers($id: ID!) {
+    cleanActivityOutliers(id: $id) {
+      id
+    }
+  }
+`;
+
 export const GET_STATS_BY_TYPE = gql`
   query GetStatsByType {
     aggregatedStatsByType {

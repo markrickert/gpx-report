@@ -1,12 +1,47 @@
 import { useState } from "react";
-import { useMutation } from "@apollo/client";
-import { REANALYZE_ALL, REANALYZE_RANGE } from "../graphql/queries.js";
+import { useMutation, useQuery } from "@apollo/client";
+import { Link } from "react-router-dom";
+import {
+  REANALYZE_ALL,
+  REANALYZE_RANGE,
+  GET_ACTIVITIES_WITH_OUTLIERS,
+} from "../graphql/queries.js";
 
 const RANGE_OPTIONS = [
   { label: "Last Week", days: 7 },
   { label: "Last Month", days: 30 },
   { label: "Last Year", days: 365 },
 ];
+
+// Lists activities flagged by the backend's outlier detector (see
+// track/outliers.js) so the user can review/clean each one individually on
+// its Activity Detail page — nothing here mutates data itself.
+function OutlierList() {
+  const { data, loading, error } = useQuery(GET_ACTIVITIES_WITH_OUTLIERS);
+
+  if (loading) return <p>Scanning activities for GPS anomalies...</p>;
+  if (error) return <p>Error loading GPS anomalies: {error.message}</p>;
+
+  const activities = data.activitiesWithOutliers;
+  if (activities.length === 0) {
+    return <p>No GPS anomalies detected across your activities.</p>;
+  }
+
+  return (
+    <ul className="outlier-activity-list">
+      {activities.map((a) => (
+        <li key={a.activityId}>
+          <Link to={`/activities/${a.activityId}`}>{a.title}</Link>{" "}
+          <span className="activity-type-badge">{a.activityType}</span>{" "}
+          <span className="chart-hint">
+            {new Date(a.startTime).toLocaleDateString()} — {a.outlierPointCount} flagged point
+            {a.outlierPointCount === 1 ? "" : "s"}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export default function Settings() {
   const [status, setStatus] = useState(null);
@@ -37,7 +72,11 @@ export default function Settings() {
       <h2>Re-analysis</h2>
       <div className="button-row">
         {RANGE_OPTIONS.map((opt) => (
-          <button key={opt.label} disabled={busy} onClick={() => handleReanalyzeRange(opt.days, opt.label)}>
+          <button
+            key={opt.label}
+            disabled={busy}
+            onClick={() => handleReanalyzeRange(opt.days, opt.label)}
+          >
             {opt.label}
           </button>
         ))}
@@ -46,6 +85,14 @@ export default function Settings() {
         </button>
       </div>
       {status && <p>{status}</p>}
+
+      <h2>GPS Anomaly Cleanup</h2>
+      <p className="chart-hint">
+        Activities with GPS points that imply an implausible speed jump (device jitter or a teleport
+        glitch) — none of these are removed automatically. Open an activity below to compare the
+        original vs. cleaned track on a map and decide whether to remove the flagged points.
+      </p>
+      <OutlierList />
     </div>
   );
 }

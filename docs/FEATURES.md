@@ -50,6 +50,7 @@ This document details the features of gpx-report, and reflects what is actually 
 *   **Map View:** An interactive map displaying the geographical path of the activity.
 *   **Elevation Profile:** A graph showing elevation changes plotted against the distance traveled, with the Y-axis scaled to the activity's actual elevation range (not a fixed 0-based domain) so variation stays visible regardless of altitude.
 *   **Hover-Synced Position Dot:** Hovering the elevation profile shows a dot on the map at the corresponding point, and hovering the map route shows the corresponding point on the elevation profile — both tracking the same point-in-time index. Desktop-oriented (hover-based); no touchscreen equivalent.
+*   **GPS Anomaly Cleanup:** When the backend's outlier detector (see Settings Page below) flags GPS points on this activity, a "⚠️ GPS Anomalies" section appears below the elevation profile: a map overlay (grey = original track, blue = track with the flagged points removed, red markers = the flagged points themselves) plus a before/after stats table (max speed, distance, point count), computed by actually running the removal against a scratch copy of the source file and re-parsing it — not an estimate — so the preview always matches what saving produces. A "Clean & Save" button (destructive-action confirmation, like Trim) permanently rewrites the source file to drop just those points and re-runs processing. Available for `.gpx`, `.skiz`, *and* `.igc` — wider format support than title/type/trim editing, since removing arbitrary points doesn't need the richer per-format write paths those need.
 
 ## 4. Settings Page
 
@@ -60,6 +61,7 @@ This document details the features of gpx-report, and reflects what is actually 
     *   `All Time`
     *   Triggers a GraphQL mutation to initiate the re-analysis process.
     *   Displays progress or completion status.
+*   **GPS Anomaly Cleanup List:** Lists every activity with at least one GPS point flagged as an implausible speed jump (>55 m/s / ~200 km/h from the last non-flagged point) — detection is opt-in and never runs automatically at ingest, so stats/`points_data` always reflect the raw source file until the user explicitly cleans an activity from its Activity Detail page (above). Each entry links straight there to review and decide.
 
 ## 5. Stats Page
 

@@ -50,6 +50,35 @@ export const typeDefs = `#graphql
     filename: String!
   }
 
+  type OutlierSummary {
+    activityId: ID!
+    title: String!
+    activityType: String!
+    startTime: DateTime!
+    gpxFilename: String!
+    outlierPointCount: Int!
+  }
+
+  type OutlierPoint {
+    index: Int!
+    lat: Float!
+    lon: Float!
+    elevation: Float
+    timestamp: Float
+    impliedSpeedMps: Float
+  }
+
+  type ActivityOutlierDiff {
+    activityId: ID!
+    outlierPoints: [OutlierPoint!]!
+    originalPointCount: Int!
+    cleanedPointCount: Int!
+    originalMaxSpeedMps: Float
+    cleanedMaxSpeedMps: Float
+    originalDistanceMeters: Float!
+    cleanedDistanceMeters: Float!
+  }
+
   type Query {
     activity(id: ID!): Activity
     activities(
@@ -66,6 +95,8 @@ export const typeDefs = `#graphql
       endDate: DateTime
     ): [AggregatedStatsByType!]!
     heatmapPoints: JSON!
+    activitiesWithOutliers: [OutlierSummary!]!
+    activityOutlierDiff(id: ID!): ActivityOutlierDiff!
   }
 
   type Mutation {
@@ -76,5 +107,6 @@ export const typeDefs = `#graphql
     trimActivity(id: ID!, startIndex: Int!, endIndex: Int!): Activity!
     saveRecordedActivity(gpxContent: String!): SaveRecordedActivityResult!
     setCodeServerTheme(theme: String!): Boolean!
+    cleanActivityOutliers(id: ID!): Activity!
   }
 `;
