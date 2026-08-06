@@ -5,6 +5,8 @@ Tracks work that is planned/wanted but not yet implemented, plus gaps found when
 ## Planned features
 
 - [ ] **Graceful degradation without JavaScript.** The frontend is a pure client-rendered Vite/React SPA with an empty `<div id="root">` — JS disabled currently means a blank page. Fixing this for real needs SSR/static pre-rendering, a genuine architecture shift, not a small tweak. Scope (which routes, read-only vs. the editing/trim features that need client interactivity anyway) still needs a decision before committing to a framework.
+- [ ] When the code editor loads in dar kode there's a white flash. it should never flash white in dark mode.
+
 ## Done
 
 - [x] **Unit tests for GPX/IGC/`.skiz` parsers, Vitest added as test runner** (2026-08-06) — `backend/src/{gpx,igc,skiz}/parser.test.js`, 23 tests covering happy-path metric computation, title/activity-type resolution and fallbacks, malformed-input handling, and the "too few points" error paths. `npm test` (backend) runs `vitest run`. Backend-only for now — no parser/pure-function code on the frontend to prioritize next.
