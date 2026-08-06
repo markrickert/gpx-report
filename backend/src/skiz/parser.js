@@ -2,24 +2,32 @@ import path from "node:path";
 import AdmZip from "adm-zip";
 import { haversineMeters } from "../igc/parser.js";
 
-// Slopes app export: a zip archive containing GPS.csv (one point per line,
-// no header) plus a Metadata.xml this parser doesn't read. Column order per
-// https://github.com/wfraser/slopes-gpx (the only known documentation of the
-// format): unix timestamp (seconds, fractional), lat, lon, elevation (m),
+// Ski Tracks app export (.skiz): a zip archive containing Track.xml (a
+// single <track> element with name/activity attributes and precomputed
+// metrics this parser doesn't use, computing its own from Nodes.csv the
+// same way igc/parser.js does) and Nodes.csv, one point per line, no
+// header: timestamp (unix seconds, fractional), lat, lon, elevation (m),
 // course (deg), speed (m/s), horizontal accuracy (m), vertical accuracy (m).
-function resolveTitle(filePath) {
-  return path.basename(filePath, path.extname(filePath)).trim() || "Untitled";
+function resolveTitle(trackXml, filePath) {
+  const name = trackXml.match(/\sname="([^"]*)"/)?.[1]?.trim();
+  return name || path.basename(filePath, path.extname(filePath)).trim() || "Untitled";
 }
 
-export async function parseSlpzFile(filePath) {
+function resolveActivityType(trackXml) {
+  const activity = trackXml.match(/\sactivity="([^"]*)"/)?.[1]?.trim();
+  return activity ? activity[0].toUpperCase() + activity.slice(1).toLowerCase() : "Skiing";
+}
+
+export async function parseSkizFile(filePath) {
   const zip = new AdmZip(filePath);
-  const entry = zip.getEntry("GPS.csv");
-  if (!entry) {
-    throw new Error(`Slopes file ${filePath} does not contain GPS.csv`);
+  const nodesEntry = zip.getEntry("Nodes.csv");
+  if (!nodesEntry) {
+    throw new Error(`Skiz file ${filePath} does not contain Nodes.csv`);
   }
+  const trackXml = zip.getEntry("Track.xml")?.getData().toString("utf-8") ?? "";
 
   const points = [];
-  for (const line of entry.getData().toString("utf-8").split(/\r?\n/)) {
+  for (const line of nodesEntry.getData().toString("utf-8").split(/\r?\n/)) {
     if (!line.trim()) continue;
     const [ts, lat, lon, ele] = line.split(",").map(Number);
     if ([ts, lat, lon, ele].some(Number.isNaN)) continue;
@@ -27,7 +35,7 @@ export async function parseSlpzFile(filePath) {
   }
 
   if (points.length < 2) {
-    throw new Error(`Slopes file ${filePath} does not contain enough GPS points`);
+    throw new Error(`Skiz file ${filePath} does not contain enough GPS points`);
   }
 
   let distanceMeters = 0;
@@ -60,8 +68,8 @@ export async function parseSlpzFile(filePath) {
   const avgSpeedMps = durationSeconds > 0 ? distanceMeters / durationSeconds : null;
 
   return {
-    title: resolveTitle(filePath),
-    activityType: "Skiing",
+    title: resolveTitle(trackXml, filePath),
+    activityType: resolveActivityType(trackXml),
     startTime,
     endTime,
     durationSeconds,

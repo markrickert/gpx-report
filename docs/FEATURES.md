@@ -4,20 +4,20 @@ This document details the features of gpx-report, and reflects what is actually 
 
 ## 1. Data Ingestion and Processing
 
-*   **Automatic Detection:** A `chokidar` file watcher (Node) monitors `GPX_FILES_DIRECTORY` for new `.gpx`, `.igc`, `.slpz`, and `.slopes` files, and fires for every pre-existing file on startup too.
+*   **Automatic Detection:** A `chokidar` file watcher (Node) monitors `GPX_FILES_DIRECTORY` for new `.gpx`, `.igc`, `.skiz` files, and fires for every pre-existing file on startup too.
 *   **GPX Parsing:** Uses the `gpxparser` npm package to extract track points, timestamps, and metadata from GPX files (not Python/`gpxpy` — this is a plain Node backend, see `CLAUDE.md`).
 *   **IGC Parsing:** Paragliding flight-recorder logs (`.igc`) are parsed directly via regex against the fixed-width `B`-record/`HFDTE` format (no third-party IGC library) — see `backend/src/igc/parser.js`.
-*   **Slopes Parsing:** Ski-tracking exports from the Slopes app (`.slpz`/`.slopes`) are unzipped via `adm-zip` and their `GPS.csv` payload parsed directly (no track-name/type header, unlike GPX) — see `backend/src/slpz/parser.js`. The column layout is reverse-engineered from a third-party open-source converter, not an official spec.
+*   **Ski Tracks Parsing:** Ski-tracking exports from the Ski Tracks app (`.skiz`) are unzipped via `adm-zip` and their `Nodes.csv` payload parsed directly, with title/activity type regex-extracted from the bundled `Track.xml` — see `backend/src/skiz/parser.js`.
 *   **Metric Calculation:** Computes key metrics for all formats:
     *   Distance Traveled
     *   Duration
     *   Average & Maximum Speed/Pace
     *   Total Elevation Gain & Loss
-    *   Activity Type (from the GPX `<trk><type>` tag if present, else guessed from the filename, else "Unknown"; always "Paragliding" for IGC, "Skiing" for Slopes)
-    *   Title (from the track/metadata name in the GPX file, else the filename stem; always the filename stem for IGC/Slopes)
+    *   Activity Type (from the GPX `<trk><type>` tag if present, else guessed from the filename, else "Unknown"; always "Paragliding" for IGC; from `Track.xml`'s `activity` attribute, defaulting to "Skiing", for `.skiz`)
+    *   Title (from the track/metadata name in the GPX file, else the filename stem; always the filename stem for IGC; from `Track.xml`'s `name` attribute, else the filename stem, for `.skiz`)
 *   **Route Data Extraction:** Stores sequences of latitude, longitude, elevation, and timestamp for each activity.
 *   **Database Storage:** Processed data is stored in PostgreSQL, with route geometries managed by PostGIS.
-*   **Re-analysis Capability:** Allows users to re-process existing GPX/IGC/Slopes files (all, or by date range) via the Settings page. Only re-processes files that already have a matching `activities` row — see `docs/DATA_MODEL.md`.
+*   **Re-analysis Capability:** Allows users to re-process existing GPX/IGC/Ski Tracks files (all, or by date range) via the Settings page. Only re-processes files that already have a matching `activities` row — see `docs/DATA_MODEL.md`.
 
 ## 2. Dashboard View
 
@@ -45,7 +45,7 @@ This document details the features of gpx-report, and reflects what is actually 
     *   Max Speed/Pace
     *   Total Elevation Gain
     *   Total Elevation Loss
-*   **Title Editing:** The activity title has an inline Edit/Save/Cancel affordance; saving updates both the database row and rewrites the `<trk><name>` element in the source `.gpx` file, then re-runs processing so both stay in sync. Only available for `.gpx` activities — `.igc`/`.slpz`/`.slopes` have no writer path, so the Edit button is hidden for those.
+*   **Title Editing:** The activity title has an inline Edit/Save/Cancel affordance; saving updates both the database row and rewrites the `<trk><name>` element in the source `.gpx` file, then re-runs processing so both stay in sync. Only available for `.gpx` activities — `.igc`/`.skiz` have no writer path, so the Edit button is hidden for those.
 *   **Activity Type Editing:** Same inline Edit/Save/Cancel affordance next to the activity-type badge, backed by a dropdown of the same preselected activity types used for the dashboard filter; saving rewrites the `<trk><type>` element in the source `.gpx` file and re-runs processing. Same `.gpx`-only restriction as title editing.
 *   **Map View:** An interactive map displaying the geographical path of the activity.
 *   **Elevation Profile:** A graph showing elevation changes plotted against the distance traveled, with the Y-axis scaled to the activity's actual elevation range (not a fixed 0-based domain) so variation stays visible regardless of altitude.
