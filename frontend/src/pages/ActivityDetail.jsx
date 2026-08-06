@@ -101,6 +101,12 @@ function ActivityHeader({ activity, editMode, onEditModeChange }) {
   );
 }
 
+// Taller grey pill (rather than recharts' default small circle) centered on
+// the chart's vertical middle, easier to grab on a touch screen.
+function TrimHandleShape({ cx, cy }) {
+  return <rect x={cx - 7} y={cy - 18} width={14} height={36} rx={7} fill="#9ca3af" stroke="#fff" strokeWidth={2} />;
+}
+
 const REST_SPEED_THRESHOLD_MPS = 0.3;
 
 function speedColor(normalizedSpeed) {
@@ -217,6 +223,7 @@ export default function ActivityDetail() {
     elevations.length > 0
       ? [Math.floor(Math.min(...elevations) - elevationPadding), Math.ceil(Math.max(...elevations) + elevationPadding)]
       : [0, "auto"];
+  const elevationMid = elevations.length > 0 ? (elevationDomain[0] + elevationDomain[1]) / 2 : 0;
   const speedGradientStops = buildSpeedGradientStops(elevationData, activity.maxSpeedMps);
   const restBands = buildRestBands(elevationData);
 
@@ -381,7 +388,7 @@ export default function ActivityDetail() {
               children, not ones nested inside a Fragment/wrapper — each must
               be its own top-level conditional expression here. */}
           {trimActive && (
-            <ReferenceLine xAxisId="idx" x={trimStart} stroke="#2563eb" strokeWidth={2} isFront />
+            <ReferenceLine xAxisId="idx" x={trimStart} stroke="#9ca3af" strokeWidth={2} isFront />
           )}
           {trimActive && (
             <ReferenceLine
@@ -399,11 +406,8 @@ export default function ActivityDetail() {
             <ReferenceDot
               xAxisId="idx"
               x={trimStart}
-              y={elevationDomain[1]}
-              r={9}
-              fill="#2563eb"
-              stroke="#fff"
-              strokeWidth={2}
+              y={elevationMid}
+              shape={TrimHandleShape}
               isFront
               style={{ cursor: "ew-resize" }}
               onMouseDown={() => setDragging("start")}
@@ -411,7 +415,7 @@ export default function ActivityDetail() {
             />
           )}
           {trimActive && (
-            <ReferenceLine xAxisId="idx" x={trimEnd} stroke="#2563eb" strokeWidth={2} isFront />
+            <ReferenceLine xAxisId="idx" x={trimEnd} stroke="#9ca3af" strokeWidth={2} isFront />
           )}
           {trimActive && (
             <ReferenceLine
@@ -429,11 +433,8 @@ export default function ActivityDetail() {
             <ReferenceDot
               xAxisId="idx"
               x={trimEnd}
-              y={elevationDomain[1]}
-              r={9}
-              fill="#2563eb"
-              stroke="#fff"
-              strokeWidth={2}
+              y={elevationMid}
+              shape={TrimHandleShape}
               isFront
               style={{ cursor: "ew-resize" }}
               onMouseDown={() => setDragging("end")}
