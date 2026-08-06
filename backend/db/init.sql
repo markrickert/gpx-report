@@ -5,6 +5,7 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE TABLE IF NOT EXISTS activities (
   id                    SERIAL PRIMARY KEY,
   gpx_filename          VARCHAR(255) NOT NULL UNIQUE,
+  title                 VARCHAR(255) NOT NULL,
   activity_type         VARCHAR(50) NOT NULL,
   start_time            TIMESTAMPTZ NOT NULL,
   end_time              TIMESTAMPTZ NOT NULL,

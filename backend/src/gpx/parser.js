@@ -12,10 +12,53 @@ const KNOWN_ACTIVITY_TYPES = [
   "swimming",
 ];
 
+// Raw values seen in <trk><type> across Strava exports (PascalCase sport
+// names) and other GPX sources (lowercase/snake_case). Kept distinct rather
+// than merged (e.g. e-bike vs. mountain bike vs. road cycling are different
+// activities, not variants of one "Cycling" bucket).
+const ACTIVITY_TYPE_LABELS = {
+  emountainbikeride: "E-Mountain Bike Ride",
+  mountain_biking: "Mountain Biking",
+  cycling: "Cycling",
+  hiking: "Hiking",
+  walking: "Walking",
+  alpineski: "Alpine Skiing",
+  kayaking: "Kayaking",
+  running: "Running",
+  swimming: "Swimming",
+  paragliding: "Paragliding",
+};
+
+// Fallback for raw type strings not in the table above: split camelCase and
+// snake_case/kebab-case into words and title-case them.
+function formatUnknownType(raw) {
+  const words = raw
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .split(/\s+/);
+  return words.map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+}
+
 function guessActivityType(filename) {
   const base = path.basename(filename, path.extname(filename)).toLowerCase();
   const match = KNOWN_ACTIVITY_TYPES.find((type) => base.includes(type));
   return match ? match[0].toUpperCase() + match.slice(1) : "Unknown";
+}
+
+function resolveActivityType(rawType, filename) {
+  if (rawType && rawType.trim()) {
+    const key = rawType.trim().toLowerCase();
+    return ACTIVITY_TYPE_LABELS[key] ?? formatUnknownType(rawType.trim());
+  }
+  return guessActivityType(filename);
+}
+
+function resolveTitle(track, metadata, filePath) {
+  if (track?.name && track.name.trim()) return track.name.trim();
+  if (metadata?.name && metadata.name.trim()) return metadata.name.trim();
+  const stem = path.basename(filePath, path.extname(filePath)).trim();
+  return stem || "Untitled";
 }
 
 /**
@@ -55,8 +98,11 @@ export async function parseGpxFile(filePath) {
     });
   });
 
+  const primaryTrack = gpx.tracks[0];
+
   return {
-    activityType: guessActivityType(filePath),
+    title: resolveTitle(primaryTrack, gpx.metadata, filePath),
+    activityType: resolveActivityType(primaryTrack?.type, filePath),
     startTime,
     endTime,
     durationSeconds,

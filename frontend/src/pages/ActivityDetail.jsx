@@ -27,8 +27,11 @@ export default function ActivityDetail() {
 
   return (
     <div>
-      <h1>{activity.activityType}</h1>
-      <p>{new Date(activity.startTime).toLocaleString()}</p>
+      <h1>{activity.title}</h1>
+      <p>
+        <span className="activity-type-badge">{activity.activityType}</span>{" "}
+        {new Date(activity.startTime).toLocaleString()}
+      </p>
 
       <div className="metrics-row">
         <div>Duration: {formatDuration(activity.durationSeconds)}</div>

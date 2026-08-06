@@ -3,7 +3,18 @@ import { useQuery } from "@apollo/client";
 import { Link } from "react-router-dom";
 import { GET_DASHBOARD } from "../graphql/queries.js";
 
-const ACTIVITY_TYPES = ["Running", "Hiking", "Cycling", "Skiing", "Paragliding", "Walking", "Swimming"];
+const ACTIVITY_TYPES = [
+  "Running",
+  "Hiking",
+  "Walking",
+  "Cycling",
+  "Mountain Biking",
+  "E-Mountain Bike Ride",
+  "Alpine Skiing",
+  "Paragliding",
+  "Swimming",
+  "Kayaking",
+];
 
 function formatDistance(meters) {
   return `${(meters / 1000).toFixed(2)} km`;
@@ -69,9 +80,11 @@ export default function Dashboard() {
         {activities.map((activity) => (
           <li key={activity.id}>
             <Link to={`/activities/${activity.id}`}>
-              <strong>{activity.activityType}</strong> —{" "}
-              {new Date(activity.startTime).toLocaleString()} —{" "}
-              {formatDistance(activity.distanceMeters)} — {formatDuration(activity.durationSeconds)}
+              <div className="activity-list-title">{activity.title}</div>
+              <div className="activity-list-meta">
+                {activity.activityType} — {new Date(activity.startTime).toLocaleString()} —{" "}
+                {formatDistance(activity.distanceMeters)} — {formatDuration(activity.durationSeconds)}
+              </div>
             </Link>
           </li>
         ))}

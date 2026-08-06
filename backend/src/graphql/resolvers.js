@@ -6,6 +6,7 @@ function mapActivityRow(row) {
   return {
     id: row.id,
     gpxFilename: row.gpx_filename,
+    title: row.title,
     activityType: row.activity_type,
     startTime: row.start_time,
     endTime: row.end_time,

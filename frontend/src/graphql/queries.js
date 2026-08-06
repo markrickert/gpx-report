@@ -11,6 +11,7 @@ export const GET_DASHBOARD = gql`
     }
     activities(limit: 50, activityType: $activityType) {
       id
+      title
       activityType
       startTime
       durationSeconds
@@ -23,6 +24,7 @@ export const GET_ACTIVITY = gql`
   query GetActivity($id: ID!) {
     activity(id: $id) {
       id
+      title
       activityType
       startTime
       endTime

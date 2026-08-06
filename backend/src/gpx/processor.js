@@ -18,10 +18,11 @@ export async function processFile(filePath) {
 
     const activityResult = await client.query(
       `INSERT INTO activities (
-         gpx_filename, activity_type, start_time, end_time, duration_seconds,
+         gpx_filename, title, activity_type, start_time, end_time, duration_seconds,
          distance_meters, avg_speed_mps, max_speed_mps, total_elevation_gain, total_elevation_loss, updated_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, NOW())
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, NOW())
        ON CONFLICT (gpx_filename) DO UPDATE SET
+         title = EXCLUDED.title,
          activity_type = EXCLUDED.activity_type,
          start_time = EXCLUDED.start_time,
          end_time = EXCLUDED.end_time,
@@ -35,6 +36,7 @@ export async function processFile(filePath) {
        RETURNING id`,
       [
         filename,
+        parsed.title,
         parsed.activityType,
         parsed.startTime,
         parsed.endTime,
