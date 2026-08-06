@@ -46,6 +46,10 @@ export const typeDefs = `#graphql
     success: Boolean!
   }
 
+  type SaveRecordedActivityResult {
+    filename: String!
+  }
+
   type Query {
     activity(id: ID!): Activity
     activities(
@@ -70,5 +74,6 @@ export const typeDefs = `#graphql
     updateActivityTitle(id: ID!, title: String!): Activity!
     updateActivityType(id: ID!, activityType: String!): Activity!
     trimActivity(id: ID!, startIndex: Int!, endIndex: Int!): Activity!
+    saveRecordedActivity(gpxContent: String!): SaveRecordedActivityResult!
   }
 `;

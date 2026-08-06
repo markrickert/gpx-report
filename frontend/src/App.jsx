@@ -2,6 +2,7 @@ import { Routes, Route, NavLink, useLocation } from "react-router-dom";
 import Dashboard from "./pages/Dashboard.jsx";
 import ActivityDetail from "./pages/ActivityDetail.jsx";
 import Heatmap from "./pages/Heatmap.jsx";
+import Record from "./pages/Record.jsx";
 import Stats from "./pages/Stats.jsx";
 import Settings from "./pages/Settings.jsx";
 import CodeEditor from "./pages/CodeEditor.jsx";
@@ -22,6 +23,9 @@ export default function App() {
         </NavLink>
         <NavLink to="/heatmap" className={({ isActive }) => (isActive ? "active" : undefined)}>
           Heatmap
+        </NavLink>
+        <NavLink to="/record" className={({ isActive }) => (isActive ? "active" : undefined)}>
+          Record
         </NavLink>
         <NavLink to="/stats" className={({ isActive }) => (isActive ? "active" : undefined)}>
           Stats
@@ -47,6 +51,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/activities/:id" element={<ActivityDetail />} />
           <Route path="/heatmap" element={<Heatmap />} />
+          <Route path="/record" element={<Record />} />
           <Route path="/stats" element={<Stats />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/code" element={<CodeEditor />} />
