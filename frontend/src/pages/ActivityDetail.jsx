@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@apollo/client";
 import { MapContainer, TileLayer, Polyline } from "react-leaflet";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 import { GET_ACTIVITY, UPDATE_ACTIVITY_TITLE } from "../graphql/queries.js";
+import { useUnits, formatDistance, formatElevation, formatSpeed, distanceValue, elevationValue, distanceUnitLabel, elevationUnitLabel } from "../units.jsx";
 
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -61,6 +62,7 @@ function ActivityTitle({ activity }) {
 
 export default function ActivityDetail() {
   const { id } = useParams();
+  const { unit } = useUnits();
   const { data, loading, error } = useQuery(GET_ACTIVITY, { variables: { id } });
 
   if (loading) return <p>Loading...</p>;
@@ -70,11 +72,11 @@ export default function ActivityDetail() {
   const activity = data.activity;
   const positions = activity.route.coordinates.map((p) => [p.lat, p.lon]);
   const elevationData = activity.route.elevationProfile.map((p) => ({
-    km: (p.distanceMeters / 1000).toFixed(2),
-    elevation: p.elevation,
+    dist: distanceValue(p.distanceMeters, unit).toFixed(2),
+    elevation: elevationValue(p.elevation, unit),
   }));
   const elevations = elevationData.map((p) => p.elevation);
-  const elevationPadding = 10;
+  const elevationPadding = unit === "imperial" ? 30 : 10;
   const elevationDomain =
     elevations.length > 0
       ? [Math.floor(Math.min(...elevations) - elevationPadding), Math.ceil(Math.max(...elevations) + elevationPadding)]
@@ -90,11 +92,11 @@ export default function ActivityDetail() {
 
       <div className="metrics-row">
         <div>Duration: {formatDuration(activity.durationSeconds)}</div>
-        <div>Distance: {(activity.distanceMeters / 1000).toFixed(2)} km</div>
-        <div>Avg Speed: {activity.avgSpeedMps ? `${(activity.avgSpeedMps * 3.6).toFixed(1)} km/h` : "-"}</div>
-        <div>Max Speed: {activity.maxSpeedMps ? `${(activity.maxSpeedMps * 3.6).toFixed(1)} km/h` : "-"}</div>
-        <div>Elevation Gain: {activity.totalElevationGain?.toFixed(0) ?? "-"} m</div>
-        <div>Elevation Loss: {activity.totalElevationLoss?.toFixed(0) ?? "-"} m</div>
+        <div>Distance: {formatDistance(activity.distanceMeters, unit)}</div>
+        <div>Avg Speed: {formatSpeed(activity.avgSpeedMps, unit)}</div>
+        <div>Max Speed: {formatSpeed(activity.maxSpeedMps, unit)}</div>
+        <div>Elevation Gain: {formatElevation(activity.totalElevationGain, unit)}</div>
+        <div>Elevation Loss: {formatElevation(activity.totalElevationLoss, unit)}</div>
       </div>
 
       {positions.length > 0 && (
@@ -111,8 +113,14 @@ export default function ActivityDetail() {
       <ResponsiveContainer width="100%" height={250}>
         <LineChart data={elevationData}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="km" label={{ value: "Distance (km)", position: "insideBottom", offset: -5 }} />
-          <YAxis domain={elevationDomain} label={{ value: "Elevation (m)", angle: -90, position: "insideLeft" }} />
+          <XAxis
+            dataKey="dist"
+            label={{ value: `Distance (${distanceUnitLabel(unit)})`, position: "insideBottom", offset: -5 }}
+          />
+          <YAxis
+            domain={elevationDomain}
+            label={{ value: `Elevation (${elevationUnitLabel(unit)})`, angle: -90, position: "insideLeft" }}
+          />
           <Tooltip />
           <Line type="monotone" dataKey="elevation" stroke="#2563eb" dot={false} />
         </LineChart>
