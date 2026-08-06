@@ -7,5 +7,5 @@ data/gpx/*
 # Claude Code local tooling/settings
 .agents/
 .claude/settings.local.json
-.claude/skills/
+.claude/scheduled_tasks.lock
 skills-lock.json
