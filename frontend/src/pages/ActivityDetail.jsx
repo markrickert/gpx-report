@@ -102,9 +102,26 @@ function ActivityHeader({ activity, editMode, onEditModeChange }) {
 }
 
 // Taller grey pill (rather than recharts' default small circle) centered on
-// the chart's vertical middle, easier to grab on a touch screen.
-function TrimHandleShape({ cx, cy }) {
-  return <rect x={cx - 7} y={cy - 18} width={14} height={36} rx={7} fill="#9ca3af" stroke="#fff" strokeWidth={2} />;
+// the chart's vertical middle, easier to grab on a touch screen. Spreads the
+// rest of the props (recharts passes onMouseDown/onTouchStart/style etc.
+// through here) onto the <rect> before the explicit visual attrs below, so
+// the dot itself stays draggable instead of silently swallowing touches that
+// land on it (it renders isFront, on top of the invisible wide catch-line,
+// so a touch landing on the dot never reaches the line's own handler).
+function TrimHandleShape({ cx, cy, ...rest }) {
+  return (
+    <rect
+      {...rest}
+      x={cx - 7}
+      y={cy - 18}
+      width={14}
+      height={36}
+      rx={7}
+      fill="#9ca3af"
+      stroke="#fff"
+      strokeWidth={2}
+    />
+  );
 }
 
 const REST_SPEED_THRESHOLD_MPS = 0.3;
