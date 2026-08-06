@@ -1,58 +1,58 @@
 # Architecture Overview
 
-This document outlines the architecture of [Your Project Name], a self-hosted platform for analyzing GPX activity data.
+This document outlines the architecture of gpx-report, a self-hosted platform for analyzing GPX activity data.
 
 ## 1. Frontend (React)
 
 *   **Purpose:** Provides the user interface for viewing, analyzing, and managing activity data.
 *   **Key Components:**
-    *   **Dashboard:** Displays aggregate statistics and a chronological list of activities.
+    *   **Dashboard:** Displays aggregate statistics and a chronological list of activities, filterable by activity type.
     *   **Activity Detail Page:** Shows detailed metrics, map visualization, and elevation profile for a single activity.
-    *   **Settings Page:** Allows users to manage their data, including triggering re-analysis.
-*   **Data Interaction:** Communicates with the backend via a GraphQL API.
-*   **Mapping:** Utilizes a React mapping library (e.g., `react-leaflet`, `mapbox-gl-js`) for route visualization.
-*   **Charting:** Employs a charting library (e.g., `recharts`, `chart.js`) for elevation profiles and other data visualizations.
+    *   **Settings Page:** Allows users to trigger re-analysis (last week / month / year / all time).
+*   **Data Interaction:** Communicates with the backend via a GraphQL API (`@apollo/client`).
+*   **Mapping:** `react-leaflet` / `leaflet`, tiles from OpenStreetMap.
+*   **Charting:** `recharts` for the elevation profile.
+*   **Build tool:** Vite. No state management library beyond the Apollo cache. No auth — single-user, personal deployment.
 
 ## 2. Backend API (GraphQL)
 
 *   **Purpose:** Serves as the interface between the React frontend and the data storage/processing layers.
-*   **Technology:** GraphQL.
+*   **Technology:** Apollo Server (standalone, no HTTP framework), plain Node.js with ESM, no ORM.
 *   **Key Operations:**
     *   **Queries:**
         *   Fetch individual activity details (`activity(id: ID!)`).
-        *   Fetch aggregate statistics (`activitySummary`, `aggregatedStatsByType(startDate: String, endDate: String)`).
-        *   Fetch paginated/filtered lists of activities (e.g., `activities(limit: Int, offset: Int, activityType: String)`). Returns data sorted reverse-chronologically by default.
+        *   Fetch aggregate statistics (`activitySummary`, `aggregatedStatsByType(activityType, startDate, endDate)`).
+        *   Fetch paginated/filtered lists of activities (`activities(limit: Int = 20, offset: Int = 0, activityType: String, startDate: DateTime, endDate: DateTime)`). Returns data sorted reverse-chronologically by default.
     *   **Mutations:**
-        *   Trigger re-analysis of data (`reanalyzeAllActivities`, `reanalyzeActivitiesByDateRange(startDate: String, endDate: String)`).
-*   **Resolver Logic:** Each GraphQL field will have a resolver function that fetches data from the PostgreSQL database or triggers background processing.
+        *   Trigger re-analysis of data (`reanalyzeAllActivities`, `reanalyzeActivitiesByDateRange(startDate: DateTime!, endDate: DateTime!)`).
+*   **Resolver Logic:** `graphql/resolvers.js` queries `pg.Pool` directly with hand-written SQL (see `backend/src/graphql/resolvers.js`). `activitySummary` and `aggregatedStatsByType` are computed live with `SUM`/`AVG`/`GROUP BY` on each request — there is no materialized view or cache.
 
 ## 3. Database (PostgreSQL with PostGIS)
 
 *   **Purpose:** Stores all processed activity data and route information.
-*   **Technology:** PostgreSQL, enhanced with the PostGIS extension for geospatial capabilities.
-*   **Key Tables (Conceptual):**
-    *   `activities`: Stores core metrics for each activity (ID, timestamps, distance, duration, type, etc.).
-    *   `activity_routes`: Stores the geospatial route data for each activity (e.g., using PostGIS `LINESTRING` type).
-    *   `activity_metrics`: Stores detailed metrics for each activity (e.g., elevation gain/loss, average/max speed, heart rate, cadence). This could be a separate table or individual columns in `activities` depending on normalization needs.
-    *   `activity_summary`: Potentially a materialized view or table storing pre-computed aggregate statistics for quick dashboard loading.
-*   **Geospatial Capabilities:** PostGIS will be used to store and efficiently query route geometries.
+*   **Technology:** PostgreSQL (`postgis/postgis:15-3.4` image), PostGIS extension for geospatial capabilities.
+*   **Key Tables** (see `docs/DATA_MODEL.md` and `backend/db/init.sql` for the authoritative schema):
+    *   `activities`: One row per GPX file (unique on `gpx_filename`) — title, type, timestamps, distance, duration, speed, elevation stats.
+    *   `activity_routes`: One row per activity (`activity_id` PK/FK) — a PostGIS `GEOMETRY(LineString, 4326)`, plus a redundant `points_data` JSONB array (`{lat, lon, elevation, timestamp}` per point) and `elevation_profile_data` JSONB, since GeoJSON round-tripping loses elevation/timestamp per point.
+*   There is no separate `activity_summary` or `aggregated_stats_by_type` table — those are computed on the fly by the resolvers, not pre-aggregated.
+*   **Geospatial Capabilities:** `route_geom` has a GiST index; PostGIS functions aren't yet used for any query beyond storage (no geospatial queries — e.g. "activities near X" — are implemented).
+*   **Migrations:** `init.sql` only runs on a fresh volume (via the Postgres image's init-script mechanism); there is no migration tool, so schema changes to an existing deployment need a manual `ALTER`/psql step. See [`TODO.md`](TODO.md).
 
 ## 4. Data Ingestion & Processing Pipeline
 
 *   **Purpose:** Handles the parsing of raw GPX files and populates the PostgreSQL database.
-*   **Trigger:** This process is initiated when new GPX files are added to a designated directory (managed externally or by a simple file watcher).
+*   **Trigger:** A `chokidar` file watcher (`backend/src/gpx/watcher.js`) watches `GPX_FILES_DIRECTORY`; on startup it fires an `add` event for every pre-existing file, then continues watching for new ones.
 *   **Components:**
-    *   **GPX Parser:** A script (e.g., Python with `gpxpy`) that reads GPX files and extracts data points and route information.
-    *   **Data Transformation:** Calculates metrics (distance, elevation change, speed, pace, etc.) from the raw track data.
-    *   **Database Writer:** Inserts the processed data and route geometries into the PostgreSQL/PostGIS database.
-*   **Re-analysis:** The `reanalyze` mutation triggers this pipeline to re-process specified data ranges or all data.
+    *   **GPX Parser** (`backend/src/gpx/parser.js`): Uses the `gpxparser` npm package to read GPX files and extract track points/timestamps, then computes distance/speed/elevation stats gpxparser doesn't provide itself. Activity type is read from the GPX `<trk><type>` tag when present (mapped through a label table), falling back to a filename-keyword guess (matches "running", "hiking", etc.) or "Unknown".
+    *   **Database Writer** (`backend/src/gpx/processor.js`): `processFile()` upserts one activity + its route (keyed by `gpx_filename`, so re-processing the same file is idempotent) inside a single transaction.
+*   **Re-analysis:** The `reanalyze*` mutations call `reanalyzeAll()` / `reanalyzeByDateRange()` in `processor.js`, which re-run this same pipeline over existing files.
+*   **Concurrency:** Both the watcher (strict FIFO, one file at a time) and `reanalyze*` (batches of 5 via `processAll()`) bound how many files are processed concurrently, since the default `pg.Pool` only has 10 connections — see `CLAUDE.md` and `docs/SETUP.md` §5 for the pool-exhaustion incident this guards against.
 
 ## Integration Flow
 
-1.  User adds GPX files to a monitored directory.
-2.  The **Data Ingestion Pipeline** detects new files, parses them, processes metrics, and stores data in **PostgreSQL**.
+1.  User adds GPX files to a monitored directory (manually, or synced from a phone via Syncthing — see `docs/SETUP.md` §6).
+2.  The **file watcher** detects new files, the **parser** extracts metrics, and the **processor** upserts activity + route data into **PostgreSQL**.
 3.  The **React Frontend** makes GraphQL queries to the **Backend API**.
 4.  The **Backend API** (GraphQL resolvers) queries the **PostgreSQL Database** for activity details, aggregate stats, or route geometries.
-5.  For re-analysis, the **React Frontend** triggers a GraphQL mutation, which instructs the **Backend API** to re-run the **Data Ingestion Pipeline** for specific data ranges.
-6.  Map and elevation data are rendered in the **React Frontend** using mapping and charting libraries.
-
+5.  For re-analysis, the **React Frontend** (Settings page) triggers a GraphQL mutation, which instructs the **Backend API** to re-run the ingestion pipeline over existing files, optionally scoped to a date range.
+6.  Map and elevation data are rendered in the **React Frontend** using `react-leaflet` and `recharts`.

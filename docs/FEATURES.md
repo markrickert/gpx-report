@@ -1,20 +1,21 @@
 # Features
 
-This document details the features of [Your Project Name] for Version 1.
+This document details the features of gpx-report, and reflects what is actually implemented (not just planned) as of this writing. For anything listed here as missing/partial, see [`TODO.md`](TODO.md).
 
 ## 1. Data Ingestion and Processing
 
-*   **Automatic Detection:** The system monitors a designated directory for new GPX files.
-*   **GPX Parsing:** Utilizes a robust parser (e.g., Python's `gpxpy`) to extract track points, timestamps, and metadata from GPX files.
+*   **Automatic Detection:** A `chokidar` file watcher (Node) monitors `GPX_FILES_DIRECTORY` for new GPX files, and fires for every pre-existing file on startup too.
+*   **GPX Parsing:** Uses the `gpxparser` npm package to extract track points, timestamps, and metadata from GPX files (not Python/`gpxpy` — this is a plain Node backend, see `CLAUDE.md`).
 *   **Metric Calculation:** Computes key metrics:
     *   Distance Traveled
     *   Duration
     *   Average & Maximum Speed/Pace
     *   Total Elevation Gain & Loss
-    *   Activity Type (derived from filename conventions or metadata, if available)
-*   **Route Data Extraction:** Stores sequences of latitude, longitude, and elevation points for each activity.
+    *   Activity Type (from the GPX `<trk><type>` tag if present, else guessed from the filename, else "Unknown")
+    *   Title (from the track/metadata name in the GPX file, else the filename stem)
+*   **Route Data Extraction:** Stores sequences of latitude, longitude, elevation, and timestamp for each activity.
 *   **Database Storage:** Processed data is stored in PostgreSQL, with route geometries managed by PostGIS.
-*   **Re-analysis Capability:** Allows users to re-process existing GPX files (all or by date range) via the UI.
+*   **Re-analysis Capability:** Allows users to re-process existing GPX files (all, or by date range) via the Settings page. Only re-processes files that already have a matching `activities` row — see `docs/DATA_MODEL.md`.
 
 ## 2. Dashboard View
 

@@ -1,121 +1,69 @@
 # Setup and Installation
 
-This document provides instructions for setting up the development environment and running [Your Project Name].
+This document provides instructions for setting up the development environment and running gpx-report. For the fastest path, see `CLAUDE.md`'s "Running the stack" section (`cp .env.example .env && docker compose up --build`) — the sections below give more detail on each piece.
 
 ## Prerequisites
 
-*   **Node.js & npm/yarn:** For the React frontend.
-*   **Docker & Docker Compose:** Recommended for managing the PostgreSQL database and potentially the backend API if it's containerized.
-*   **Python 3:** For the GPX parsing and data processing scripts.
+*   **Docker & Docker Compose:** The primary way to run everything (Postgres/PostGIS, backend, frontend, and optionally Syncthing) — see `docker-compose.yml` at the repo root.
+*   **Node.js & npm:** Only needed for running the backend or frontend outside Docker (`node --watch` / Vite dev server).
 *   **Git:** For version control.
+
+There is no Python anywhere in this stack — GPX parsing is done in Node via the `gpxparser` npm package.
 
 ## 1. Project Structure
 
-\`\`\`
-your-project-root/
-├── .git/
-├── frontend/             # React application
-│   ├── public/
+```
+gpx-report/
+├── .env.example
+├── docker-compose.yml       # db (postgis), backend, frontend, syncthing services
+├── data/gpx/                # GPX drop directory, bind-mounted into backend + syncthing
+├── frontend/                 # React (Vite) application
 │   ├── src/
-│   │   ├── components/
-│   │   ├── graphql/        # GraphQL client setup and queries
-│   │   ├── hooks/
-│   │   ├── pages/
-│   │   ├── styles/
-│   │   └── App.js
+│   │   ├── graphql/          # Apollo client setup and queries
+│   │   ├── pages/             # Dashboard.jsx, ActivityDetail.jsx, Settings.jsx
+│   │   ├── App.jsx
+│   │   └── apolloClient.js
 │   └── package.json
-├── backend/              # Backend API (e.g., Node.js with Apollo Server, Python with Flask/FastAPI)
+├── backend/                   # Node (ESM), no framework/ORM
 │   ├── src/
-│   │   ├── graphql/        # GraphQL schema definitions, resolvers
-│   │   ├── models/         # Database models/ORM
-│   │   ├── services/       # Business logic, GPX processing logic
-│   │   └── index.js        # Server entry point
-│   ├── docker-compose.yml  # Docker configuration for DB and potentially backend
-│   ├── db/                 # Database scripts (schema definitions, migrations)
-│   ├── gpx_processor/      # Python scripts for GPX parsing
-│   │   ├── __init__.py
-│   │   ├── parser.py
-│   │   └── processor.py
-│   └── package.json        # Backend dependencies
-└── README.md
+│   │   ├── graphql/            # typeDefs.js, resolvers.js, scalars.js
+│   │   ├── gpx/                 # parser.js, processor.js, watcher.js
+│   │   ├── db.js                # shared pg.Pool
+│   │   └── index.js             # entrypoint — boots Apollo Server + watcher
+│   ├── db/init.sql              # schema, applied on first container start only
+│   └── package.json
 └── docs/
     ├── ARCHITECTURE.md
     ├── DATA_MODEL.md
     ├── FEATURES.md
-    └── SETUP.md
-\`\`\`
+    ├── SETUP.md
+    └── TODO.md
+```
 
 ## 2. Database Setup (PostgreSQL with PostGIS)
 
-1.  **Using Docker (Recommended):**
-    *   Navigate to the `backend/` directory.
-    *   Ensure you have a `docker-compose.yml` file configured for PostgreSQL with PostGIS. Example snippet:
-        \`\`\`yaml
-        version: '3.8'
-        services:
-          db:
-            image: postgis/postgis:13-3.1 # Use a suitable PostGIS version
-            container_name: your-project-db
-            ports:
-              - "5432:5432"
-            environment:
-              POSTGRES_USER: youruser
-              POSTGRES_PASSWORD: yourpassword
-              POSTGRES_DB: yourdbname
-            volumes:
-              - db_data:/var/lib/postgresql/data
+The repo-root `docker-compose.yml` already defines the `db` service (`postgis/postgis:15-3.4`), reading `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` from `.env` (see `.env.example`). `docker compose up` (or `up -d db`) starts it; `backend/db/init.sql` is mounted into the image's init-script directory and runs automatically the *first* time the `db_data` volume is created.
 
-        volumes:
-          db_data:
-        \`\`\`
-    *   Run `docker-compose up -d` in the `backend/` directory.
-    *   Connect to the database using a tool like `psql` or pgAdmin.
-
-2.  **Local Installation:**
-    *   Install PostgreSQL and the PostGIS extension following your operating system's instructions.
-    *   Create a database, user, and grant necessary privileges.
-
-3.  **Schema Initialization:**
-    *   Apply the database schema defined in `docs/DATA_MODEL.md`. You may want to create SQL migration scripts within `backend/db/`.
-    *   Ensure the PostGIS extension is enabled in your database: `CREATE EXTENSION IF NOT EXISTS postgis;`
+*   **Schema changes to an existing deployment:** `init.sql` will not re-run against an existing volume. Apply changes by hand with `psql` (or `docker compose exec db psql -U $POSTGRES_USER -d $POSTGRES_DB`) — there is no migration tool. See `docs/TODO.md`.
+*   **Local (non-Docker) Postgres:** install PostgreSQL + PostGIS yourself, create a DB/user, `CREATE EXTENSION IF NOT EXISTS postgis;`, then run `backend/db/init.sql` against it manually. Point `DATABASE_URL` at it.
 
 ## 3. Backend Setup
 
-1.  **Install Dependencies:**
-    *   Navigate to the `backend/` directory.
-    *   Run `npm install` (or `yarn install`) for Node.js, or `pip install -r requirements.txt` for Python.
-2.  **Configure Environment Variables:**
-    *   Create a `.env` file in the `backend/` directory for database connection strings, API keys, etc.
-    *   Example `.env` for PostgreSQL:
-        \`\`\`
-        DATABASE_URL=postgresql://youruser:***@localhost:5432/yourdbname
-        GRAPHQL_PORT=4000
-        GPX_FILES_DIRECTORY=/path/to/your/gpx/files # IMPORTANT: Set this to where you'll put GPX files
-        \`\`\`
-3.  **Start the Backend Server:**
-    *   Run `npm start` (or `yarn start`) or `python index.py`.
+*   **Via Docker (recommended):** already wired up in `docker-compose.yml` — `docker compose up --build backend` builds and starts it, with `DATABASE_URL` and `GPX_FILES_DIRECTORY` set from the compose file's `environment:` block.
+*   **Locally:** `cd backend && npm install && npm run dev` (uses `node --watch`). Requires `DATABASE_URL` and `GPX_FILES_DIRECTORY` env vars — see `docker-compose.yml`'s `backend.environment` for the shape. `npm start` runs it without `--watch`.
+*   The server listens on `GRAPHQL_PORT` (`4000` by default) and serves Apollo Server standalone at `/graphql`.
 
 ## 4. Frontend Setup
 
-1.  **Install Dependencies:**
-    *   Navigate to the `frontend/` directory.
-    *   Run `npm install` (or `yarn install`).
-2.  **Configure API Endpoint:**
-    *   Ensure your GraphQL client is configured to point to your backend API endpoint (e.g., `http://localhost:4000/graphql`). This is typically done in `frontend/src/graphql/client.js` or similar.
-3.  **Start the Development Server:**
-    *   Run `npm start` (or `yarn start`).
-    *   The application will typically be available at `http://localhost:3000`.
+*   **Via Docker (recommended):** `docker compose up --build frontend`. **Important:** `VITE_GRAPHQL_URL` is baked into the static JS bundle at *image build time* via a Docker build arg (`frontend.build.args` in `docker-compose.yml`), not read at container runtime — changing it requires a rebuild (`docker compose up -d --build frontend`), not just a restart.
+*   **Locally:** `cd frontend && npm install && npm run dev` (Vite, binds `0.0.0.0`, default port 5173 unless configured otherwise). Set `VITE_GRAPHQL_URL` in the environment if not proxying to `localhost:4000/graphql`.
+*   `http://localhost:4000/graphql` only works when the browser and backend run on the same machine — for any real deployment `VITE_GRAPHQL_URL` needs to be a domain reachable from wherever the browser is (see §6 below for the reverse-proxy setup used in this project's actual deployment).
 
 ## 5. Data Ingestion Setup
 
-1.  **Configure GPX Directory:**
-    *   Ensure the `GPX_FILES_DIRECTORY` environment variable in your backend `.env` file points to a directory where you will place your `.gpx` files for processing.
-2.  **Run the GPX Processor:**
-    *   The GPX processing logic (e.g., Python scripts in `backend/gpx_processor/`) should be configured to run periodically or be triggered by file system events (e.g., using libraries like `watchdog` in Python).
-    *   You may need to adjust how this processor runs:
-        *   **As a separate background service:** Recommended for reliable processing.
-        *   **Triggered by API mutation:** The `reanalyze` mutation could explicitly call this script.
-        *   **File watcher daemon:** Automatically watches the GPX directory.
+1.  **Configure GPX Directory:** `GPX_FILES_DIRECTORY` (backend env var) points at the directory to watch. In Docker Compose this is `/gpx-files` inside the container, bind-mounted from `./data/gpx` on the host.
+2.  **How ingestion actually runs:** there's no separate script to invoke — `backend/src/index.js` starts a `chokidar` watcher (`backend/src/gpx/watcher.js`) on boot, which fires an `add` event for every pre-existing file and then keeps watching for new ones. Each file is parsed (`gpx/parser.js`) and upserted (`gpx/processor.js`) automatically; there's nothing to schedule or trigger manually beyond dropping a `.gpx` file into the directory.
+3.  **Re-analysis:** the `reanalyzeAllActivities` / `reanalyzeActivitiesByDateRange` GraphQL mutations (wired to the Settings page buttons) re-run the same parse+upsert pipeline over files that already have a matching `activities` row.
 
 Note: both the file watcher (on startup, when it sees every pre-existing file) and the `reanalyze*` mutations process files with bounded concurrency (a small in-process queue / batches of 5) rather than firing all of them at Postgres at once. This matters in practice — the default `pg.Pool` size is 10, and syncing in a large backlog (e.g. seeding the app with hundreds of historical tracks at once) will otherwise open far more simultaneous connections than the pool can serve, causing a chunk of files to fail with `Connection terminated unexpectedly`. If you ever see that error on a bulk ingest, it's a concurrency/pool-exhaustion symptom, not a bad GPX file — re-running `reanalyzeAllActivities` is safe (upserts are idempotent) but shouldn't be necessary now that both ingestion paths are queued.
 
