@@ -70,14 +70,16 @@ services:
     image: codercom/code-server:latest
     container_name: gpx-report-code-server
     restart: unless-stopped
+    user: "0:0" # repo bind mount is root-owned on the host; run as root so the
+    # editor (uid 1000 "coder" by default) can actually write/delete files.
     # No built-in auth (--auth none): this container has full read/write
     # access to the repo (and a shell) via the browser. It must never be
     # reachable except over Tailscale — do not add a public Caddy site for
     # it the way there is for the Syncthing GUI / GraphQL API. See
     # docs/SETUP.md.
-    command: --auth none --bind-addr 0.0.0.0:8080 /home/coder/project
+    command: --auth none --bind-addr 0.0.0.0:8080 /opt/gpx-report
     volumes:
-      - ./:/home/coder/project
+      - ./:/opt/gpx-report
       - code_server_data:/home/coder/.local
     ports:
       - "8443:8080"
