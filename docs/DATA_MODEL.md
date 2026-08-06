@@ -144,17 +144,20 @@ type Mutation {
     endDate: DateTime!
   ): ReanalysisStatus!
 
-  # Rewrites the <trk><name> element in the source .gpx file (string
-  # replacement, no XML DOM lib) and re-runs processFile() so the DB row
-  # and file stay in sync. Only .gpx activities support this; .igc/.skiz
+  # Rewrites the <trk><name> element (gpx/writer.js) or Track.xml's name
+  # attribute (skiz/writer.js) in the source file and re-runs processFile()
+  # so the DB row and file stay in sync. .gpx and .skiz activities support
+  # this; .igc has no writer path and the mutation rejects it.
   updateActivityTitle(id: ID!, title: String!): Activity!
 
-  # Same string-replacement approach, targeting <trk><type>. activityType is
-  # a label (e.g. "Mountain Biking"); the resolver converts it back to the
-  # raw <type> value (e.g. "mountain_biking") that parser.js's
-  # resolveActivityType() maps back to that same label, via
-  # activityTypeToRawType() in gpx/parser.js. Only .gpx activities support
-  # this; .igc/.skiz have no writer path and the mutation rejects them.
+  # Same approach, targeting <trk><type> (gpx) or Track.xml's activity
+  # attribute (skiz). For .gpx, activityType is a label (e.g. "Mountain
+  # Biking") the resolver converts to the raw <type> value (e.g.
+  # "mountain_biking") that parser.js's resolveActivityType() maps back to
+  # that same label, via activityTypeToRawType() in gpx/parser.js. For
+  # .skiz, the label is written as-is; skiz/parser.js's resolveActivityType()
+  # title-cases it back on read. .igc has no writer path and the mutation
+  # rejects it.
   updateActivityType(id: ID!, activityType: String!): Activity!
 }
 ```
