@@ -3,3 +3,9 @@ dist/
 .env
 data/gpx/*
 !data/gpx/.gitkeep
+
+# Claude Code local tooling/settings
+.agents/
+.claude/settings.local.json
+.claude/skills/
+skills-lock.json
