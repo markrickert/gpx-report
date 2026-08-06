@@ -18,7 +18,7 @@ This document outlines the architecture of gpx-report, a self-hosted platform fo
 ## 2. Backend API (GraphQL)
 
 *   **Purpose:** Serves as the interface between the React frontend and the data storage/processing layers.
-*   **Technology:** Apollo Server (standalone, no HTTP framework), plain Node.js with ESM, no ORM.
+*   **Technology:** Apollo Server on Express (`expressMiddleware` mounted at `/graphql`, so a plain `GET /activities/:id/download` route can sit alongside it), plain Node.js with ESM, no ORM.
 *   **Key Operations:**
     *   **Queries:**
         *   Fetch individual activity details (`activity(id: ID!)`).

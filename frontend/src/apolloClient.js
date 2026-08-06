@@ -6,3 +6,5 @@ export const apolloClient = new ApolloClient({
   link: new HttpLink({ uri }),
   cache: new InMemoryCache(),
 });
+
+export const apiOrigin = uri.replace(/\/graphql\/?$/, "");

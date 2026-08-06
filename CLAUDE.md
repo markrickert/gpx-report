@@ -14,7 +14,7 @@ docker compose up --build
 ```
 
 - Frontend: http://localhost:3000
-- GraphQL API (Apollo Server standalone): http://localhost:4000/graphql
+- GraphQL API (Apollo Server on Express): http://localhost:4000/graphql
 - Postgres/PostGIS: localhost:5432
 - Syncthing GUI (GPX sync from phone, optional): http://localhost:8384 — start separately with `docker compose up -d syncthing`
 
@@ -46,7 +46,7 @@ The backend has a Vitest suite covering the GPX/IGC/`.skiz` parsers (`backend/sr
 ## Architecture
 
 **Backend** (`backend/src`, plain Node with ESM, no framework/ORM):
-- `index.js` — entrypoint; boots Apollo Server standalone and starts the GPX directory watcher.
+- `index.js` — entrypoint; boots Apollo Server on Express (`/graphql`, plus a `GET /activities/:id/download` route for source-file downloads) and starts the GPX directory watcher.
 - `db.js` — a single shared `pg.Pool` (default size 10), exported and imported everywhere queries are made.
 - `graphql/typeDefs.js` + `resolvers.js` — the whole GraphQL schema and resolver set live in one file each, no per-type splitting. `scalars.js` defines custom `DateTime`/`JSON` scalars.
 - `gpx/parser.js` — parses a GPX file with `gpxparser`, computes distance/speed/elevation stats it doesn't provide, and guesses `activityType` from the filename (matches against a fixed word list like "running", "hiking", "skiing"; falls back to "Unknown").
