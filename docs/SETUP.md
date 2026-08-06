@@ -129,13 +129,14 @@ The frontend is a static bundle — Vite bakes `VITE_GRAPHQL_URL` into the built
 
 ## 7. Browser-Based Editing (code-server)
 
-`docker-compose.yml` includes a `code-server` service (`codercom/code-server`) — a full VS Code instance in the browser, with a terminal, bind-mounted read-write at the repo root (`./:/home/coder/project`).
+`docker-compose.yml` includes a `code-server` service (`codercom/code-server`) — a full VS Code instance in the browser, with a terminal, bind-mounted read-write at the repo root (`./:/opt/gpx-report`).
 
 *   **Start it:** `docker compose up -d code-server`, then open `http://<server-ip>:8443` (or `http://localhost:8443` if you're on the same machine).
 *   **No login.** It's started with `--auth none`, so anyone who can reach it has a shell and write access to the whole repo — no password, no prompt. This is intentional: the domain (`gpx-report-code.example.com`, via a Caddy site same as §6) only resolves/routes within Tailscale on this deployment — there's no real public exposure, and it shares the same trust boundary as the unauthenticated Postgres port and Syncthing GUI. If this deployment ever becomes reachable from an untrusted network, set a real password instead (`PASSWORD=...` env var in place of `--auth none` in the `command:`) before relying on that assumption.
-*   **Editor state (extensions, settings) persists** in the `code_server_data` named volume, separate from the repo bind mount, so `docker compose down`/`up` doesn't lose installed extensions.
+*   **Editor state (extensions, settings) persists** in the `code_server_data` named volume, mounted at `/root/.local` (the container runs as `user: "0:0"`, so `$HOME` is `/root`, not the image's default `/home/coder`) — separate from the repo bind mount, so `docker compose down`/`up` doesn't lose installed extensions.
 *   Changes made through it land directly on the host filesystem (it's a bind mount, not a copy) — `git status` on the host will show them immediately, same as editing the files directly.
 *   **The dashboard's "Code" tab (`frontend/src/pages/CodeEditor.jsx`) iframes `VITE_CODE_SERVER_URL`** (`https://gpx-report-code.example.com`, a Caddy site `reverse_proxy localhost:8443`), baked in at frontend image build time same as `VITE_GRAPHQL_URL` (§6). Changing it needs `docker compose up -d --build frontend`.
+*   **The Code tab follows the dashboard's light/dark toggle.** `code_server_data` is also mounted read-write into the `backend` container at `/code-server-home`; toggling the app's theme calls the `setCodeServerTheme` mutation (`resolvers.js`), which writes `workbench.colorTheme` into code-server's `settings.json`, and `CodeEditor.jsx` then reloads the iframe so the new theme takes effect.
 
 ## 8. Deployment Notes (Proxmox LXC)
 

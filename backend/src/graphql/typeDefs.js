@@ -75,5 +75,6 @@ export const typeDefs = `#graphql
     updateActivityType(id: ID!, activityType: String!): Activity!
     trimActivity(id: ID!, startIndex: Int!, endIndex: Int!): Activity!
     saveRecordedActivity(gpxContent: String!): SaveRecordedActivityResult!
+    setCodeServerTheme(theme: String!): Boolean!
   }
 `;
