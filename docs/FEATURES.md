@@ -64,15 +64,21 @@ This document details the features of gpx-report, and reflects what is actually 
 
 *   **Per-Activity-Type Breakdown:** A table of aggregate stats grouped by activity type — count, total/average distance, total/average duration, and average elevation gain — computed live from the database (all-time, unfiltered).
 
-## 6. Units
+## 6. Heatmap Page
+
+*   **Density Heatmap:** A nav tab (`/heatmap`) renders every activity's route coordinates as a single `leaflet.heat` density heatmap over a basemap, using the same CARTO-dark/OSM-light tile split (by theme) as the Activity Detail map.
+*   **Elevation Banding:** A "Color by elevation" checkbox switches to 4 separate heat layers, one per elevation quartile of the dataset (computed from all loaded points), each rendered in a fixed single-color gradient with a swatch-and-range legend below the checkbox.
+*   **Payload Sizing:** The backing `heatmapPoints` GraphQL query returns `[lat, lon, elevation]` triples for every activity at once (no pagination), but caps/samples each route at 300 points server-side so a personal-scale dataset (hundreds of activities) stays a few MB rather than tens of MB at full GPS resolution.
+
+## 7. Units
 
 *   **km/miles Toggle:** A nav-bar toggle switches all distance/speed/elevation display between metric (km, km/h, m) and imperial (mi, mph, ft), backend by a React context persisted to `localStorage`. Defaults to imperial.
 
-## 7. Code Tab
+## 8. Code Tab
 
 *   **Embedded Editor:** A nav tab iframes a `code-server` (browser VS Code) instance bind-mounted read-write at the repo root, for making and committing changes to gpx-report from the same UI. Reachable only within the deployment's Tailscale network — see `CLAUDE.md` deployment notes.
 
-## 8. Data Management
+## 9. Data Management
 
 *   **Self-Hosted:** All data is stored locally, ensuring user privacy and control.
 *   **GPX File Synchronization:** Assumes GPX files are externally synchronized to a monitored directory. No built-in upload or file management in v1.
