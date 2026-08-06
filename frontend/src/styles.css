@@ -366,6 +366,118 @@ select {
   color: var(--text-muted);
 }
 
+.heatmap-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.heatmap-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.heatmap-header-row h2 {
+  margin: 0;
+}
+
+.heatmap-selectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.heatmap-selectors select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+.calendar-heatmap-wrap {
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.calendar-heatmap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: min-content;
+}
+
+.calendar-heatmap-months {
+  display: flex;
+  gap: 3px;
+  padding-left: 1px;
+}
+
+.calendar-heatmap-month-label {
+  width: 12px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: visible;
+}
+
+.calendar-heatmap-grid {
+  display: flex;
+  gap: 3px;
+}
+
+.calendar-heatmap-week {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.calendar-heatmap-cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--bg-subtle);
+}
+
+.calendar-heatmap-cell-empty {
+  background: transparent;
+}
+
+.calendar-heatmap-level-0 {
+  background: var(--bg-subtle);
+}
+
+.calendar-heatmap-level-1 {
+  background: color-mix(in srgb, var(--accent) 25%, var(--bg-subtle));
+}
+
+.calendar-heatmap-level-2 {
+  background: color-mix(in srgb, var(--accent) 50%, var(--bg-subtle));
+}
+
+.calendar-heatmap-level-3 {
+  background: color-mix(in srgb, var(--accent) 75%, var(--bg-subtle));
+}
+
+.calendar-heatmap-level-4 {
+  background: var(--accent);
+}
+
+.calendar-heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
 .activity-type-badge {
   display: inline-block;
   background: var(--accent-soft-bg);
@@ -510,5 +622,14 @@ select {
 
   .summary-value {
     font-size: 1.25rem;
+  }
+
+  .calendar-heatmap-cell,
+  .calendar-heatmap-month-label {
+    width: 9px;
+  }
+
+  .calendar-heatmap-cell {
+    height: 9px;
   }
 }

@@ -96,6 +96,16 @@ export const GET_HEATMAP_POINTS = gql`
   }
 `;
 
+export const GET_ACTIVITY_DATES = gql`
+  query GetActivityDates {
+    activities(limit: 1000) {
+      id
+      startTime
+      activityType
+    }
+  }
+`;
+
 export const GET_STATS_BY_TYPE = gql`
   query GetStatsByType {
     aggregatedStatsByType {
