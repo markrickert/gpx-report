@@ -79,6 +79,7 @@ This document details the features of gpx-report, and reflects what is actually 
 ## 8. Code Tab
 
 *   **Embedded Editor:** A nav tab iframes a `code-server` (browser VS Code) instance bind-mounted read-write at the repo root, for making and committing changes to gpx-report from the same UI. Reachable only within the deployment's Tailscale network — see `CLAUDE.md` deployment notes.
+*   **Theme sync:** Toggling the dashboard's light/dark mode also flips code-server's VS Code theme (`setCodeServerTheme` mutation writes `workbench.colorTheme` to its `settings.json`), and the iframe reloads to pick it up.
 
 ## 9. Record Page (In-App GPS Recording)
 

@@ -1,5 +1,5 @@
 import path from "node:path";
-import { writeFile } from "node:fs/promises";
+import { writeFile, readFile, mkdir } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { pool } from "../db.js";
 import { reanalyzeAll, reanalyzeByDateRange, processFile } from "../gpx/processor.js";
@@ -26,6 +26,15 @@ function mapActivityRow(row) {
 }
 
 const GPX_FILES_DIRECTORY = process.env.GPX_FILES_DIRECTORY;
+
+// code-server's home volume is bind-mounted read-write here so the
+// dashboard's theme toggle can flip its VS Code Web color theme to match.
+const CODE_SERVER_SETTINGS_PATH =
+  process.env.CODE_SERVER_SETTINGS_PATH || "/code-server-home/share/code-server/User/settings.json";
+const CODE_SERVER_COLOR_THEMES = {
+  dark: "Default Dark+",
+  light: "Default Light+",
+};
 
 // In-app GPS recording (Record.jsx) submits the full GPX XML it built
 // client-side here for a plain disk write, reusing the existing watcher/
@@ -252,6 +261,22 @@ export const resolvers = {
       // path as any synced file. The frontend polls for the resulting
       // activity rather than blocking on it.
       return { filename };
+    },
+
+    setCodeServerTheme: async (_parent, { theme }) => {
+      const colorTheme = CODE_SERVER_COLOR_THEMES[theme];
+      if (!colorTheme) throw new Error(`Unknown theme: ${theme}`);
+
+      await mkdir(path.dirname(CODE_SERVER_SETTINGS_PATH), { recursive: true });
+      let settings = {};
+      try {
+        settings = JSON.parse(await readFile(CODE_SERVER_SETTINGS_PATH, "utf-8"));
+      } catch {
+        settings = {};
+      }
+      settings["workbench.colorTheme"] = colorTheme;
+      await writeFile(CODE_SERVER_SETTINGS_PATH, JSON.stringify(settings, null, 2), "utf-8");
+      return true;
     },
   },
 
