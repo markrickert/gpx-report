@@ -32,6 +32,7 @@ import {
 } from "../units.jsx";
 import { useTheme } from "../theme.jsx";
 import { ACTIVITY_TYPES } from "../activityTypes.js";
+import { apiOrigin } from "../apolloClient.js";
 
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -80,7 +81,10 @@ function ActivityHeader({ activity, editMode, onEditModeChange }) {
         </h1>
         <p>
           <span className="activity-type-badge">{activity.activityType}</span>{" "}
-          {new Date(activity.startTime).toLocaleString()}
+          {new Date(activity.startTime).toLocaleString()}{" "}
+          <a href={`${apiOrigin}/activities/${activity.id}/download`} className="download-link">
+            Download {activity.gpxFilename.split(".").pop().toUpperCase()}
+          </a>
         </p>
       </>
     );

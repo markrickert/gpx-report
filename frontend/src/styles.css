@@ -590,6 +590,11 @@ select {
   font-weight: 600;
 }
 
+.download-link {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
 .title-edit-button {
   font-size: 0.8rem;
   font-weight: 400;
