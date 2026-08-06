@@ -406,6 +406,14 @@ export default function ActivityDetail() {
   const elevationMid = elevations.length > 0 ? (elevationDomain[0] + elevationDomain[1]) / 2 : 0;
   const speedGradientStops = buildSpeedGradientStops(elevationData, activity.maxSpeedMps);
   const restBands = buildRestBands(elevationData);
+  const liftElevationGainMeters = activity.route.liftSegments.reduce(
+    (sum, seg) => sum + Math.max(0, seg.elevationGainMeters),
+    0,
+  );
+  const elevationGainExcludingLift =
+    activity.totalElevationGain != null
+      ? activity.totalElevationGain - liftElevationGainMeters
+      : null;
 
   const [trimStart, trimEnd] = trimRange ?? [0, elevationData.length - 1];
   const trimActive = editMode && isEditable(activity) && trimRange !== null;
@@ -517,6 +525,19 @@ export default function ActivityDetail() {
             <span className="metric-label">Elevation Gain</span>
           </span>
         </div>
+        {activity.route.liftSegments.length > 0 && (
+          <div className="metric-tile">
+            <span className="metric-icon" aria-hidden="true">
+              🚡
+            </span>
+            <span className="metric-body">
+              <span className="metric-value">
+                {formatElevation(elevationGainExcludingLift, unit)}
+              </span>
+              <span className="metric-label">Gain Excluding Lift</span>
+            </span>
+          </div>
+        )}
         <div className="metric-tile">
           <span className="metric-icon" aria-hidden="true">
             📉
@@ -571,7 +592,8 @@ export default function ActivityDetail() {
 
       <h2>Elevation Profile</h2>
       <p className="chart-hint">
-        Line color shows speed (blue = fast, red = slow); shaded bands mark rest stops.
+        Line color shows speed (blue = fast, red = slow); gray bands mark rest stops, purple bands
+        mark suspected lift rides.
       </p>
       <ResponsiveContainer width="100%" height={250} className="elevation-chart">
         <LineChart
@@ -629,6 +651,17 @@ export default function ActivityDetail() {
               x2={end}
               fill="#94a3b8"
               fillOpacity={0.2}
+              strokeOpacity={0}
+            />
+          ))}
+          {activity.route.liftSegments.map((seg) => (
+            <ReferenceArea
+              key={`lift-${seg.startIndex}-${seg.endIndex}`}
+              xAxisId="idx"
+              x1={seg.startIndex}
+              x2={seg.endIndex}
+              fill="#a855f7"
+              fillOpacity={0.25}
               strokeOpacity={0}
             />
           ))}

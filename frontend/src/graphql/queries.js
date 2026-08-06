@@ -41,6 +41,13 @@ export const GET_ACTIVITY = gql`
       route {
         coordinates
         elevationProfile
+        liftSegments {
+          startIndex
+          endIndex
+          durationSeconds
+          elevationGainMeters
+          avgSpeedMps
+        }
       }
     }
   }
@@ -154,6 +161,19 @@ export const GET_ACTIVITY_OUTLIER_DIFF = gql`
       cleanedMaxSpeedMps
       originalDistanceMeters
       cleanedDistanceMeters
+    }
+  }
+`;
+
+export const GET_ACTIVITIES_WITH_LIFT_SEGMENTS = gql`
+  query GetActivitiesWithLiftSegments {
+    activitiesWithLiftSegments {
+      activityId
+      title
+      activityType
+      startTime
+      liftSegmentCount
+      totalLiftElevationGainMeters
     }
   }
 `;

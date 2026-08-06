@@ -5,6 +5,7 @@ import {
   REANALYZE_ALL,
   REANALYZE_RANGE,
   GET_ACTIVITIES_WITH_OUTLIERS,
+  GET_ACTIVITIES_WITH_LIFT_SEGMENTS,
 } from "../graphql/queries.js";
 
 const RANGE_OPTIONS = [
@@ -36,6 +37,39 @@ function OutlierList() {
           <span className="chart-hint">
             {new Date(a.startTime).toLocaleDateString()} — {a.outlierPointCount} flagged point
             {a.outlierPointCount === 1 ? "" : "s"}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Lists activities where the backend's lift detector (see
+// track/liftDetection.js) flagged one or more straight-line, steady-climb
+// stretches that look like a chairlift/gondola ride — informational only,
+// nothing here mutates data. Open the activity to see the flagged range on
+// its elevation chart.
+function LiftList() {
+  const { data, loading, error } = useQuery(GET_ACTIVITIES_WITH_LIFT_SEGMENTS);
+
+  if (loading) return <p>Scanning activities for lift segments...</p>;
+  if (error) return <p>Error loading lift segments: {error.message}</p>;
+
+  const activities = data.activitiesWithLiftSegments;
+  if (activities.length === 0) {
+    return <p>No likely lift segments detected across your activities.</p>;
+  }
+
+  return (
+    <ul className="outlier-activity-list">
+      {activities.map((a) => (
+        <li key={a.activityId}>
+          <Link to={`/activities/${a.activityId}`}>{a.title}</Link>{" "}
+          <span className="activity-type-badge">{a.activityType}</span>{" "}
+          <span className="chart-hint">
+            {new Date(a.startTime).toLocaleDateString()} — {a.liftSegmentCount} segment
+            {a.liftSegmentCount === 1 ? "" : "s"}, {Math.round(a.totalLiftElevationGainMeters)} m
+            gained
           </span>
         </li>
       ))}
@@ -93,6 +127,14 @@ export default function Settings() {
         original vs. cleaned track on a map and decide whether to remove the flagged points.
       </p>
       <OutlierList />
+
+      <h2>Suspected Lift Rides</h2>
+      <p className="chart-hint">
+        Stretches of track that look like a chairlift/gondola ride — straight-line, roughly constant
+        speed, steady climb — rather than the athlete&apos;s own effort. Nothing is changed
+        automatically; open an activity below to see the flagged range on its elevation chart.
+      </p>
+      <LiftList />
     </div>
   );
 }

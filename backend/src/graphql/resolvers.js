@@ -24,6 +24,7 @@ import {
 import { removeIgcTrackPoints } from "../igc/writer.js";
 import { activityTypeToRawType } from "../gpx/parser.js";
 import { detectOutliers } from "../track/outliers.js";
+import { detectLiftSegments } from "../track/liftDetection.js";
 import { haversineMeters } from "../track/geo.js";
 import { DateTimeScalar, JSONScalar } from "./scalars.js";
 
@@ -299,6 +300,31 @@ export const resolvers = {
         cleanedDistanceMeters,
       };
     },
+
+    activitiesWithLiftSegments: async () => {
+      const { rows } = await pool.query(`
+        SELECT a.id, a.title, a.activity_type, a.start_time, r.points_data
+        FROM activities a
+        JOIN activity_routes r ON r.activity_id = a.id
+      `);
+      return rows
+        .map((row) => {
+          const segments = detectLiftSegments(row.points_data || []);
+          return {
+            activityId: row.id,
+            title: row.title,
+            activityType: row.activity_type,
+            startTime: row.start_time,
+            liftSegmentCount: segments.length,
+            totalLiftElevationGainMeters: segments.reduce(
+              (sum, s) => sum + Math.max(0, s.elevationGainMeters),
+              0,
+            ),
+          };
+        })
+        .filter((r) => r.liftSegmentCount > 0)
+        .sort((a, b) => b.totalLiftElevationGainMeters - a.totalLiftElevationGainMeters);
+    },
   },
 
   Mutation: {
@@ -430,6 +456,7 @@ export const resolvers = {
       return {
         coordinates: row?.points_data ?? [],
         elevationProfile: row?.elevation_profile_data ?? [],
+        liftSegments: detectLiftSegments(row?.points_data ?? []),
       };
     },
   },
