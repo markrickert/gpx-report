@@ -149,6 +149,45 @@ select {
   overflow: hidden;
 }
 
+.heatmap-map {
+  width: 100%;
+  height: min(80vh, 900px);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.heatmap-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.heatmap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.heatmap-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.heatmap-legend-swatch {
+  display: inline-block;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 3px;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -234,7 +273,11 @@ select {
   box-shadow: var(--shadow-sm);
   opacity: 0;
   transform: translateY(12px);
-  transition: opacity 0.4s ease, transform 0.4s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .activity-list li:hover {

@@ -61,6 +61,7 @@ export const typeDefs = `#graphql
       startDate: DateTime
       endDate: DateTime
     ): [AggregatedStatsByType!]!
+    heatmapPoints: JSON!
   }
 
   type Mutation {
