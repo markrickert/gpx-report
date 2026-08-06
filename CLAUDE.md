@@ -63,3 +63,50 @@ Deployed via `docker compose` on a Proxmox LXC host behind Caddy (see `docs/SETU
 - The frontend image build (`npm install` + `vite build`) is the slow step (~8–10 min on a fresh host) — don't assume a long `docker compose up --build` is hung.
 - Syncthing needs `PUID`/`PGID` left at `0` (root) in `docker-compose.yml`, or it crash-loops on first boot trying to write its cert into a root-owned config volume.
 - `code-server` (browser-based VS Code, port 8443) is bind-mounted read-write at the repo root and runs with `--auth none` — no login. It relies entirely on the Tailscale/LAN network boundary for access control, same as the Syncthing GUI and Postgres port. Never add a public Caddy site for it. See `docs/SETUP.md` §7.
+
+## Behavioral Guidelines
+
+### 1. Think Before Coding
+
+- State assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them—don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+
+### 2. Simplicity First
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No error handling for impossible scenarios.
+- If 200 lines could be 50, rewrite it.
+
+### 3. Surgical Changes
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated issues, mention them—don't fix them.
+- Remove only what YOUR changes made unused.
+
+### 4. Goal-Driven Execution
+
+- Transform tasks into verifiable goals.
+- For multi-step tasks, state a brief plan with verification steps.
+- Unverified work is incomplete work.
+
+### 5. Output Precision
+
+- Lead with findings, not process descriptions. 
+- Avoid unnecessary intros like, "this is where it gets interesting", "Great news!", "Here's the deal...", "Let's dive in", etc.
+- Use structured formats (lists, tables, code blocks).
+- Include absolute file paths—never relative.
+
+## Other Global Rules:
+
+### Temporary work
+
+- the directory `.mark` is globally gitignored, but you are allowed to read and write files in a `.mark` folder. You can create it if it doesn't exist in the project folder. Use it for temporary files that shouldn't be committed, like branch context files, private notes, project plans, and to-do lists for tasks.
+
+### Operating rules
+
+- **Prefer the simpler / existing approach.** Before writing new code, look for an existing utility, hook, helper, or pattern that already solves the problem. Before listing/enumerating things, check if they can be derived (e.g., glob a directory instead of hardcoding names). Before adding defensive preflight checks (`canOpen` before `open`, `exists` before `read`), prefer try/catch — internal code can trust its callers.
+- **Distinguish "research" from "do."** When I ask "how hard would it be," "is it safe to," "compare X and Y," "look at the diff," "tell me," or "should we" — that is a request for analysis, not implementation. Report findings and a recommendation; do not write code or run mutations until I confirm. If unsure which mode I want, ask.
