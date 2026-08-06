@@ -106,6 +106,23 @@ export const GET_ACTIVITY_DATES = gql`
   }
 `;
 
+export const SAVE_RECORDED_ACTIVITY = gql`
+  mutation SaveRecordedActivity($gpxContent: String!) {
+    saveRecordedActivity(gpxContent: $gpxContent) {
+      filename
+    }
+  }
+`;
+
+export const GET_RECENT_ACTIVITIES_FOR_POLL = gql`
+  query GetRecentActivitiesForPoll {
+    activities(limit: 5) {
+      id
+      gpxFilename
+    }
+  }
+`;
+
 export const GET_STATS_BY_TYPE = gql`
   query GetStatsByType {
     aggregatedStatsByType {
