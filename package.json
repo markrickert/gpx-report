@@ -1,0 +1,25 @@
+{
+  "name": "gpx-report",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "prepare": "husky",
+    "lint": "npm run lint --prefix backend && npm run lint --prefix frontend",
+    "format": "npm run format --prefix backend && npm run format --prefix frontend"
+  },
+  "devDependencies": {
+    "husky": "^9.1.5",
+    "lint-staged": "^15.2.9",
+    "prettier": "^3.3.3"
+  },
+  "lint-staged": {
+    "backend/**/*.js": [
+      "backend/node_modules/.bin/eslint --config backend/eslint.config.js --fix",
+      "prettier --write"
+    ],
+    "frontend/**/*.{js,jsx}": [
+      "frontend/node_modules/.bin/eslint --config frontend/eslint.config.js --fix",
+      "prettier --write"
+    ]
+  }
+}

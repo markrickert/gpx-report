@@ -18,7 +18,7 @@ docker compose up --build
 - Postgres/PostGIS: localhost:5432
 - Syncthing GUI (GPX sync from phone, optional): http://localhost:8384 — start separately with `docker compose up -d syncthing`
 
-There is no test suite and no lint/typecheck config in this repo currently.
+There is no test suite. ESLint (flat config, `backend/eslint.config.js` and `frontend/eslint.config.js`) and Prettier (`.prettierrc.json` at repo root) are set up — see "Linting/formatting" below.
 
 ### Getting code changes live (this deployment)
 
@@ -35,6 +35,13 @@ There is no test suite and no lint/typecheck config in this repo currently.
 - Frontend: `cd frontend && npm install && npm run dev` (Vite, binds `0.0.0.0`). Set `VITE_GRAPHQL_URL` if not proxying to `localhost:4000/graphql`.
 
 **Important:** `VITE_GRAPHQL_URL` is baked into the frontend's static JS bundle at **image build time** via a Docker build arg (see `docker-compose.yml`'s `frontend.build.args` and `frontend/Dockerfile`), not read at container runtime. Changing it requires `docker compose up -d --build frontend` — restarting the container alone won't pick up the new value. `http://localhost:4000/graphql` only works if the browser and backend are on the same machine; for any real deployment this must be a routable domain reachable from wherever the browser runs.
+
+### Linting/formatting
+
+- `backend/eslint.config.js` and `frontend/eslint.config.js` are separate ESLint 9 flat configs (`backend`'s is plain Node/ESM rules; `frontend`'s adds `eslint-plugin-react` + `eslint-plugin-react-hooks` for JSX). A single `.prettierrc.json` + `.prettierignore` at the repo root apply to both. `eslint-config-prettier` is included in each so ESLint doesn't fight Prettier over formatting.
+- Run `npm run lint` / `npm run format` inside `backend/` or `frontend/` individually, or from the repo root (`npm run lint` / `npm run format` there delegates into both subprojects).
+- A root-level `package.json` (new — this repo otherwise has no root package) exists solely to host `husky` + `lint-staged`, since git hooks need to live at the repo root (`.git` is at `/opt/gpx-report`, not inside either subproject). `.husky/pre-commit` runs `npx lint-staged`, which runs `eslint --fix` then `prettier --write` on staged `.js`/`.jsx` files, scoped to `backend/**` vs `frontend/**` using each subproject's own local ESLint binary and config (see the `lint-staged` block in the root `package.json`).
+- After cloning/pulling, run `npm install` at the repo root at least once so `prepare` wires up the husky hook (`git config core.hooksPath` gets pointed at `.husky/_`) — the hook is a no-op if `node_modules`/husky was never installed.
 
 ## Architecture
 
