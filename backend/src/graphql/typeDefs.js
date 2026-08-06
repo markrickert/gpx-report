@@ -21,6 +21,24 @@ export const typeDefs = `#graphql
   type Route {
     coordinates: JSON!
     elevationProfile: JSON!
+    liftSegments: [LiftSegment!]!
+  }
+
+  type LiftSegment {
+    startIndex: Int!
+    endIndex: Int!
+    durationSeconds: Int!
+    elevationGainMeters: Float!
+    avgSpeedMps: Float!
+  }
+
+  type LiftActivitySummary {
+    activityId: ID!
+    title: String!
+    activityType: String!
+    startTime: DateTime!
+    liftSegmentCount: Int!
+    totalLiftElevationGainMeters: Float!
   }
 
   type ActivitySummary {
@@ -97,6 +115,7 @@ export const typeDefs = `#graphql
     heatmapPoints: JSON!
     activitiesWithOutliers: [OutlierSummary!]!
     activityOutlierDiff(id: ID!): ActivityOutlierDiff!
+    activitiesWithLiftSegments: [LiftActivitySummary!]!
   }
 
   type Mutation {
