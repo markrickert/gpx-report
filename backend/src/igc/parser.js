@@ -18,8 +18,8 @@ function parseLatLon(degStr, minStr, minFracStr, hemisphere, negativeHemisphere)
 }
 
 // Haversine distance in meters, since IGC gives no precomputed distances
-// the way gpxparser does for GPX.
-function haversineMeters(a, b) {
+// the way gpxparser does for GPX. Also used by slpz/parser.js for the same reason.
+export function haversineMeters(a, b) {
   const R = 6371000;
   const toRad = (d) => (d * Math.PI) / 180;
   const dLat = toRad(b.lat - a.lat);
@@ -66,7 +66,7 @@ export async function parseIgcFile(filePath) {
       dateUtc.day,
       Number(hh),
       Number(min),
-      Number(ss)
+      Number(ss),
     );
 
     points.push({
@@ -121,7 +121,12 @@ export async function parseIgcFile(filePath) {
     maxSpeedMps: maxSpeedMps || null,
     totalElevationGain: elevationGain,
     totalElevationLoss: elevationLoss,
-    points: points.map((p) => ({ lat: p.lat, lon: p.lon, elevation: p.elevation, timestamp: p.timestamp })),
+    points: points.map((p) => ({
+      lat: p.lat,
+      lon: p.lon,
+      elevation: p.elevation,
+      timestamp: p.timestamp,
+    })),
     elevationProfile,
   };
 }
