@@ -5,11 +5,13 @@ import Stats from "./pages/Stats.jsx";
 import Settings from "./pages/Settings.jsx";
 import CodeEditor from "./pages/CodeEditor.jsx";
 import { useUnits } from "./units.jsx";
+import { useTheme } from "./theme.jsx";
 
 export default function App() {
   const { pathname } = useLocation();
   const isCode = pathname === "/code";
   const { unit, setUnit } = useUnits();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="app-shell">
@@ -31,6 +33,9 @@ export default function App() {
           onClick={() => setUnit(unit === "imperial" ? "metric" : "imperial")}
         >
           {unit === "imperial" ? "mi/ft" : "km/m"}
+        </button>
+        <button className="theme-toggle" onClick={toggleTheme} aria-label="Toggle light/dark mode">
+          {theme === "dark" ? "☀️" : "🌙"}
         </button>
       </nav>
       <main className={isCode ? "content content-full" : "content"}>
