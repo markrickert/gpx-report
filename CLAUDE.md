@@ -110,6 +110,7 @@ Deployed via `docker compose` on a Proxmox LXC host behind Caddy (see `docs/SETU
 
 - **Prefer the simpler / existing approach.** Before writing new code, look for an existing utility, hook, helper, or pattern that already solves the problem. Before listing/enumerating things, check if they can be derived (e.g., glob a directory instead of hardcoding names). Before adding defensive preflight checks (`canOpen` before `open`, `exists` before `read`), prefer try/catch — internal code can trust its callers.
 - **Distinguish "research" from "do."** When I ask "how hard would it be," "is it safe to," "compare X and Y," "look at the diff," "tell me," or "should we" — that is a request for analysis, not implementation. Report findings and a recommendation; do not write code or run mutations until I confirm. If unsure which mode I want, ask.
+- **Docs sweep before every commit.** Before committing an implementation change, check whether `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md`, `docs/FEATURES.md`, `docs/SETUP.md`, or `docs/TODO.md` describe the thing you just changed, and update them in the same commit if they're now wrong or missing the new behavior (beyond the usual `docs/TODO.md` check-off). Skip files that clearly don't apply — this isn't "touch every doc every time," it's "don't leave docs describing the old behavior."
 
 # Caveman Mode
 
