@@ -11,6 +11,7 @@ Tracks work that is planned/wanted but not yet implemented, plus gaps found when
 
 - [x] **Dashboard activity list route thumbnail** (2026-08-06) — each row in `frontend/src/pages/Dashboard.jsx` now renders a small SVG polyline of the route shape next to the title/meta, built client-side from `activity.route.coordinates` (normalized to a 48x48 box, no basemap). Not a real Leaflet map: rendering 50 live tile-based maps per dashboard load would hammer OpenStreetMap's tile servers and be slow; a plain SVG sparkline needs no tiles and stays cheap at this scale. `GET_DASHBOARD` now also fetches `route { coordinates }` per activity.
 - [x] **Dashboard infinite scroll** (2026-08-06) — `Dashboard.jsx` fetches `PAGE_SIZE=50` activities at a time and loads more automatically via an `IntersectionObserver` on a sentinel element at the bottom of the list, appending pages to local state as the user scrolls (rather than a fixed 50-activity cap with no way to reach older ones). Resets to page one when the activity-type filter changes since `useQuery`'s variables change. `GET_DASHBOARD` now takes `$limit`/`$offset`.
+- [x] **Tighter Y-axis range on the elevation profile** (2026-08-06) — `ActivityDetail.jsx`'s elevation `LineChart` `YAxis` now uses an explicit `domain` of `[min elevation - 10, max elevation + 10]` (computed from `elevationData`) instead of the default 0-based domain, so variation is visible even when the route stays well above sea level. Falls back to `[0, "auto"]` if the profile is empty.
 
 ## Planned features
 
@@ -18,7 +19,6 @@ Tracks work that is planned/wanted but not yet implemented, plus gaps found when
 - [ ] **Heatmap tab of all activity locations.** A new nav tab showing a heatmap built from every activity's `route.coordinates` (likely `leaflet.heat` or similar, since `react-leaflet`/`leaflet` are already a dependency). Should also represent altitude somehow — maybe a separate vertical/elevation-banded view or color-coded-by-elevation heatmap points — exact approach still to be worked out.
 - [ ] **km/miles unit toggle.** All distance/speed/elevation display (`formatDistance`/`formatDuration` in `Dashboard.jsx`, the metrics row and elevation chart in `ActivityDetail.jsx`) is hardcoded metric (km, km/h, meters). Add a toggle, default to miles/ft.
 - [ ] **Entrance animation for dashboard list items on scroll.** Rows in `Dashboard.jsx`'s `.activity-list` (including newly loaded pages from infinite scroll) should animate in as they enter the viewport, rather than appearing instantly.
-- [ ] **Tighter Y-axis range on the elevation profile.** `ActivityDetail.jsx`'s elevation `LineChart` `YAxis` defaults to a 0-based domain, so the elevation line is squashed into a small band at the top of the chart when the route never drops near sea level. Should instead scale to something like `[min elevation - padding, max elevation + padding]` so the actual variation is visible.
 
 ## Known gaps
 
