@@ -8,14 +8,29 @@ import { haversineMeters } from "../igc/parser.js";
 // same way igc/parser.js does) and Nodes.csv, one point per line, no
 // header: timestamp (unix seconds, fractional), lat, lon, elevation (m),
 // course (deg), speed (m/s), horizontal accuracy (m), vertical accuracy (m).
+function unescapeXml(value) {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
 function resolveTitle(trackXml, filePath) {
   const name = trackXml.match(/\sname="([^"]*)"/)?.[1]?.trim();
-  return name || path.basename(filePath, path.extname(filePath)).trim() || "Untitled";
+  return name
+    ? unescapeXml(name)
+    : path.basename(filePath, path.extname(filePath)).trim() || "Untitled";
 }
 
 function resolveActivityType(trackXml) {
-  const activity = trackXml.match(/\sactivity="([^"]*)"/)?.[1]?.trim();
-  return activity ? activity[0].toUpperCase() + activity.slice(1).toLowerCase() : "Skiing";
+  const activity = unescapeXml(trackXml.match(/\sactivity="([^"]*)"/)?.[1]?.trim() ?? "");
+  if (!activity) return "Skiing";
+  return activity
+    .split(/\s+/)
+    .map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
 }
 
 export async function parseSkizFile(filePath) {

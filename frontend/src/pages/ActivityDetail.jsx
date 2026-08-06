@@ -39,10 +39,11 @@ function formatDuration(seconds) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-// Only .gpx activities support edits (writer.js rewrites <trk> elements in
-// the source file; .igc has no equivalent write path yet).
+// .gpx and .skiz activities support edits (gpx/writer.js and skiz/writer.js
+// rewrite the source file; .igc has no equivalent write path yet).
 function isEditable(activity) {
-  return activity.gpxFilename.toLowerCase().endsWith(".gpx");
+  const filename = activity.gpxFilename.toLowerCase();
+  return filename.endsWith(".gpx") || filename.endsWith(".skiz");
 }
 
 // A single edit-mode flag drives every editable field on the page (title,

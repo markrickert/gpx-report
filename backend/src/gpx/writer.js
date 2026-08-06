@@ -1,6 +1,8 @@
 import { readFile, writeFile } from "node:fs/promises";
 
-function escapeXml(value) {
+// Exported for reuse by skiz/writer.js, which needs the same XML-attribute
+// escaping for Track.xml.
+export function escapeXml(value) {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

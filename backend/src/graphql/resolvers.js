@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { pool } from "../db.js";
 import { reanalyzeAll, reanalyzeByDateRange, processFile } from "../gpx/processor.js";
 import { updateGpxTitle, updateGpxType, trimGpxTrack } from "../gpx/writer.js";
+import { updateSkizTitle, updateSkizType, trimSkizTrack } from "../skiz/writer.js";
 import { activityTypeToRawType } from "../gpx/parser.js";
 import { DateTimeScalar, JSONScalar } from "./scalars.js";
 
@@ -180,12 +181,13 @@ export const resolvers = {
     updateActivityTitle: async (_parent, { id, title }) => {
       const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
       if (!rows[0]) throw new Error(`Activity ${id} not found`);
-      if (!rows[0].gpx_filename.toLowerCase().endsWith(".gpx")) {
-        throw new Error("Editing is only supported for .gpx files");
+      const filename = rows[0].gpx_filename.toLowerCase();
+      if (!filename.endsWith(".gpx") && !filename.endsWith(".skiz")) {
+        throw new Error("Editing is only supported for .gpx and .skiz files");
       }
 
       const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
-      await updateGpxTitle(filePath, title);
+      await (filename.endsWith(".skiz") ? updateSkizTitle : updateGpxTitle)(filePath, title);
       await processFile(filePath);
 
       const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
@@ -195,12 +197,17 @@ export const resolvers = {
     updateActivityType: async (_parent, { id, activityType }) => {
       const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
       if (!rows[0]) throw new Error(`Activity ${id} not found`);
-      if (!rows[0].gpx_filename.toLowerCase().endsWith(".gpx")) {
-        throw new Error("Editing is only supported for .gpx files");
+      const filename = rows[0].gpx_filename.toLowerCase();
+      if (!filename.endsWith(".gpx") && !filename.endsWith(".skiz")) {
+        throw new Error("Editing is only supported for .gpx and .skiz files");
       }
 
       const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
-      await updateGpxType(filePath, activityTypeToRawType(activityType));
+      if (filename.endsWith(".skiz")) {
+        await updateSkizType(filePath, activityType);
+      } else {
+        await updateGpxType(filePath, activityTypeToRawType(activityType));
+      }
       await processFile(filePath);
 
       const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
@@ -210,12 +217,17 @@ export const resolvers = {
     trimActivity: async (_parent, { id, startIndex, endIndex }) => {
       const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
       if (!rows[0]) throw new Error(`Activity ${id} not found`);
-      if (!rows[0].gpx_filename.toLowerCase().endsWith(".gpx")) {
-        throw new Error("Editing is only supported for .gpx files");
+      const filename = rows[0].gpx_filename.toLowerCase();
+      if (!filename.endsWith(".gpx") && !filename.endsWith(".skiz")) {
+        throw new Error("Editing is only supported for .gpx and .skiz files");
       }
 
       const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
-      await trimGpxTrack(filePath, startIndex, endIndex);
+      await (filename.endsWith(".skiz") ? trimSkizTrack : trimGpxTrack)(
+        filePath,
+        startIndex,
+        endIndex,
+      );
       await processFile(filePath);
 
       const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
