@@ -149,6 +149,11 @@ select {
   overflow: hidden;
 }
 
+:root[data-theme="dark"] .activity-map,
+:root[data-theme="dark"] .heatmap-map {
+  background: var(--bg-elevated);
+}
+
 :root[data-theme="dark"] .leaflet-control-zoom a {
   background: var(--bg-elevated);
   color: var(--text);

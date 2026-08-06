@@ -22,9 +22,8 @@ const KM_PER_METER = 0.001;
 const FT_PER_METER = 3.28084;
 
 export function formatDistance(meters, unit) {
-  return unit === "imperial"
-    ? `${(meters * MI_PER_METER).toFixed(2)} mi`
-    : `${(meters * KM_PER_METER).toFixed(2)} km`;
+  const value = unit === "imperial" ? meters * MI_PER_METER : meters * KM_PER_METER;
+  return `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${distanceUnitLabel(unit)}`;
 }
 
 export function distanceValue(meters, unit) {
@@ -40,7 +39,9 @@ export function elevationValue(meters, unit) {
 }
 
 export function formatElevation(meters, unit) {
-  return meters == null ? "-" : `${Math.round(elevationValue(meters, unit))} ${elevationUnitLabel(unit)}`;
+  return meters == null
+    ? "-"
+    : `${Math.round(elevationValue(meters, unit)).toLocaleString()} ${elevationUnitLabel(unit)}`;
 }
 
 export function elevationUnitLabel(unit) {

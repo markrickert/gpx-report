@@ -48,7 +48,8 @@ function routeThumbnailPoints(coordinates) {
 
 function RouteThumbnail({ coordinates }) {
   const points = routeThumbnailPoints(coordinates);
-  if (!points) return <div className="activity-thumbnail activity-thumbnail-empty" aria-hidden="true" />;
+  if (!points)
+    return <div className="activity-thumbnail activity-thumbnail-empty" aria-hidden="true" />;
 
   return (
     <svg
@@ -56,7 +57,14 @@ function RouteThumbnail({ coordinates }) {
       viewBox={`0 0 ${THUMBNAIL_SIZE} ${THUMBNAIL_SIZE}`}
       aria-hidden="true"
     >
-      <polyline points={points} fill="none" stroke="#2563eb" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      <polyline
+        points={points}
+        fill="none"
+        stroke="#2563eb"
+        strokeWidth="2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -95,7 +103,7 @@ export default function Dashboard() {
           return next;
         });
       },
-      { rootMargin: "0px 0px -40px 0px", threshold: 0.1 }
+      { rootMargin: "0px 0px -40px 0px", threshold: 0.1 },
     );
     return () => entranceObserverRef.current.disconnect();
   }, []);
@@ -123,7 +131,11 @@ export default function Dashboard() {
         setLoadingMore(true);
         try {
           const res = await fetchMore({
-            variables: { activityType: activityType || undefined, limit: PAGE_SIZE, offset: activities.length },
+            variables: {
+              activityType: activityType || undefined,
+              limit: PAGE_SIZE,
+              offset: activities.length,
+            },
           });
           const newItems = res.data.activities;
           setActivities((prev) => [...prev, ...newItems]);
@@ -133,7 +145,7 @@ export default function Dashboard() {
           setLoadingMore(false);
         }
       },
-      { rootMargin: "400px" }
+      { rootMargin: "400px" },
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -148,15 +160,19 @@ export default function Dashboard() {
     <div>
       <section className="summary-grid">
         <div className="summary-tile">
-          <span className="summary-value">{activitySummary.totalActivities}</span>
+          <span className="summary-value">{activitySummary.totalActivities.toLocaleString()}</span>
           <span className="summary-label">Activities</span>
         </div>
         <div className="summary-tile">
-          <span className="summary-value">{formatDistance(activitySummary.totalDistanceMeters, unit)}</span>
+          <span className="summary-value">
+            {formatDistance(activitySummary.totalDistanceMeters, unit)}
+          </span>
           <span className="summary-label">Total Distance</span>
         </div>
         <div className="summary-tile">
-          <span className="summary-value">{formatDuration(activitySummary.totalDurationSeconds)}</span>
+          <span className="summary-value">
+            {formatDuration(activitySummary.totalDurationSeconds)}
+          </span>
           <span className="summary-label">Total Duration</span>
         </div>
         <div className="summary-tile">
@@ -198,7 +214,8 @@ export default function Dashboard() {
                 <div className="activity-list-title">{activity.title}</div>
                 <div className="activity-list-meta">
                   {activity.activityType} — {new Date(activity.startTime).toLocaleString()} —{" "}
-                  {formatDistance(activity.distanceMeters, unit)} — {formatDuration(activity.durationSeconds)}
+                  {formatDistance(activity.distanceMeters, unit)} —{" "}
+                  {formatDuration(activity.durationSeconds)}
                 </div>
               </div>
             </Link>
