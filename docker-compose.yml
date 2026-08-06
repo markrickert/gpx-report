@@ -39,6 +39,7 @@ services:
       context: ./frontend
       args:
         VITE_GRAPHQL_URL: https://gpx-report-api.example.com/graphql
+        VITE_CODE_SERVER_URL: https://gpx-report-code.example.com
     container_name: gpx-report-frontend
     restart: unless-stopped
     depends_on:
@@ -73,9 +74,9 @@ services:
     user: "0:0" # repo bind mount is root-owned on the host; run as root so the
     # editor (uid 1000 "coder" by default) can actually write/delete files.
     # No built-in auth (--auth none): this container has full read/write
-    # access to the repo (and a shell) via the browser. It must never be
-    # reachable except over Tailscale — do not add a public Caddy site for
-    # it the way there is for the Syncthing GUI / GraphQL API. See
+    # access to the repo (and a shell) via the browser. Reachable via a
+    # Caddy site (gpx-report-code.example.com), same Tailscale-only
+    # trust boundary as the Syncthing GUI / GraphQL API sites. See
     # docs/SETUP.md.
     command: --auth none --bind-addr 0.0.0.0:8080 /opt/gpx-report
     volumes:
