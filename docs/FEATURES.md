@@ -26,9 +26,11 @@ This document details the features of gpx-report, and reflects what is actually 
     *   Total elevation gain across all activities.
     *   Timestamp of the last full data re-analysis.
 *   **Activity List:** A reverse-chronologically sorted list of all recorded activities below the summary.
-    *   Each list item displays: Activity Type, Date/Time, Distance, Duration, and potentially a brief summary metric.
+    *   Each list item displays a small SVG route-shape thumbnail (client-side, built from route coordinates — no basemap tiles), plus Title, Activity Type, Date/Time, Distance, and Duration.
+    *   Rows fade/slide into view as they scroll into the viewport, staggered slightly so a batch doesn't all animate at once (respects `prefers-reduced-motion`).
     *   Clicking an item navigates to the individual Activity Detail Page.
-*   **Filtering:** The activity list can be filtered by `activityType`.
+*   **Infinite Scroll:** Loads 50 activities at a time and fetches more automatically via an `IntersectionObserver` as the user scrolls, rather than capping the list.
+*   **Filtering:** The activity list can be filtered by `activityType`; changing the filter resets pagination to the first page.
 
 ## 3. Individual Activity Detail Page
 
@@ -41,8 +43,9 @@ This document details the features of gpx-report, and reflects what is actually 
     *   Max Speed/Pace
     *   Total Elevation Gain
     *   Total Elevation Loss
+*   **Title Editing:** The activity title has an inline Edit/Save/Cancel affordance; saving updates both the database row and rewrites the `<trk><name>` element in the source `.gpx` file, then re-runs processing so both stay in sync.
 *   **Map View:** An interactive map displaying the geographical path of the activity.
-*   **Elevation Profile:** A graph showing elevation changes plotted against the distance traveled during the activity.
+*   **Elevation Profile:** A graph showing elevation changes plotted against the distance traveled, with the Y-axis scaled to the activity's actual elevation range (not a fixed 0-based domain) so variation stays visible regardless of altitude.
 
 ## 4. Settings Page
 
@@ -54,7 +57,19 @@ This document details the features of gpx-report, and reflects what is actually 
     *   Triggers a GraphQL mutation to initiate the re-analysis process.
     *   Displays progress or completion status.
 
-## 5. Data Management
+## 5. Stats Page
+
+*   **Per-Activity-Type Breakdown:** A table of aggregate stats grouped by activity type — count, total/average distance, total/average duration, and average elevation gain — computed live from the database (all-time, unfiltered).
+
+## 6. Units
+
+*   **km/miles Toggle:** A nav-bar toggle switches all distance/speed/elevation display between metric (km, km/h, m) and imperial (mi, mph, ft), backend by a React context persisted to `localStorage`. Defaults to imperial.
+
+## 7. Code Tab
+
+*   **Embedded Editor:** A nav tab iframes a `code-server` (browser VS Code) instance bind-mounted read-write at the repo root, for making and committing changes to gpx-report from the same UI. Reachable only within the deployment's Tailscale network — see `CLAUDE.md` deployment notes.
+
+## 8. Data Management
 
 *   **Self-Hosted:** All data is stored locally, ensuring user privacy and control.
 *   **GPX File Synchronization:** Assumes GPX files are externally synchronized to a monitored directory. No built-in upload or file management in v1.
