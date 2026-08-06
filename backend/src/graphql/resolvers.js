@@ -1,4 +1,6 @@
 import path from "node:path";
+import { writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
 import { pool } from "../db.js";
 import { reanalyzeAll, reanalyzeByDateRange, processFile } from "../gpx/processor.js";
 import { updateGpxTitle, updateGpxType, trimGpxTrack } from "../gpx/writer.js";
@@ -23,6 +25,15 @@ function mapActivityRow(row) {
 }
 
 const GPX_FILES_DIRECTORY = process.env.GPX_FILES_DIRECTORY;
+
+// In-app GPS recording (Record.jsx) submits the full GPX XML it built
+// client-side here for a plain disk write, reusing the existing watcher/
+// processFile() pipeline rather than a parallel DB-insert code path. The
+// filename is always generated server-side from a timestamp + random
+// suffix — never derived from client input — since this is a new surface
+// that writes an arbitrary client-submitted string to a file on disk, and a
+// client-controlled filename/path would be a traversal/overwrite risk.
+const MAX_RECORDED_GPX_BYTES = 10 * 1024 * 1024;
 
 // Heatmap points are sent to the browser as [lat, lon, elevation] triples
 // for every activity at once, so each route is capped/sampled rather than
@@ -209,6 +220,26 @@ export const resolvers = {
 
       const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
       return mapActivityRow(updated[0]);
+    },
+
+    saveRecordedActivity: async (_parent, { gpxContent }) => {
+      if (typeof gpxContent !== "string" || gpxContent.trim().length === 0) {
+        throw new Error("gpxContent must be a non-empty string");
+      }
+      if (Buffer.byteLength(gpxContent, "utf-8") > MAX_RECORDED_GPX_BYTES) {
+        throw new Error("Recorded GPX content is too large");
+      }
+      if (!/<gpx[\s>]/i.test(gpxContent) || !/<trkpt\b/i.test(gpxContent)) {
+        throw new Error("gpxContent does not look like a valid GPX track");
+      }
+
+      const filename = `recorded-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomBytes(3).toString("hex")}.gpx`;
+      await writeFile(path.join(GPX_FILES_DIRECTORY, filename), gpxContent, "utf-8");
+      // Not processed synchronously here — the directory watcher (watcher.js)
+      // picks the new file up and runs it through the same processFile()
+      // path as any synced file. The frontend polls for the resulting
+      // activity rather than blocking on it.
+      return { filename };
     },
   },
 

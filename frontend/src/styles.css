@@ -149,6 +149,92 @@ select {
   overflow: hidden;
 }
 
+.record-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.record-map {
+  width: 100%;
+  height: min(400px, 55vh);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.record-save-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.record-save-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  flex: 1 1 200px;
+}
+
+.record-save-form input,
+.record-save-form select {
+  padding: 0.6rem 0.7rem;
+  font-size: 1rem;
+}
+
+.record-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.record-button {
+  flex: 1 1 140px;
+  padding: 1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 10px;
+  color: white;
+  cursor: pointer;
+  min-height: 3.25rem;
+}
+
+.record-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.record-start {
+  background: #16a34a;
+}
+
+.record-start:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.record-pause {
+  background: #d97706;
+}
+
+.record-pause:hover:not(:disabled) {
+  background: #b45309;
+}
+
+.record-stop,
+.record-discard {
+  background: var(--danger);
+}
+
+.record-stop:hover:not(:disabled),
+.record-discard:hover:not(:disabled) {
+  filter: brightness(0.9);
+}
+
 .heatmap-map {
   width: 100%;
   height: min(80vh, 900px);
@@ -631,5 +717,9 @@ select {
 
   .calendar-heatmap-cell {
     height: 9px;
+  }
+
+  .record-button {
+    flex: 1 1 45%;
   }
 }
