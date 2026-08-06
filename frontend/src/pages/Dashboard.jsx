@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@apollo/client";
 import { Link } from "react-router-dom";
 import { GET_DASHBOARD } from "../graphql/queries.js";
+import { useUnits, formatDistance, formatElevation } from "../units.jsx";
 
 const PAGE_SIZE = 50;
 
@@ -17,10 +18,6 @@ const ACTIVITY_TYPES = [
   "Swimming",
   "Kayaking",
 ];
-
-function formatDistance(meters) {
-  return `${(meters / 1000).toFixed(2)} km`;
-}
 
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -77,6 +74,7 @@ function RouteThumbnail({ coordinates }) {
 }
 
 export default function Dashboard() {
+  const { unit } = useUnits();
   const [activityType, setActivityType] = useState("");
   const { data, loading, error, fetchMore } = useQuery(GET_DASHBOARD, {
     variables: { activityType: activityType || undefined, limit: PAGE_SIZE, offset: 0 },
@@ -166,7 +164,7 @@ export default function Dashboard() {
           <span className="summary-label">Activities</span>
         </div>
         <div className="summary-tile">
-          <span className="summary-value">{formatDistance(activitySummary.totalDistanceMeters)}</span>
+          <span className="summary-value">{formatDistance(activitySummary.totalDistanceMeters, unit)}</span>
           <span className="summary-label">Total Distance</span>
         </div>
         <div className="summary-tile">
@@ -175,7 +173,7 @@ export default function Dashboard() {
         </div>
         <div className="summary-tile">
           <span className="summary-value">
-            {activitySummary.totalElevationGainMeters?.toFixed(0) ?? 0} m
+            {formatElevation(activitySummary.totalElevationGainMeters ?? 0, unit)}
           </span>
           <span className="summary-label">Elevation Gain</span>
         </div>
@@ -212,7 +210,7 @@ export default function Dashboard() {
                 <div className="activity-list-title">{activity.title}</div>
                 <div className="activity-list-meta">
                   {activity.activityType} — {new Date(activity.startTime).toLocaleString()} —{" "}
-                  {formatDistance(activity.distanceMeters)} — {formatDuration(activity.durationSeconds)}
+                  {formatDistance(activity.distanceMeters, unit)} — {formatDuration(activity.durationSeconds)}
                 </div>
               </div>
             </Link>

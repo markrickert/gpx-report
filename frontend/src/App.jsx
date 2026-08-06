@@ -3,10 +3,12 @@ import Dashboard from "./pages/Dashboard.jsx";
 import ActivityDetail from "./pages/ActivityDetail.jsx";
 import Settings from "./pages/Settings.jsx";
 import CodeEditor from "./pages/CodeEditor.jsx";
+import { useUnits } from "./units.jsx";
 
 export default function App() {
   const { pathname } = useLocation();
   const isCode = pathname === "/code";
+  const { unit, setUnit } = useUnits();
 
   return (
     <div className="app-shell">
@@ -14,6 +16,12 @@ export default function App() {
         <Link to="/">Dashboard</Link>
         <Link to="/settings">Settings</Link>
         <Link to="/code">Code</Link>
+        <button
+          className="units-toggle"
+          onClick={() => setUnit(unit === "imperial" ? "metric" : "imperial")}
+        >
+          {unit === "imperial" ? "mi/ft" : "km/m"}
+        </button>
       </nav>
       <main className={isCode ? "content content-full" : "content"}>
         <Routes>
