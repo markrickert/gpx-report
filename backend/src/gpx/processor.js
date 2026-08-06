@@ -3,6 +3,7 @@ import { readdir } from "node:fs/promises";
 import { pool } from "../db.js";
 import { parseGpxFile } from "./parser.js";
 import { parseIgcFile } from "../igc/parser.js";
+import { parseSlpzFile } from "../slpz/parser.js";
 
 function toLineStringWkt(points) {
   const coords = points.map((p) => `${p.lon} ${p.lat}`).join(", ");
@@ -10,7 +11,10 @@ function toLineStringWkt(points) {
 }
 
 function parseActivityFile(filePath) {
-  return filePath.toLowerCase().endsWith(".igc") ? parseIgcFile(filePath) : parseGpxFile(filePath);
+  const lower = filePath.toLowerCase();
+  if (lower.endsWith(".igc")) return parseIgcFile(filePath);
+  if (lower.endsWith(".slpz") || lower.endsWith(".slopes")) return parseSlpzFile(filePath);
+  return parseGpxFile(filePath);
 }
 
 export async function processFile(filePath) {
@@ -51,7 +55,7 @@ export async function processFile(filePath) {
         parsed.maxSpeedMps,
         parsed.totalElevationGain,
         parsed.totalElevationLoss,
-      ]
+      ],
     );
     const activityId = activityResult.rows[0].id;
 
@@ -67,7 +71,7 @@ export async function processFile(filePath) {
         toLineStringWkt(parsed.points),
         JSON.stringify(parsed.elevationProfile),
         JSON.stringify(parsed.points),
-      ]
+      ],
     );
 
     await client.query("COMMIT");
@@ -83,7 +87,7 @@ export async function processFile(filePath) {
 async function listGpxFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   return entries
-    .filter((e) => e.isFile() && /\.(gpx|igc)$/i.test(e.name))
+    .filter((e) => e.isFile() && /\.(gpx|igc|slpz|slopes)$/i.test(e.name))
     .map((e) => path.join(directory, e.name));
 }
 
@@ -109,7 +113,7 @@ export async function reanalyzeAll(directory) {
 export async function reanalyzeByDateRange(directory, startDate, endDate) {
   const { rows } = await pool.query(
     `SELECT gpx_filename FROM activities WHERE start_time BETWEEN $1 AND $2`,
-    [startDate, endDate]
+    [startDate, endDate],
   );
   const files = rows.map((r) => path.join(directory, r.gpx_filename));
   const results = await processAll(files);
@@ -121,7 +125,7 @@ function summarize(files, results) {
   if (failures.length > 0) {
     console.error(
       `Re-analysis: ${failures.length}/${files.length} file(s) failed`,
-      failures.map((f) => f.reason?.message)
+      failures.map((f) => f.reason?.message),
     );
   }
   return {
