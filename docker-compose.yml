@@ -33,6 +33,9 @@ services:
       - "4000:4000"
     volumes:
       - ./data/gpx:/gpx-files
+      # Shared with code-server's home volume so setCodeServerTheme can write
+      # its settings.json (theme toggle sync, see resolvers.js).
+      - code_server_data:/code-server-home
 
   frontend:
     build:
@@ -81,7 +84,10 @@ services:
     command: --auth none --bind-addr 0.0.0.0:8080 /opt/gpx-report
     volumes:
       - ./:/opt/gpx-report
-      - code_server_data:/home/coder/.local
+      # user: "0:0" means $HOME is /root, not the image's default
+      # /home/coder — mount here or code-server's user settings (extensions,
+      # workbench.colorTheme, ...) never actually persist across recreates.
+      - code_server_data:/root/.local
     ports:
       - "8443:8080"
 
