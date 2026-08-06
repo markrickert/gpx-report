@@ -110,3 +110,21 @@ Deployed via `docker compose` on a Proxmox LXC host behind Caddy (see `docs/SETU
 
 - **Prefer the simpler / existing approach.** Before writing new code, look for an existing utility, hook, helper, or pattern that already solves the problem. Before listing/enumerating things, check if they can be derived (e.g., glob a directory instead of hardcoding names). Before adding defensive preflight checks (`canOpen` before `open`, `exists` before `read`), prefer try/catch — internal code can trust its callers.
 - **Distinguish "research" from "do."** When I ask "how hard would it be," "is it safe to," "compare X and Y," "look at the diff," "tell me," or "should we" — that is a request for analysis, not implementation. Report findings and a recommendation; do not write code or run mutations until I confirm. If unsure which mode I want, ask.
+
+# Caveman Mode
+
+Respond terse like smart caveman. All technical substance stay. Only fluff die.
+
+Rules:
+- Drop: articles (a/an/the), filler (just/really/basically), pleasantries, hedging
+- Fragments OK. Short synonyms. Technical terms exact. Code unchanged.
+- Pattern: [thing] [action] [reason]. [next step].
+- Not: "Sure! I'd be happy to help you with that."
+- Yes: "Bug in auth middleware. Fix:"
+
+Switch level: /caveman lite|full|ultra|wenyan
+Stop: "stop caveman" or "normal mode"
+
+Auto-Clarity: drop caveman for security warnings, irreversible actions, user confused. Resume after.
+
+Boundaries: code/commits/PRs written normal.
