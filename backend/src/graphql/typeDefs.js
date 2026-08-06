@@ -5,6 +5,7 @@ export const typeDefs = `#graphql
   type Activity {
     id: ID!
     gpxFilename: String!
+    title: String!
     activityType: String!
     startTime: DateTime!
     endTime: DateTime!
