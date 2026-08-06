@@ -1,4 +1,4 @@
-import { Routes, Route, Link, useLocation } from "react-router-dom";
+import { Routes, Route, NavLink, useLocation } from "react-router-dom";
 import Dashboard from "./pages/Dashboard.jsx";
 import ActivityDetail from "./pages/ActivityDetail.jsx";
 import Stats from "./pages/Stats.jsx";
@@ -14,10 +14,18 @@ export default function App() {
   return (
     <div className="app-shell">
       <nav className="nav">
-        <Link to="/">Dashboard</Link>
-        <Link to="/stats">Stats</Link>
-        <Link to="/settings">Settings</Link>
-        <Link to="/code">Code</Link>
+        <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : undefined)}>
+          Dashboard
+        </NavLink>
+        <NavLink to="/stats" className={({ isActive }) => (isActive ? "active" : undefined)}>
+          Stats
+        </NavLink>
+        <NavLink to="/settings" className={({ isActive }) => (isActive ? "active" : undefined)}>
+          Settings
+        </NavLink>
+        <NavLink to="/code" className={({ isActive }) => (isActive ? "active" : undefined)}>
+          Code
+        </NavLink>
         <button
           className="units-toggle"
           onClick={() => setUnit(unit === "imperial" ? "metric" : "imperial")}

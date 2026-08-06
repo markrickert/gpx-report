@@ -256,13 +256,49 @@ export default function ActivityDetail() {
         onEditModeChange={(next) => (next ? enterEditMode() : exitEditMode())}
       />
 
-      <div className="metrics-row">
-        <div>Duration: {formatDuration(activity.durationSeconds)}</div>
-        <div>Distance: {formatDistance(activity.distanceMeters, unit)}</div>
-        <div>Avg Speed: {formatSpeed(activity.avgSpeedMps, unit)}</div>
-        <div>Max Speed: {formatSpeed(activity.maxSpeedMps, unit)}</div>
-        <div>Elevation Gain: {formatElevation(activity.totalElevationGain, unit)}</div>
-        <div>Elevation Loss: {formatElevation(activity.totalElevationLoss, unit)}</div>
+      <div className="metrics-grid">
+        <div className="metric-tile">
+          <span className="metric-icon" aria-hidden="true">⏱</span>
+          <span className="metric-body">
+            <span className="metric-value">{formatDuration(activity.durationSeconds)}</span>
+            <span className="metric-label">Duration</span>
+          </span>
+        </div>
+        <div className="metric-tile">
+          <span className="metric-icon" aria-hidden="true">📏</span>
+          <span className="metric-body">
+            <span className="metric-value">{formatDistance(activity.distanceMeters, unit)}</span>
+            <span className="metric-label">Distance</span>
+          </span>
+        </div>
+        <div className="metric-tile">
+          <span className="metric-icon" aria-hidden="true">⚡</span>
+          <span className="metric-body">
+            <span className="metric-value">{formatSpeed(activity.avgSpeedMps, unit)}</span>
+            <span className="metric-label">Avg Speed</span>
+          </span>
+        </div>
+        <div className="metric-tile">
+          <span className="metric-icon" aria-hidden="true">🚀</span>
+          <span className="metric-body">
+            <span className="metric-value">{formatSpeed(activity.maxSpeedMps, unit)}</span>
+            <span className="metric-label">Max Speed</span>
+          </span>
+        </div>
+        <div className="metric-tile">
+          <span className="metric-icon" aria-hidden="true">⛰️</span>
+          <span className="metric-body">
+            <span className="metric-value">{formatElevation(activity.totalElevationGain, unit)}</span>
+            <span className="metric-label">Elevation Gain</span>
+          </span>
+        </div>
+        <div className="metric-tile">
+          <span className="metric-icon" aria-hidden="true">📉</span>
+          <span className="metric-body">
+            <span className="metric-value">{formatElevation(activity.totalElevationLoss, unit)}</span>
+            <span className="metric-label">Elevation Loss</span>
+          </span>
+        </div>
       </div>
 
       {visiblePositions.length > 0 && (
@@ -308,7 +344,11 @@ export default function ActivityDetail() {
             domain={elevationDomain}
             label={{ value: `Elevation (${elevationUnitLabel(unit)})`, angle: -90, position: "insideLeft" }}
           />
-          <Tooltip />
+          <Tooltip
+            contentStyle={{ background: "rgba(17, 24, 39, 0.92)", border: "none", borderRadius: 6 }}
+            labelStyle={{ color: "#e5e7eb" }}
+            itemStyle={{ color: "#e5e7eb" }}
+          />
           {restBands.map(([start, end]) => (
             <ReferenceArea
               key={`${start}-${end}`}
