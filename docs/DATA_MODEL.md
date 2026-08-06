@@ -1,91 +1,66 @@
 # Data Model
 
-This document defines the data structures for [Your Project Name], covering both the database schema and the GraphQL API schema.
+This document defines the data structures for gpx-report, covering both the database schema and the GraphQL API schema. Both sections describe what is actually implemented — see `backend/db/init.sql` and `backend/src/graphql/typeDefs.js` for the source of truth.
 
-## PostgreSQL Schema (Conceptual)
+## PostgreSQL Schema
 
-This schema assumes the use of the PostGIS extension for geospatial data.
+Uses the PostGIS extension for geospatial data.
 
 ### `activities` Table
 
-Stores the primary information for each recorded activity.
+Stores the primary information for each recorded activity, one row per GPX file.
 
-| Column Name        | Data Type         | PostGIS Type | Constraints                                     | Description                                                 |
-| :----------------- | :---------------- | :----------- | :---------------------------------------------- | :---------------------------------------------------------- |
-| `id`               | `SERIAL`          |              | `PRIMARY KEY`                                   | Unique identifier for the activity.                         |
-| `gpx_filename`     | `VARCHAR(255)`    |              | `NOT NULL`, `UNIQUE`                            | Original filename of the GPX file.                          |
-| `activity_type`    | `VARCHAR(50)`     |              | `NOT NULL`                                      | Categorization (e.g., 'Running', 'Hiking', 'Skiing').       |
-| `start_time`       | `TIMESTAMPTZ`     |              | `NOT NULL`                                      | Timestamp when the activity began.                          |
-| `end_time`         | `TIMESTAMPTZ`     |              | `NOT NULL`                                      | Timestamp when the activity ended.                          |
-| `duration_seconds` | `INTEGER`         |              | `NOT NULL`                                      | Total duration of the activity in seconds.                  |
-| `distance_meters`  | `NUMERIC`         |              | `NOT NULL`                                      | Total distance covered in meters.                           |
-| `avg_speed_mps`    | `NUMERIC`         |              | `NULLABLE`                                      | Average speed in meters per second.                         |
-| `max_speed_mps`    | `NUMERIC`         |              | `NULLABLE`                                      | Maximum speed recorded in meters per second.                |
-| `total_elevation_gain` | `NUMERIC`     |              | `NULLABLE`                                      | Total cumulative elevation gain in meters.                  |
-| `total_elevation_loss` | `NUMERIC`     |              | `NULLABLE`                                      | Total cumulative elevation loss in meters.                  |
-| `created_at`       | `TIMESTAMPTZ`     |              | `DEFAULT NOW()`                                 | Timestamp when the record was created in the database.      |
-| `updated_at`       | `TIMESTAMPTZ`     |              | `DEFAULT NOW()`                                 | Timestamp when the record was last updated.                 |
+| Column Name        | Data Type         | Constraints                                     | Description                                                 |
+| :----------------- | :---------------- | :----------------------------------------------- | :---------------------------------------------------------- |
+| `id`               | `SERIAL`          | `PRIMARY KEY`                                   | Unique identifier for the activity.                         |
+| `gpx_filename`     | `VARCHAR(255)`    | `NOT NULL`, `UNIQUE`                            | Original filename of the GPX file. Upsert key for re-analysis. |
+| `title`            | `VARCHAR(255)`    | `NOT NULL`                                      | Track/metadata name from the GPX file, falling back to the filename stem. |
+| `activity_type`    | `VARCHAR(50)`     | `NOT NULL`                                      | From the GPX `<trk><type>` tag (mapped to a display label) or guessed from the filename; `'Unknown'` if neither yields a match. |
+| `start_time`       | `TIMESTAMPTZ`     | `NOT NULL`                                      | Timestamp of the first track point.                         |
+| `end_time`         | `TIMESTAMPTZ`     | `NOT NULL`                                      | Timestamp of the last track point.                          |
+| `duration_seconds` | `INTEGER`         | `NOT NULL`                                      | `end_time - start_time`, in seconds.                         |
+| `distance_meters`  | `NUMERIC`         | `NOT NULL`                                      | Total distance covered in meters.                            |
+| `avg_speed_mps`    | `NUMERIC`         | `NULLABLE`                                      | Average speed in meters per second.                          |
+| `max_speed_mps`    | `NUMERIC`         | `NULLABLE`                                      | Maximum speed recorded in meters per second (derived point-to-point). |
+| `total_elevation_gain` | `NUMERIC`     | `NULLABLE`                                      | Total cumulative elevation gain in meters.                  |
+| `total_elevation_loss` | `NUMERIC`     | `NULLABLE`                                      | Total cumulative elevation loss in meters.                  |
+| `created_at`       | `TIMESTAMPTZ`     | `NOT NULL DEFAULT NOW()`                        | When the record was first created.                          |
+| `updated_at`       | `TIMESTAMPTZ`     | `NOT NULL DEFAULT NOW()`                        | When the record was last (re-)processed.                    |
+
+Indexed on `start_time DESC` and `activity_type`.
 
 ### `activity_routes` Table
 
-Stores the geospatial path of each activity.
+Stores the geospatial path of each activity, one row per activity.
 
-| Column Name   | Data Type      | PostGIS Type | Constraints                                     | Description                                                      |
-| :------------ | :------------- | :----------- | :---------------------------------------------- | :--------------------------------------------------------------- |
-| `activity_id` | `INTEGER`      |              | `PRIMARY KEY`, `FOREIGN KEY REFERENCES activities(id)` | Links to the `activities` table.                                 |
-| `route_geom`  | `GEOMETRY(LineString, 4326)` | `LINESTRING` | `NOT NULL`                                      | The route as a GeoJSON LineString (SRID 4326 for WGS84).         |
-| `elevation_profile_data` | `JSONB` | | `NULLABLE` | JSON array of points for elevation graph: `[{"dist": 0, "elev": 10}, ...]` | This might be redundant if PostGIS can generate it, or useful for simpler charting. |
+| Column Name   | Data Type      | Constraints                                     | Description                                                      |
+| :------------ | :------------- | :----------------------------------------------- | :--------------------------------------------------------------- |
+| `activity_id` | `INTEGER`      | `PRIMARY KEY`, `FOREIGN KEY REFERENCES activities(id) ON DELETE CASCADE` | Links to the `activities` table.                                 |
+| `route_geom`  | `GEOMETRY(LineString, 4326)` | `NOT NULL`                        | The route as a PostGIS LineString (SRID 4326 / WGS84). Not currently queried geospatially — stored for future use (GiST-indexed). |
+| `elevation_profile_data` | `JSONB` | `NULLABLE`                              | JSON array for the elevation chart: `[{"distanceMeters": 0, "elevation": 10}, ...]`. |
+| `points_data` | `JSONB`        | `NULLABLE`                                      | Full point list used directly by the frontend map: `[{"lat", "lon", "elevation", "timestamp"}, ...]`. Kept redundant with `route_geom` because GeoJSON round-tripping loses per-point elevation/timestamp. |
 
-*(Note: `elevation_profile_data` could be generated dynamically from `route_geom` if PostGIS functions are leveraged, potentially simplifying the schema).*
-
-### `activity_summary` (Materialized View or Table)
-
-Pre-computed aggregates for quick dashboard loading. This would be updated by triggers or a scheduled job.
-
-| Column Name        | Data Type   | Description                                         |
-| :----------------- | :---------- | :-------------------------------------------------- |
-| `total_activities` | `BIGINT`    | Total number of processed activities.               |
-| `total_distance`   | `NUMERIC`   | Sum of all distances in meters.                     |
-| `total_duration`   | `BIGINT`    | Sum of all durations in seconds.                    |
-| `total_elevation_gain` | `NUMERIC` | Sum of all elevation gains in meters.               |
-| `last_reanalysis`  | `TIMESTAMPTZ` | Timestamp of the last full data re-analysis.        |
-
-### `aggregated_stats_by_type` (Materialized View or Table)
-
-Pre-computed aggregates broken down by activity type.
-
-| Column Name        | Data Type   | Description                                         |
-| :----------------- | :---------- | :-------------------------------------------------- |
-| `activity_type`    | `VARCHAR(50)` | The type of activity (e.g., 'Running').             |
-| `count`            | `BIGINT`    | Number of activities of this type.                  |
-| `total_distance`   | `NUMERIC`   | Sum of distances for this activity type.            |
-| `total_duration`   | `BIGINT`    | Sum of durations for this activity type.            |
-| `average_distance` | `NUMERIC`   | Average distance for this activity type.            |
-| `average_duration` | `BIGINT`    | Average duration for this activity type.            |
-| `average_elevation_gain` | `NUMERIC` | Average elevation gain for this activity type.      |
+There is no `activity_summary` or `aggregated_stats_by_type` table. Both are computed live by the GraphQL resolvers with `SUM`/`AVG`/`GROUP BY` queries against `activities` — see `activitySummary` and `aggregatedStatsByType` below.
 
 ---
 
-## GraphQL Schema (Conceptual)
+## GraphQL Schema
 
-This outlines the types, queries, and mutations for the GraphQL API.
+This mirrors `backend/src/graphql/typeDefs.js`.
 
-### Scalar Types
+### Scalars
 
-*   `ID!`: Non-nullable unique identifier.
-*   `String!`: Non-nullable string.
-*   `Int!`: Non-nullable integer.
-*   `Float!`: Non-nullable floating-point number.
-*   `Boolean!`: Non-nullable boolean.
-*   `DateTime!`: Non-nullable timestamp (e.g., ISO 8601 format).
-*   `Json!`: Non-nullable JSON type.
+*   Standard `ID!`, `String!`, `Int!`, `Float!`, `Boolean!`.
+*   `DateTime` — custom scalar (`backend/src/graphql/scalars.js`), ISO 8601.
+*   `JSON` — custom scalar for the free-form route/elevation payloads.
 
 ### Types
 
-\`\`\`graphql
+```graphql
 type Activity {
   id: ID!
   gpxFilename: String!
+  title: String!
   activityType: String!
   startTime: DateTime!
   endTime: DateTime!
@@ -95,12 +70,12 @@ type Activity {
   maxSpeedMps: Float
   totalElevationGain: Float
   totalElevationLoss: Float
-  route: Route! # Represents the route data for map and elevation chart
+  route: Route!
 }
 
 type Route {
-  coordinates: Json! # JSON array of points: [{"lat": float, "lon": float, "elevation": float, "timestamp": Int}]
-  elevationProfile: Json! # JSON array for chart: [{"distanceMeters": float, "elevation": float}]
+  coordinates: JSON! # [{lat, lon, elevation, timestamp}, ...] — from activity_routes.points_data
+  elevationProfile: JSON! # [{distanceMeters, elevation}, ...] — from activity_routes.elevation_profile_data
 }
 
 type ActivitySummary {
@@ -108,7 +83,7 @@ type ActivitySummary {
   totalDistanceMeters: Float!
   totalDurationSeconds: Int!
   totalElevationGainMeters: Float
-  lastReanalysis: DateTime
+  lastReanalysis: DateTime # MAX(updated_at) across all activities
 }
 
 type AggregatedStatsByType {
@@ -125,50 +100,46 @@ type ReanalysisStatus {
   message: String!
   success: Boolean!
 }
-\`\`\`
+```
 
 ### Queries
 
-\`\`\`graphql
+```graphql
 type Query {
-  # Fetch a single activity by its ID
   activity(id: ID!): Activity
 
-  # Fetch a list of activities, with filtering and sorting
   activities(
-    limit: Int = 20 # Default limit
+    limit: Int = 20
     offset: Int = 0
     activityType: String
     startDate: DateTime
     endDate: DateTime
-  ): [Activity!]! # Returns a list of activities, always sorted reverse-chronologically
+  ): [Activity!]! # sorted reverse-chronologically; the frontend Dashboard currently
+                   # calls this with a hardcoded limit: 50 and never passes offset —
+                   # there is no "load more"/pagination UI yet (see docs/TODO.md).
 
-  # Fetch overall summary statistics
   activitySummary: ActivitySummary!
 
-  # Fetch aggregated statistics broken down by activity type
   aggregatedStatsByType(
     activityType: String
     startDate: DateTime
     endDate: DateTime
-  ): [AggregatedStatsByType!]!
+  ): [AggregatedStatsByType!]! # not currently called from the frontend (see docs/TODO.md)
 }
-\`\`\`
+```
 
 ### Mutations
 
-\`\`\`graphql
+```graphql
 type Mutation {
-  # Triggers re-analysis of all GPX files and updates the database
   reanalyzeAllActivities: ReanalysisStatus!
 
-  # Triggers re-analysis for a specific date range
+  # Re-processes GPX files for activities already in the DB whose start_time
+  # falls in range — it does not pick up brand-new files in that window that
+  # haven't been ingested at all (the watcher handles those on its own).
   reanalyzeActivitiesByDateRange(
     startDate: DateTime!
     endDate: DateTime!
   ): ReanalysisStatus!
 }
-\`\`\`
-
-*(Note: The `reanalyzeActivitiesByDateRange` mutation is added based on your requirement for "last week, month, year" options on the settings page).*
-
+```
