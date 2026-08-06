@@ -44,10 +44,3 @@ See `docs/SETUP.md` for full setup/deployment details, `CLAUDE.md` for architect
 
 *   More advanced geospatial analysis.
 *   Support for other data formats.
-*   Social features (if desired, though the focus is personal ownership).
-*   Integration with other fitness devices.
-
-## Contributing
-
-Personal project, not currently accepting outside contributions.
-
