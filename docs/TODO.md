@@ -5,7 +5,6 @@ Tracks work that is planned/wanted but not yet implemented, plus gaps found when
 ## Planned features
 
 - [ ] **Graceful degradation without JavaScript.** The frontend is a pure client-rendered Vite/React SPA with an empty `<div id="root">` — JS disabled currently means a blank page. Fixing this for real needs SSR/static pre-rendering, a genuine architecture shift, not a small tweak. Scope (which routes, read-only vs. the editing/trim features that need client interactivity anyway) still needs a decision before committing to a framework.
-- [ ] When the code editor loads in dar kode there's a white flash. it should never flash white in dark mode.
 
 ## Done
 
@@ -47,6 +46,7 @@ Tracks work that is planned/wanted but not yet implemented, plus gaps found when
 - [x] **Linting/formatting: ESLint + Prettier with pre-commit hooks** (2026-08-06) — separate ESLint 9 flat configs per subproject (React rules for frontend), shared root Prettier config, new root `package.json` hosting husky + lint-staged (`.husky/pre-commit` → `eslint --fix` + `prettier --write` on staged files). Existing source left unformatted/unfixed (11 pre-existing files flagged by Prettier, noted as a separate future cleanup, not bundled in).
 - [x] **PWA installability** (2026-08-06) — `vite-plugin-pwa` generates the manifest + service worker; generated icon set (no prior logo existed). Scope deliberately stops at an installable app shell — no offline GraphQL/data caching, that's a materially bigger feature.
 - [x] **In-app GPS recording** (2026-08-06) — new `/record` page records via `navigator.geolocation.watchPosition()`, builds a GPX document client-side, and saves it through a new `saveRecordedActivity` mutation (server-generated filename only, no client-supplied path) into the existing file-watcher ingestion pipeline. Foreground-only by design — backgrounding/locking the screen pauses tracking, a real background-capture experience needs a native app.
+- [x] **Code editor white flash in dark mode fixed** (2026-08-06) — `.code-editor-frame` iframe had no background, so its blank default-white document showed through until code-server's own dark theme painted in; now `background: var(--bg-elevated)`, same pattern as the earlier map-tile flash fix.
 
 ## Known gaps
 

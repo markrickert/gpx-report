@@ -140,6 +140,7 @@ select {
   width: 100%;
   border: none;
   flex: 1;
+  background: var(--bg-elevated);
 }
 
 .activity-map {
