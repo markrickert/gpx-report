@@ -42,6 +42,15 @@ export const GET_ACTIVITY = gql`
   }
 `;
 
+export const UPDATE_ACTIVITY_TITLE = gql`
+  mutation UpdateActivityTitle($id: ID!, $title: String!) {
+    updateActivityTitle(id: $id, title: $title) {
+      id
+      title
+    }
+  }
+`;
+
 export const REANALYZE_ALL = gql`
   mutation ReanalyzeAll {
     reanalyzeAllActivities {

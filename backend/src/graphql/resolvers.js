@@ -1,5 +1,7 @@
+import path from "node:path";
 import { pool } from "../db.js";
-import { reanalyzeAll, reanalyzeByDateRange } from "../gpx/processor.js";
+import { reanalyzeAll, reanalyzeByDateRange, processFile } from "../gpx/processor.js";
+import { updateGpxTitle } from "../gpx/writer.js";
 import { DateTimeScalar, JSONScalar } from "./scalars.js";
 
 function mapActivityRow(row) {
@@ -130,6 +132,18 @@ export const resolvers = {
     reanalyzeAllActivities: async () => reanalyzeAll(GPX_FILES_DIRECTORY),
     reanalyzeActivitiesByDateRange: async (_parent, { startDate, endDate }) =>
       reanalyzeByDateRange(GPX_FILES_DIRECTORY, startDate, endDate),
+
+    updateActivityTitle: async (_parent, { id, title }) => {
+      const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
+      if (!rows[0]) throw new Error(`Activity ${id} not found`);
+
+      const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
+      await updateGpxTitle(filePath, title);
+      await processFile(filePath);
+
+      const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
+      return mapActivityRow(updated[0]);
+    },
   },
 
   Activity: {
