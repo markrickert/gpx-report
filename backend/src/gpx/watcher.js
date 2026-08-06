@@ -21,7 +21,7 @@ export function watchGpxDirectory(directory) {
   });
 
   watcher.on("add", (filePath) => {
-    if (!filePath.toLowerCase().endsWith(".gpx")) return;
+    if (!/\.(gpx|igc)$/i.test(filePath)) return;
     enqueue(async () => {
       try {
         await processFile(filePath);

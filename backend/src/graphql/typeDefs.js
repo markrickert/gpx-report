@@ -67,5 +67,7 @@ export const typeDefs = `#graphql
     reanalyzeAllActivities: ReanalysisStatus!
     reanalyzeActivitiesByDateRange(startDate: DateTime!, endDate: DateTime!): ReanalysisStatus!
     updateActivityTitle(id: ID!, title: String!): Activity!
+    updateActivityType(id: ID!, activityType: String!): Activity!
+    trimActivity(id: ID!, startIndex: Int!, endIndex: Int!): Activity!
   }
 `;

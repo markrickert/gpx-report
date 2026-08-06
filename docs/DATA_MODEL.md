@@ -8,14 +8,14 @@ Uses the PostGIS extension for geospatial data.
 
 ### `activities` Table
 
-Stores the primary information for each recorded activity, one row per GPX file.
+Stores the primary information for each recorded activity, one row per source file (GPX or IGC).
 
 | Column Name        | Data Type         | Constraints                                     | Description                                                 |
 | :----------------- | :---------------- | :----------------------------------------------- | :---------------------------------------------------------- |
 | `id`               | `SERIAL`          | `PRIMARY KEY`                                   | Unique identifier for the activity.                         |
-| `gpx_filename`     | `VARCHAR(255)`    | `NOT NULL`, `UNIQUE`                            | Original filename of the GPX file. Upsert key for re-analysis. |
-| `title`            | `VARCHAR(255)`    | `NOT NULL`                                      | Track/metadata name from the GPX file, falling back to the filename stem. |
-| `activity_type`    | `VARCHAR(50)`     | `NOT NULL`                                      | From the GPX `<trk><type>` tag (mapped to a display label) or guessed from the filename; `'Unknown'` if neither yields a match. |
+| `gpx_filename`     | `VARCHAR(255)`    | `NOT NULL`, `UNIQUE`                            | Original filename of the source file (`.gpx` or `.igc`, despite the column name). Upsert key for re-analysis. |
+| `title`            | `VARCHAR(255)`    | `NOT NULL`                                      | Track/metadata name from the GPX file, falling back to the filename stem; always the filename stem for IGC (no equivalent header). |
+| `activity_type`    | `VARCHAR(50)`     | `NOT NULL`                                      | From the GPX `<trk><type>` tag (mapped to a display label) or guessed from the filename; `'Unknown'` if neither yields a match. Fixed to `'Paragliding'` for IGC files. |
 | `start_time`       | `TIMESTAMPTZ`     | `NOT NULL`                                      | Timestamp of the first track point.                         |
 | `end_time`         | `TIMESTAMPTZ`     | `NOT NULL`                                      | Timestamp of the last track point.                          |
 | `duration_seconds` | `INTEGER`         | `NOT NULL`                                      | `end_time - start_time`, in seconds.                         |
@@ -37,7 +37,7 @@ Stores the geospatial path of each activity, one row per activity.
 | :------------ | :------------- | :----------------------------------------------- | :--------------------------------------------------------------- |
 | `activity_id` | `INTEGER`      | `PRIMARY KEY`, `FOREIGN KEY REFERENCES activities(id) ON DELETE CASCADE` | Links to the `activities` table.                                 |
 | `route_geom`  | `GEOMETRY(LineString, 4326)` | `NOT NULL`                        | The route as a PostGIS LineString (SRID 4326 / WGS84). Not currently queried geospatially — stored for future use (GiST-indexed). |
-| `elevation_profile_data` | `JSONB` | `NULLABLE`                              | JSON array for the elevation chart: `[{"distanceMeters": 0, "elevation": 10}, ...]`. |
+| `elevation_profile_data` | `JSONB` | `NULLABLE`                              | JSON array for the elevation chart: `[{"distanceMeters": 0, "elevation": 10, "speedMps": null}, ...]`. `speedMps` is the point-to-point speed arriving at that point (`null` for the first point or when either point lacks a timestamp). |
 | `points_data` | `JSONB`        | `NULLABLE`                                      | Full point list used directly by the frontend map: `[{"lat", "lon", "elevation", "timestamp"}, ...]`. Kept redundant with `route_geom` because GeoJSON round-tripping loses per-point elevation/timestamp. |
 
 There is no `activity_summary` or `aggregated_stats_by_type` table. Both are computed live by the GraphQL resolvers with `SUM`/`AVG`/`GROUP BY` queries against `activities` — see `activitySummary` and `aggregatedStatsByType` below.
@@ -75,7 +75,7 @@ type Activity {
 
 type Route {
   coordinates: JSON! # [{lat, lon, elevation, timestamp}, ...] — from activity_routes.points_data
-  elevationProfile: JSON! # [{distanceMeters, elevation}, ...] — from activity_routes.elevation_profile_data
+  elevationProfile: JSON! # [{distanceMeters, elevation, speedMps}, ...] — from activity_routes.elevation_profile_data
 }
 
 type ActivitySummary {
@@ -146,7 +146,16 @@ type Mutation {
 
   # Rewrites the <trk><name> element in the source .gpx file (string
   # replacement, no XML DOM lib) and re-runs processFile() so the DB row
-  # and file stay in sync. Only the title is editable.
+  # and file stay in sync. Only .gpx activities support this; .igc has no
+  # writer path and the mutation rejects it.
   updateActivityTitle(id: ID!, title: String!): Activity!
+
+  # Same string-replacement approach, targeting <trk><type>. activityType is
+  # a label (e.g. "Mountain Biking"); the resolver converts it back to the
+  # raw <type> value (e.g. "mountain_biking") that parser.js's
+  # resolveActivityType() maps back to that same label, via
+  # activityTypeToRawType() in gpx/parser.js. Only .gpx activities support
+  # this; .igc has no writer path and the mutation rejects it.
+  updateActivityType(id: ID!, activityType: String!): Activity!
 }
 ```

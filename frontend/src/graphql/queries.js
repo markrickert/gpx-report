@@ -27,6 +27,7 @@ export const GET_ACTIVITY = gql`
   query GetActivity($id: ID!) {
     activity(id: $id) {
       id
+      gpxFilename
       title
       activityType
       startTime
@@ -50,6 +51,23 @@ export const UPDATE_ACTIVITY_TITLE = gql`
     updateActivityTitle(id: $id, title: $title) {
       id
       title
+    }
+  }
+`;
+
+export const UPDATE_ACTIVITY_TYPE = gql`
+  mutation UpdateActivityType($id: ID!, $activityType: String!) {
+    updateActivityType(id: $id, activityType: $activityType) {
+      id
+      activityType
+    }
+  }
+`;
+
+export const TRIM_ACTIVITY = gql`
+  mutation TrimActivity($id: ID!, $startIndex: Int!, $endIndex: Int!) {
+    trimActivity(id: $id, startIndex: $startIndex, endIndex: $endIndex) {
+      id
     }
   }
 `;

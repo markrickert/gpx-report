@@ -3,21 +3,9 @@ import { useQuery } from "@apollo/client";
 import { Link } from "react-router-dom";
 import { GET_DASHBOARD } from "../graphql/queries.js";
 import { useUnits, formatDistance, formatElevation } from "../units.jsx";
+import { ACTIVITY_TYPES } from "../activityTypes.js";
 
 const PAGE_SIZE = 50;
-
-const ACTIVITY_TYPES = [
-  "Running",
-  "Hiking",
-  "Walking",
-  "Cycling",
-  "Mountain Biking",
-  "E-Mountain Bike Ride",
-  "Alpine Skiing",
-  "Paragliding",
-  "Swimming",
-  "Kayaking",
-];
 
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
