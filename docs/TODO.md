@@ -5,6 +5,8 @@ Tracks work that is planned/wanted but not yet implemented, plus gaps found when
 ## Planned features
 
 - [ ] **`.slpz`/Slopes-export file support.** User exports ski activities from the Slopes app in `.slpz`-family format (no sample file in the repo yet) — need to ingest/log these alongside `.gpx`/`.igc`. Format details, and whether `gpxparser` can handle it or a new parser is needed, still require research before implementation.
+- [ ] **Thousands separators on Dashboard summary stats.** `summary-grid`'s tiles (`totalActivities`, and `formatDistance`/`formatElevation` in `units.jsx`) render raw `toFixed`/`Math.round` output with no grouping — large totals read as `1234.56 mi` instead of `1,234.56 mi`. Likely fixed via `toLocaleString()` in `units.jsx`'s formatters plus wrapping `totalActivities` in Dashboard.jsx.
+- [ ] **Code tab's embedded VS Code should respect the app's dark/light mode.** `CodeEditor.jsx` iframes code-server (`VITE_CODE_SERVER_URL`) as-is; it doesn't follow `theme.jsx`'s app-wide toggle. code-server's theme is a server-side user setting, not a URL param, so this likely needs either a code-server settings.json write on toggle or a postMessage-based bridge — needs research before implementation.
 - [ ] **Graceful degradation without JavaScript.** The frontend is a pure client-rendered Vite/React SPA with an empty `<div id="root">` — JS disabled currently means a blank page. Fixing this for real needs SSR/static pre-rendering, a genuine architecture shift, not a small tweak. Scope (which routes, read-only vs. the editing/trim features that need client interactivity anyway) still needs a decision before committing to a framework.
 
 ## Done
