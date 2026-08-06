@@ -66,5 +66,6 @@ export const typeDefs = `#graphql
   type Mutation {
     reanalyzeAllActivities: ReanalysisStatus!
     reanalyzeActivitiesByDateRange(startDate: DateTime!, endDate: DateTime!): ReanalysisStatus!
+    updateActivityTitle(id: ID!, title: String!): Activity!
   }
 `;
