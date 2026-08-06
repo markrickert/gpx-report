@@ -77,7 +77,13 @@ function LiftList() {
   );
 }
 
-export default function Settings() {
+const TABS = [
+  { id: "reanalysis", label: "Re-analysis" },
+  { id: "outliers", label: "GPS Anomaly Cleanup" },
+  { id: "lifts", label: "Suspected Lift Rides" },
+];
+
+function ReanalysisTab() {
   const [status, setStatus] = useState(null);
   const [reanalyzeAll, { loading: loadingAll }] = useMutation(REANALYZE_ALL);
   const [reanalyzeRange, { loading: loadingRange }] = useMutation(REANALYZE_RANGE);
@@ -101,9 +107,7 @@ export default function Settings() {
   const busy = loadingAll || loadingRange;
 
   return (
-    <div>
-      <h1>Settings</h1>
-      <h2>Re-analysis</h2>
+    <>
       <div className="button-row">
         {RANGE_OPTIONS.map((opt) => (
           <button
@@ -119,22 +123,53 @@ export default function Settings() {
         </button>
       </div>
       {status && <p>{status}</p>}
+    </>
+  );
+}
 
-      <h2>GPS Anomaly Cleanup</h2>
-      <p className="chart-hint">
-        Activities with GPS points that imply an implausible speed jump (device jitter or a teleport
-        glitch) — none of these are removed automatically. Open an activity below to compare the
-        original vs. cleaned track on a map and decide whether to remove the flagged points.
-      </p>
-      <OutlierList />
+export default function Settings() {
+  const [activeTab, setActiveTab] = useState(TABS[0].id);
 
-      <h2>Suspected Lift Rides</h2>
-      <p className="chart-hint">
-        Stretches of track that look like a chairlift/gondola ride — straight-line, roughly constant
-        speed, steady climb — rather than the athlete&apos;s own effort. Nothing is changed
-        automatically; open an activity below to see the flagged range on its elevation chart.
-      </p>
-      <LiftList />
+  return (
+    <div>
+      <h1>Settings</h1>
+      <div className="settings-tabs">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            className={activeTab === tab.id ? "active" : ""}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "reanalysis" && <ReanalysisTab />}
+
+      {activeTab === "outliers" && (
+        <>
+          <p className="chart-hint">
+            Activities with GPS points that imply an implausible speed jump (device jitter or a
+            teleport glitch) — none of these are removed automatically. Open an activity below to
+            compare the original vs. cleaned track on a map and decide whether to remove the flagged
+            points.
+          </p>
+          <OutlierList />
+        </>
+      )}
+
+      {activeTab === "lifts" && (
+        <>
+          <p className="chart-hint">
+            Stretches of track that look like a chairlift/gondola ride — straight-line, roughly
+            constant speed, steady climb — rather than the athlete&apos;s own effort. Nothing is
+            changed automatically; open an activity below to see the flagged range on its elevation
+            chart.
+          </p>
+          <LiftList />
+        </>
+      )}
     </div>
   );
 }
