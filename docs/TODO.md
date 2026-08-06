@@ -5,11 +5,11 @@ Tracks work that is planned/wanted but not yet implemented, plus gaps found when
 ## Planned features
 
 - [ ] **`.slpz`/Slopes-export file support.** User exports ski activities from the Slopes app in `.slpz`-family format (no sample file in the repo yet) — need to ingest/log these alongside `.gpx`/`.igc`. Format details, and whether `gpxparser` can handle it or a new parser is needed, still require research before implementation.
-- [ ] **Max-width cap on Dashboard/ActivityDetail on very wide browsers.** `.content` already sets `max-width: 1400px` + `margin: 0 auto`, but the main body reportedly still reads too wide/edge-to-edge on an ultra-wide monitor. Needs checking on an actual wide viewport — likely a tighter cap and/or capping inner elements (chart/map) rather than the outer wrapper.
 - [ ] **Graceful degradation without JavaScript.** The frontend is a pure client-rendered Vite/React SPA with an empty `<div id="root">` — JS disabled currently means a blank page. Fixing this for real needs SSR/static pre-rendering, a genuine architecture shift, not a small tweak. Scope (which routes, read-only vs. the editing/trim features that need client interactivity anyway) still needs a decision before committing to a framework.
 
 ## Done
 
+- [x] **Tighter max-width cap on Dashboard/ActivityDetail** (2026-08-06) — `.content` wrapper cut from 1400px to 1100px; fixes both the activity list's edge-to-edge feel and the flat, stretched look of the map/elevation chart on ultra-wide monitors.
 - [x] **Edit activity title, written back to source GPX file** (2026-08-06) — `updateActivityTitle` mutation rewrites `<trk><name>` via `gpx/writer.js` and re-runs `processFile()`; inline Edit/Save/Cancel on `ActivityDetail.jsx`.
 - [x] **Editable activity type, from a preselected list** (2026-08-06) — dropdown (shared `activityTypes.js`) next to the type badge; `updateActivityType` writes `<trk><type>` and re-syncs via `processFile()`.
 - [x] **`.igc` file support (paragliding)** (2026-08-06) — new `igc/parser.js` parses IGC B-records into the same shape as GPX parsing; `processor.js`/the watcher dispatch by file extension. Title/type editing stays `.gpx`-only (writer.js is GPX-XML-specific).
