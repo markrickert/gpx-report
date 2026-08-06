@@ -164,6 +164,32 @@ body {
   margin-top: 0.15rem;
 }
 
+.stats-table-wrap {
+  overflow-x: auto;
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.stats-table th,
+.stats-table td {
+  text-align: left;
+  padding: 0.6rem 0.9rem;
+  white-space: nowrap;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.stats-table th {
+  background: #f9fafb;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
 .activity-type-badge {
   display: inline-block;
   background: #eef2ff;
