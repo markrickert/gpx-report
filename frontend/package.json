@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 3000"
+    "preview": "vite preview --host 0.0.0.0 --port 3000",
+    "lint": "eslint .",
+    "format": "prettier --check . --ignore-path ../.prettierignore"
   },
   "dependencies": {
     "@apollo/client": "^3.11.0",
@@ -19,7 +21,14 @@
     "recharts": "^2.12.7"
   },
   "devDependencies": {
+    "@eslint/js": "^9.9.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^9.9.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.35.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^15.9.0",
+    "prettier": "^3.3.3",
     "vite": "^5.4.0"
   }
 }
