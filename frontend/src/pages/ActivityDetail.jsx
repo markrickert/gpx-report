@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Polyline } from "react-leaflet";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceArea, ReferenceLine, ReferenceDot } from "recharts";
 import { GET_ACTIVITY, UPDATE_ACTIVITY_TITLE, UPDATE_ACTIVITY_TYPE, TRIM_ACTIVITY } from "../graphql/queries.js";
 import { useUnits, formatDistance, formatElevation, formatSpeed, distanceValue, elevationValue, distanceUnitLabel, elevationUnitLabel } from "../units.jsx";
+import { useTheme } from "../theme.jsx";
 import { ACTIVITY_TYPES } from "../activityTypes.js";
 
 function formatDuration(seconds) {
@@ -192,6 +193,7 @@ function TrimControls({ activity, pointCount, trimRange, onSaved }) {
 export default function ActivityDetail() {
   const { id } = useParams();
   const { unit } = useUnits();
+  const { theme } = useTheme();
   const { data, loading, error, refetch } = useQuery(GET_ACTIVITY, { variables: { id } });
   const [editMode, setEditMode] = useState(false);
   const [trimRange, setTrimRange] = useState(null);
@@ -303,10 +305,18 @@ export default function ActivityDetail() {
 
       {visiblePositions.length > 0 && (
         <MapContainer bounds={visiblePositions} boundsOptions={{ padding: [20, 20] }} className="activity-map">
-          <TileLayer
-            attribution='&copy; OpenStreetMap contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+          {theme === "dark" ? (
+            <TileLayer
+              attribution='&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+              subdomains="abcd"
+            />
+          ) : (
+            <TileLayer
+              attribution='&copy; OpenStreetMap contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+          )}
           <Polyline positions={visiblePositions} />
         </MapContainer>
       )}
