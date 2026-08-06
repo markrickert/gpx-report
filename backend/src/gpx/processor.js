@@ -3,7 +3,7 @@ import { readdir } from "node:fs/promises";
 import { pool } from "../db.js";
 import { parseGpxFile } from "./parser.js";
 import { parseIgcFile } from "../igc/parser.js";
-import { parseSlpzFile } from "../slpz/parser.js";
+import { parseSkizFile } from "../skiz/parser.js";
 
 function toLineStringWkt(points) {
   const coords = points.map((p) => `${p.lon} ${p.lat}`).join(", ");
@@ -13,7 +13,7 @@ function toLineStringWkt(points) {
 function parseActivityFile(filePath) {
   const lower = filePath.toLowerCase();
   if (lower.endsWith(".igc")) return parseIgcFile(filePath);
-  if (lower.endsWith(".slpz") || lower.endsWith(".slopes")) return parseSlpzFile(filePath);
+  if (lower.endsWith(".skiz")) return parseSkizFile(filePath);
   return parseGpxFile(filePath);
 }
 
@@ -87,7 +87,7 @@ export async function processFile(filePath) {
 async function listGpxFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   return entries
-    .filter((e) => e.isFile() && /\.(gpx|igc|slpz|slopes)$/i.test(e.name))
+    .filter((e) => e.isFile() && /\.(gpx|igc|skiz)$/i.test(e.name))
     .map((e) => path.join(directory, e.name));
 }
 
