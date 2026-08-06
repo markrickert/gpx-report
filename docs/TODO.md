@@ -11,6 +11,11 @@ Tracks work that is planned/wanted but not yet implemented, plus gaps found when
 
 - [x] **Dashboard activity list route thumbnail** (2026-08-06) — each row in `frontend/src/pages/Dashboard.jsx` now renders a small SVG polyline of the route shape next to the title/meta, built client-side from `activity.route.coordinates` (normalized to a 48x48 box, no basemap). Not a real Leaflet map: rendering 50 live tile-based maps per dashboard load would hammer OpenStreetMap's tile servers and be slow; a plain SVG sparkline needs no tiles and stays cheap at this scale. `GET_DASHBOARD` now also fetches `route { coordinates }` per activity.
 
+## Planned features
+
+- [ ] **Speed-over-time profile with trim editing.** Add a speed-vs-time chart under the elevation profile on `ActivityDetail.jsx` (same `recharts` pattern as the existing elevation `LineChart`, derived from `route.coordinates` timestamps/distances). In an edit mode, both the elevation and speed profiles should support dragging the start/end of the visible range to trim the activity's data. Trimming needs to: (1) save back to the source `.gpx` file (extend `backend/src/gpx/writer.js`, which currently only rewrites `<trk><name>`, to remove trimmed `<trkpt>` elements), (2) re-run `processFile()` so the DB row/route remains in sync (matching the existing title-edit flow in `updateActivityTitle`), and (3) update the map polyline live as the trim range is dragged, before saving.
+- [ ] **Heatmap tab of all activity locations.** A new nav tab showing a heatmap built from every activity's `route.coordinates` (likely `leaflet.heat` or similar, since `react-leaflet`/`leaflet` are already a dependency). Should also represent altitude somehow — maybe a separate vertical/elevation-banded view or color-coded-by-elevation heatmap points — exact approach still to be worked out.
+
 ## Known gaps
 
 - [ ] **No pagination / "load more" on the Dashboard activity list.** `activities(limit, offset)` supports paging, but `frontend/src/pages/Dashboard.jsx` calls it with a hardcoded `limit: 50` and never passes `offset`. Activities beyond the 50 most recent (optionally filtered by type) are currently invisible in the UI with no way to reach them.
