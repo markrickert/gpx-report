@@ -80,9 +80,22 @@ async function listGpxFiles(directory) {
     .map((e) => path.join(directory, e.name));
 }
 
+const CONCURRENCY = 5;
+
+// Processing all files at once would open one DB connection per file, far
+// exceeding the pool size; cap how many run concurrently instead.
+async function processAll(files) {
+  const results = [];
+  for (let i = 0; i < files.length; i += CONCURRENCY) {
+    const batch = files.slice(i, i + CONCURRENCY);
+    results.push(...(await Promise.allSettled(batch.map((f) => processFile(f)))));
+  }
+  return results;
+}
+
 export async function reanalyzeAll(directory) {
   const files = await listGpxFiles(directory);
-  const results = await Promise.allSettled(files.map((f) => processFile(f)));
+  const results = await processAll(files);
   return summarize(files, results);
 }
 
@@ -92,7 +105,7 @@ export async function reanalyzeByDateRange(directory, startDate, endDate) {
     [startDate, endDate]
   );
   const files = rows.map((r) => path.join(directory, r.gpx_filename));
-  const results = await Promise.allSettled(files.map((f) => processFile(f)));
+  const results = await processAll(files);
   return summarize(files, results);
 }
 
