@@ -414,6 +414,7 @@ select {
 
 .elevation-chart {
   user-select: none;
+  touch-action: none;
 }
 
 .chart-hint {
