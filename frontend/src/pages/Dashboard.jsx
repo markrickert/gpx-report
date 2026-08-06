@@ -87,17 +87,26 @@ export default function Dashboard() {
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
   const sentinelRef = useRef(null);
-  const [visibleIds, setVisibleIds] = useState(() => new Set());
+  const [visibleDelays, setVisibleDelays] = useState(() => new Map());
   const entranceObserverRef = useRef(null);
 
   useEffect(() => {
     entranceObserverRef.current = new IntersectionObserver(
       (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          const id = entry.target.dataset.activityId;
-          setVisibleIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
-          entranceObserverRef.current.unobserve(entry.target);
+        const newlyVisible = entries.filter((entry) => entry.isIntersecting);
+        if (newlyVisible.length === 0) return;
+        setVisibleDelays((prev) => {
+          const next = new Map(prev);
+          let staggerIndex = 0;
+          newlyVisible.forEach((entry) => {
+            const id = entry.target.dataset.activityId;
+            if (!next.has(id)) {
+              next.set(id, Math.min(staggerIndex, 8) * 60);
+              staggerIndex += 1;
+            }
+            entranceObserverRef.current.unobserve(entry.target);
+          });
+          return next;
         });
       },
       { rootMargin: "0px 0px -40px 0px", threshold: 0.1 }
@@ -194,7 +203,8 @@ export default function Dashboard() {
             key={activity.id}
             ref={observeListItem}
             data-activity-id={activity.id}
-            className={visibleIds.has(String(activity.id)) ? "visible" : ""}
+            className={visibleDelays.has(String(activity.id)) ? "visible" : ""}
+            style={{ transitionDelay: `${visibleDelays.get(String(activity.id)) ?? 0}ms` }}
           >
             <Link to={`/activities/${activity.id}`} className="activity-list-link">
               <RouteThumbnail coordinates={activity.route.coordinates} />
