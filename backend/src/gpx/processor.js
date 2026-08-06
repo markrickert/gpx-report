@@ -2,15 +2,20 @@ import path from "node:path";
 import { readdir } from "node:fs/promises";
 import { pool } from "../db.js";
 import { parseGpxFile } from "./parser.js";
+import { parseIgcFile } from "../igc/parser.js";
 
 function toLineStringWkt(points) {
   const coords = points.map((p) => `${p.lon} ${p.lat}`).join(", ");
   return `LINESTRING(${coords})`;
 }
 
+function parseActivityFile(filePath) {
+  return filePath.toLowerCase().endsWith(".igc") ? parseIgcFile(filePath) : parseGpxFile(filePath);
+}
+
 export async function processFile(filePath) {
   const filename = path.basename(filePath);
-  const parsed = await parseGpxFile(filePath);
+  const parsed = await parseActivityFile(filePath);
 
   const client = await pool.connect();
   try {
@@ -78,7 +83,7 @@ export async function processFile(filePath) {
 async function listGpxFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   return entries
-    .filter((e) => e.isFile() && e.name.toLowerCase().endsWith(".gpx"))
+    .filter((e) => e.isFile() && /\.(gpx|igc)$/i.test(e.name))
     .map((e) => path.join(directory, e.name));
 }
 

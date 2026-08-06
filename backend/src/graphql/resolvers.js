@@ -1,7 +1,8 @@
 import path from "node:path";
 import { pool } from "../db.js";
 import { reanalyzeAll, reanalyzeByDateRange, processFile } from "../gpx/processor.js";
-import { updateGpxTitle } from "../gpx/writer.js";
+import { updateGpxTitle, updateGpxType, trimGpxTrack } from "../gpx/writer.js";
+import { activityTypeToRawType } from "../gpx/parser.js";
 import { DateTimeScalar, JSONScalar } from "./scalars.js";
 
 function mapActivityRow(row) {
@@ -136,9 +137,42 @@ export const resolvers = {
     updateActivityTitle: async (_parent, { id, title }) => {
       const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
       if (!rows[0]) throw new Error(`Activity ${id} not found`);
+      if (!rows[0].gpx_filename.toLowerCase().endsWith(".gpx")) {
+        throw new Error("Editing is only supported for .gpx files");
+      }
 
       const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
       await updateGpxTitle(filePath, title);
+      await processFile(filePath);
+
+      const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
+      return mapActivityRow(updated[0]);
+    },
+
+    updateActivityType: async (_parent, { id, activityType }) => {
+      const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
+      if (!rows[0]) throw new Error(`Activity ${id} not found`);
+      if (!rows[0].gpx_filename.toLowerCase().endsWith(".gpx")) {
+        throw new Error("Editing is only supported for .gpx files");
+      }
+
+      const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
+      await updateGpxType(filePath, activityTypeToRawType(activityType));
+      await processFile(filePath);
+
+      const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
+      return mapActivityRow(updated[0]);
+    },
+
+    trimActivity: async (_parent, { id, startIndex, endIndex }) => {
+      const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
+      if (!rows[0]) throw new Error(`Activity ${id} not found`);
+      if (!rows[0].gpx_filename.toLowerCase().endsWith(".gpx")) {
+        throw new Error("Editing is only supported for .gpx files");
+      }
+
+      const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
+      await trimGpxTrack(filePath, startIndex, endIndex);
       await processFile(filePath);
 
       const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);

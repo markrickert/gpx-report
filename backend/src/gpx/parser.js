@@ -29,6 +29,17 @@ const ACTIVITY_TYPE_LABELS = {
   paragliding: "Paragliding",
 };
 
+// Reverse of ACTIVITY_TYPE_LABELS, so writer.js can turn a label chosen from
+// the frontend's preselected list back into the raw <trk><type> value that
+// resolveActivityType() above will read back as that same label.
+const LABEL_TO_ACTIVITY_TYPE = Object.fromEntries(
+  Object.entries(ACTIVITY_TYPE_LABELS).map(([raw, label]) => [label, raw])
+);
+
+export function activityTypeToRawType(label) {
+  return LABEL_TO_ACTIVITY_TYPE[label] ?? label;
+}
+
 // Fallback for raw type strings not in the table above: split camelCase and
 // snake_case/kebab-case into words and title-case them.
 function formatUnknownType(raw) {
@@ -94,7 +105,15 @@ export async function parseGpxFile(filePath) {
     track.points.forEach((p, i) => {
       const segmentDistance = i === 0 ? 0 : track.distance.cumul[i] - track.distance.cumul[i - 1];
       cumulativeDistance += segmentDistance;
-      elevationProfile.push({ distanceMeters: cumulativeDistance, elevation: p.ele ?? null });
+      let speedMps = null;
+      if (i > 0) {
+        const prev = track.points[i - 1];
+        if (prev.time && p.time) {
+          const dtSeconds = (new Date(p.time) - new Date(prev.time)) / 1000;
+          if (dtSeconds > 0) speedMps = segmentDistance / dtSeconds;
+        }
+      }
+      elevationProfile.push({ distanceMeters: cumulativeDistance, elevation: p.ele ?? null, speedMps });
     });
   });
 

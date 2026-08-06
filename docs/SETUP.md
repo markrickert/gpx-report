@@ -83,11 +83,11 @@ Note: both the file watcher (on startup, when it sees every pre-existing file) a
 6.  **Create a drop folder on your phone and share it:**
     *   In the Syncthing Android app, add a new folder — e.g. call it "GPX Uploads" — it can be any empty folder, since you'll be saving files into it manually (see step 8).
     *   Under that folder's **Sharing** tab, check the server device.
-    *   Set the folder type to **Send Only** on the phone (the phone should never receive changes back).
+    *   Set the folder type to **Send & Receive** on the phone — the backend can edit a GPX file's contents in place (`backend/src/gpx/writer.js`, used by the activity-type-editing feature), and those edits need to sync back down to the phone, not just uploads going up.
 7.  **Accept the folder on the server:**
     *   The server web GUI will show an incoming folder offer — click **Add**.
     *   Set the folder path to the **absolute** path `/var/syncthing/gpx` (this is mounted to `./data/gpx` on the host). Don't leave it as a relative path (e.g. just `gpx` or a label like `GpxSync`) — Syncthing resolves a relative path against its working directory, which in this container is filesystem root (`/`), not `$HOME`/`/var/syncthing`. A relative path silently lands files outside any mounted volume, in the container's writable layer — they'd vanish on the next `docker compose up --build`, and the backend's watcher (which only sees `./data/gpx`) would never ingest them. This bit us once already; the absolute path is the fix.
-    *   Set the folder type to **Receive Only** (the server should never push changes to your phone).
+    *   Set the folder type to **Send & Receive** (matching the phone) — needed for backend-written edits to a GPX file to propagate back to the phone.
     *   If you ever repoint an existing folder's path via the GUI or REST API rather than accepting it fresh, Syncthing requires a `.stfolder` marker file at the folder root before it'll scan — a safety guard against operating on an accidentally-empty/unmounted path. Create it with `touch /var/syncthing/gpx/.stfolder` (from inside the container) if a rescan fails with `folder marker missing`.
 8.  **Export tracks from Organic Maps into that folder:**
     *   Organic Maps has no auto-export-to-folder option, so this is a manual step per activity: open **Bookmarks and Tracks**, tap the track you just recorded, tap **Share**, and choose **GPX** as the format.

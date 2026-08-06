@@ -242,6 +242,39 @@ body {
   margin: 0;
 }
 
+.trim-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.75rem 0;
+}
+
+.trim-controls label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85rem;
+  flex: 1 1 200px;
+}
+
+.trim-controls button {
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
+}
+
+.trim-controls button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.elevation-chart {
+  user-select: none;
+}
+
 .metrics-row {
   display: flex;
   flex-wrap: wrap;

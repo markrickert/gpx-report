@@ -4,18 +4,19 @@ This document details the features of gpx-report, and reflects what is actually 
 
 ## 1. Data Ingestion and Processing
 
-*   **Automatic Detection:** A `chokidar` file watcher (Node) monitors `GPX_FILES_DIRECTORY` for new GPX files, and fires for every pre-existing file on startup too.
+*   **Automatic Detection:** A `chokidar` file watcher (Node) monitors `GPX_FILES_DIRECTORY` for new `.gpx` and `.igc` files, and fires for every pre-existing file on startup too.
 *   **GPX Parsing:** Uses the `gpxparser` npm package to extract track points, timestamps, and metadata from GPX files (not Python/`gpxpy` — this is a plain Node backend, see `CLAUDE.md`).
-*   **Metric Calculation:** Computes key metrics:
+*   **IGC Parsing:** Paragliding flight-recorder logs (`.igc`) are parsed directly via regex against the fixed-width `B`-record/`HFDTE` format (no third-party IGC library) — see `backend/src/igc/parser.js`.
+*   **Metric Calculation:** Computes key metrics for both formats:
     *   Distance Traveled
     *   Duration
     *   Average & Maximum Speed/Pace
     *   Total Elevation Gain & Loss
-    *   Activity Type (from the GPX `<trk><type>` tag if present, else guessed from the filename, else "Unknown")
-    *   Title (from the track/metadata name in the GPX file, else the filename stem)
+    *   Activity Type (from the GPX `<trk><type>` tag if present, else guessed from the filename, else "Unknown"; always "Paragliding" for IGC)
+    *   Title (from the track/metadata name in the GPX file, else the filename stem; always the filename stem for IGC)
 *   **Route Data Extraction:** Stores sequences of latitude, longitude, elevation, and timestamp for each activity.
 *   **Database Storage:** Processed data is stored in PostgreSQL, with route geometries managed by PostGIS.
-*   **Re-analysis Capability:** Allows users to re-process existing GPX files (all, or by date range) via the Settings page. Only re-processes files that already have a matching `activities` row — see `docs/DATA_MODEL.md`.
+*   **Re-analysis Capability:** Allows users to re-process existing GPX/IGC files (all, or by date range) via the Settings page. Only re-processes files that already have a matching `activities` row — see `docs/DATA_MODEL.md`.
 
 ## 2. Dashboard View
 
@@ -43,7 +44,8 @@ This document details the features of gpx-report, and reflects what is actually 
     *   Max Speed/Pace
     *   Total Elevation Gain
     *   Total Elevation Loss
-*   **Title Editing:** The activity title has an inline Edit/Save/Cancel affordance; saving updates both the database row and rewrites the `<trk><name>` element in the source `.gpx` file, then re-runs processing so both stay in sync.
+*   **Title Editing:** The activity title has an inline Edit/Save/Cancel affordance; saving updates both the database row and rewrites the `<trk><name>` element in the source `.gpx` file, then re-runs processing so both stay in sync. Only available for `.gpx` activities — `.igc` has no writer path, so the Edit button is hidden for those.
+*   **Activity Type Editing:** Same inline Edit/Save/Cancel affordance next to the activity-type badge, backed by a dropdown of the same preselected activity types used for the dashboard filter; saving rewrites the `<trk><type>` element in the source `.gpx` file and re-runs processing. Same `.gpx`-only restriction as title editing.
 *   **Map View:** An interactive map displaying the geographical path of the activity.
 *   **Elevation Profile:** A graph showing elevation changes plotted against the distance traveled, with the Y-axis scaled to the activity's actual elevation range (not a fixed 0-based domain) so variation stays visible regardless of altitude.
 

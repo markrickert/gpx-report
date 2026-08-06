@@ -40,17 +40,18 @@ This document outlines the architecture of gpx-report, a self-hosted platform fo
 
 ## 4. Data Ingestion & Processing Pipeline
 
-*   **Purpose:** Handles the parsing of raw GPX files and populates the PostgreSQL database.
-*   **Trigger:** A `chokidar` file watcher (`backend/src/gpx/watcher.js`) watches `GPX_FILES_DIRECTORY`; on startup it fires an `add` event for every pre-existing file, then continues watching for new ones.
+*   **Purpose:** Handles the parsing of raw GPX/IGC files and populates the PostgreSQL database.
+*   **Trigger:** A `chokidar` file watcher (`backend/src/gpx/watcher.js`) watches `GPX_FILES_DIRECTORY` for `.gpx` and `.igc` files; on startup it fires an `add` event for every pre-existing file, then continues watching for new ones.
 *   **Components:**
     *   **GPX Parser** (`backend/src/gpx/parser.js`): Uses the `gpxparser` npm package to read GPX files and extract track points/timestamps, then computes distance/speed/elevation stats gpxparser doesn't provide itself. Activity type is read from the GPX `<trk><type>` tag when present (mapped through a label table), falling back to a filename-keyword guess (matches "running", "hiking", etc.) or "Unknown".
-    *   **Database Writer** (`backend/src/gpx/processor.js`): `processFile()` upserts one activity + its route (keyed by `gpx_filename`, so re-processing the same file is idempotent) inside a single transaction.
+    *   **IGC Parser** (`backend/src/igc/parser.js`): For paragliding flight-recorder logs. Regex-parses `HFDTE` date headers and `B`-record fixes (lat/lon/altitude/timestamp) directly — no third-party IGC library — then computes distance/speed/elevation stats with a haversine helper, returning the same shape the GPX parser does. IGC has no track-name/type header, so title falls back to the filename stem and activity type is fixed to "Paragliding".
+    *   **Database Writer** (`backend/src/gpx/processor.js`): `processFile()` dispatches to whichever parser matches the file extension, then upserts one activity + its route (keyed by `gpx_filename`, so re-processing the same file is idempotent) inside a single transaction.
 *   **Re-analysis:** The `reanalyze*` mutations call `reanalyzeAll()` / `reanalyzeByDateRange()` in `processor.js`, which re-run this same pipeline over existing files.
 *   **Concurrency:** Both the watcher (strict FIFO, one file at a time) and `reanalyze*` (batches of 5 via `processAll()`) bound how many files are processed concurrently, since the default `pg.Pool` only has 10 connections — see `CLAUDE.md` and `docs/SETUP.md` §5 for the pool-exhaustion incident this guards against.
 
 ## Integration Flow
 
-1.  User adds GPX files to a monitored directory (manually, or synced from a phone via Syncthing — see `docs/SETUP.md` §6).
+1.  User adds GPX or IGC files to a monitored directory (manually, or synced from a phone via Syncthing — see `docs/SETUP.md` §6).
 2.  The **file watcher** detects new files, the **parser** extracts metrics, and the **processor** upserts activity + route data into **PostgreSQL**.
 3.  The **React Frontend** makes GraphQL queries to the **Backend API**.
 4.  The **Backend API** (GraphQL resolvers) queries the **PostgreSQL Database** for activity details, aggregate stats, or route geometries.

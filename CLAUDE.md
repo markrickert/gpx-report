@@ -20,6 +20,15 @@ docker compose up --build
 
 There is no test suite and no lint/typecheck config in this repo currently.
 
+### Getting code changes live (this deployment)
+
+`/opt/gpx-report` is the live host itself, not a dev checkout — there's no separate deploy/push step, but `docker compose`'s default images here have **no bind mount for source code**, so editing a file on disk does not change what's running:
+
+- **Backend** (`backend/src/**`): image is built from `backend/Dockerfile` with no source bind mount. A code edit needs `docker compose up -d --build backend` to take effect — restarting the container (`docker compose restart backend`) re-runs the *old* image and silently keeps stale code running.
+- **Frontend** (`frontend/src/**`): same story, plus the `VITE_GRAPHQL_URL`/`VITE_CODE_SERVER_URL` build-arg caveat above — always `docker compose up -d --build frontend`. This is the slow one (~8–10 min, see Deployment notes).
+- **`docker/init.sql`**: only applied on a fresh Postgres volume — an edit here needs a manual `psql`/`ALTER` against the running DB, not a rebuild (see Database section).
+- There is no hot-reload/dev-mode in this compose file for either service — that only exists via the "Local (non-Docker) dev" path below (`npm run dev`), which isn't how this deployment runs.
+
 ### Local (non-Docker) dev
 
 - Backend: `cd backend && npm install && npm run dev` (uses `node --watch`; needs `DATABASE_URL` and `GPX_FILES_DIRECTORY` env vars set — see `docker-compose.yml` for the shape).

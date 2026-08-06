@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client";
 import { MapContainer, TileLayer, Polyline } from "react-leaflet";
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
-import { GET_ACTIVITY, UPDATE_ACTIVITY_TITLE } from "../graphql/queries.js";
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceArea, ReferenceLine, ReferenceDot } from "recharts";
+import { GET_ACTIVITY, UPDATE_ACTIVITY_TITLE, UPDATE_ACTIVITY_TYPE, TRIM_ACTIVITY } from "../graphql/queries.js";
 import { useUnits, formatDistance, formatElevation, formatSpeed, distanceValue, elevationValue, distanceUnitLabel, elevationUnitLabel } from "../units.jsx";
+import { ACTIVITY_TYPES } from "../activityTypes.js";
 
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -12,50 +13,178 @@ function formatDuration(seconds) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-function ActivityTitle({ activity }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(activity.title);
-  const [updateTitle, { loading, error }] = useMutation(UPDATE_ACTIVITY_TITLE);
+// Only .gpx activities support edits (writer.js rewrites <trk> elements in
+// the source file; .igc has no equivalent write path yet).
+function isEditable(activity) {
+  return activity.gpxFilename.toLowerCase().endsWith(".gpx");
+}
 
-  if (!editing) {
+// A single edit-mode flag drives every editable field on the page (title,
+// activity type, and future track-editing tools like trim), so entering
+// edit puts the whole activity into one consistent editable state rather
+// than each field toggling independently.
+function ActivityHeader({ activity, editMode, onEditModeChange }) {
+  const [updateTitle] = useMutation(UPDATE_ACTIVITY_TITLE);
+  const [updateType] = useMutation(UPDATE_ACTIVITY_TYPE);
+  const [titleDraft, setTitleDraft] = useState(activity.title);
+  const [typeDraft, setTypeDraft] = useState(activity.activityType);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  if (!editMode) {
     return (
-      <h1>
-        {activity.title}{" "}
-        <button
-          className="title-edit-button"
-          onClick={() => {
-            setDraft(activity.title);
-            setEditing(true);
-          }}
-          aria-label="Edit title"
-        >
-          Edit
-        </button>
-      </h1>
+      <>
+        <h1>
+          {activity.title}{" "}
+          {isEditable(activity) && (
+            <button
+              className="title-edit-button"
+              onClick={() => {
+                setTitleDraft(activity.title);
+                setTypeDraft(activity.activityType);
+                setError(null);
+                onEditModeChange(true);
+              }}
+              aria-label="Edit activity"
+            >
+              Edit
+            </button>
+          )}
+        </h1>
+        <p>
+          <span className="activity-type-badge">{activity.activityType}</span>{" "}
+          {new Date(activity.startTime).toLocaleString()}
+        </p>
+      </>
     );
   }
 
   const save = async () => {
-    const title = draft.trim();
-    if (!title || title === activity.title) {
-      setEditing(false);
-      return;
+    setSaving(true);
+    setError(null);
+    try {
+      const title = titleDraft.trim();
+      const updates = [];
+      if (title && title !== activity.title) {
+        updates.push(updateTitle({ variables: { id: activity.id, title } }));
+      }
+      if (typeDraft !== activity.activityType) {
+        updates.push(updateType({ variables: { id: activity.id, activityType: typeDraft } }));
+      }
+      await Promise.all(updates);
+      onEditModeChange(false);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
     }
-    await updateTitle({ variables: { id: activity.id, title } });
-    setEditing(false);
   };
 
   return (
     <div className="title-edit-row">
       <input
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        value={titleDraft}
+        onChange={(e) => setTitleDraft(e.target.value)}
         autoFocus
-        disabled={loading}
+        disabled={saving}
       />
-      <button onClick={save} disabled={loading}>Save</button>
-      <button onClick={() => setEditing(false)} disabled={loading}>Cancel</button>
-      {error && <p className="title-edit-error">Failed to save: {error.message}</p>}
+      <select value={typeDraft} onChange={(e) => setTypeDraft(e.target.value)} disabled={saving}>
+        {ACTIVITY_TYPES.map((type) => (
+          <option key={type} value={type}>{type}</option>
+        ))}
+      </select>
+      <button onClick={save} disabled={saving}>Save</button>
+      <button onClick={() => onEditModeChange(false)} disabled={saving}>Cancel</button>
+      {error && <p className="title-edit-error">Failed to save: {error}</p>}
+    </div>
+  );
+}
+
+const REST_SPEED_THRESHOLD_MPS = 0.3;
+
+function speedColor(normalizedSpeed) {
+  const hue = 220 * normalizedSpeed;
+  return `hsl(${hue}, 70%, 50%)`;
+}
+
+// Recharts has no built-in per-segment line coloring, so the "gradient by
+// speed" line is faked with an SVG linearGradient whose stops are spread
+// evenly along the line (matching the chart's category-based x-axis, which
+// already spaces points by index rather than true distance).
+function buildSpeedGradientStops(elevationData, maxSpeedMps) {
+  const maxSpeed = maxSpeedMps || Math.max(1, ...elevationData.map((p) => p.speedMps || 0));
+  const stopCount = Math.min(elevationData.length, 60);
+  const step = Math.max(1, Math.floor(elevationData.length / stopCount));
+  const stops = [];
+  for (let i = 0; i < elevationData.length; i += step) {
+    const point = elevationData[i];
+    const normalizedSpeed = Math.min(1, (point.speedMps ?? 0) / maxSpeed);
+    stops.push({
+      offset: `${(i / (elevationData.length - 1 || 1)) * 100}%`,
+      color: speedColor(normalizedSpeed),
+    });
+  }
+  const last = elevationData[elevationData.length - 1];
+  stops.push({
+    offset: "100%",
+    color: speedColor(Math.min(1, (last?.speedMps ?? 0) / maxSpeed)),
+  });
+  return stops;
+}
+
+function buildRestBands(elevationData) {
+  const bands = [];
+  let start = null;
+  elevationData.forEach((point, i) => {
+    const resting = (point.speedMps ?? 0) < REST_SPEED_THRESHOLD_MPS;
+    if (resting && start === null) {
+      start = i;
+    } else if (!resting && start !== null) {
+      if (i - start > 1) bands.push([start, i - 1]);
+      start = null;
+    }
+  });
+  if (start !== null && elevationData.length - start > 1) {
+    bands.push([start, elevationData.length - 1]);
+  }
+  return bands;
+}
+
+// Saves the range set by the two draggable ReferenceLine handles on the
+// elevation chart (see ActivityDetail below). Destructive-action
+// confirmation since trimActivity permanently deletes GPX track points.
+function TrimControls({ activity, pointCount, trimRange, onSaved }) {
+  const [trimActivity] = useMutation(TRIM_ACTIVITY);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [start, end] = trimRange;
+  const trimmed = start > 0 || end < pointCount - 1;
+
+  const save = async () => {
+    if (
+      !window.confirm(
+        "Trimming permanently deletes the selected track points from the source GPX file. This cannot be undone. Continue?"
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await trimActivity({ variables: { id: activity.id, startIndex: start, endIndex: end } });
+      onSaved();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="trim-controls">
+      <p className="chart-hint">Drag the two vertical handles on the chart above to set the trim range.</p>
+      <button onClick={save} disabled={saving || !trimmed}>Trim &amp; Save</button>
+      {error && <p className="title-edit-error">Failed to save: {error}</p>}
     </div>
   );
 }
@@ -63,7 +192,10 @@ function ActivityTitle({ activity }) {
 export default function ActivityDetail() {
   const { id } = useParams();
   const { unit } = useUnits();
-  const { data, loading, error } = useQuery(GET_ACTIVITY, { variables: { id } });
+  const { data, loading, error, refetch } = useQuery(GET_ACTIVITY, { variables: { id } });
+  const [editMode, setEditMode] = useState(false);
+  const [trimRange, setTrimRange] = useState(null);
+  const [dragging, setDragging] = useState(null); // null | "start" | "end"
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p>Error loading activity: {error.message}</p>;
@@ -71,9 +203,11 @@ export default function ActivityDetail() {
 
   const activity = data.activity;
   const positions = activity.route.coordinates.map((p) => [p.lat, p.lon]);
-  const elevationData = activity.route.elevationProfile.map((p) => ({
+  const elevationData = activity.route.elevationProfile.map((p, i) => ({
+    idx: i,
     dist: distanceValue(p.distanceMeters, unit).toFixed(2),
     elevation: elevationValue(p.elevation, unit),
+    speedMps: p.speedMps,
   }));
   const elevations = elevationData.map((p) => p.elevation);
   const elevationPadding = unit === "imperial" ? 30 : 10;
@@ -81,14 +215,46 @@ export default function ActivityDetail() {
     elevations.length > 0
       ? [Math.floor(Math.min(...elevations) - elevationPadding), Math.ceil(Math.max(...elevations) + elevationPadding)]
       : [0, "auto"];
+  const speedGradientStops = buildSpeedGradientStops(elevationData, activity.maxSpeedMps);
+  const restBands = buildRestBands(elevationData);
+
+  const [trimStart, trimEnd] = trimRange ?? [0, elevationData.length - 1];
+  const trimActive = editMode && isEditable(activity) && trimRange !== null;
+  const visiblePositions = trimActive ? positions.slice(trimStart, trimEnd + 1) : positions;
+
+  // Drag handles report position via recharts' own hit-testing
+  // (activeTooltipIndex, computed against the chart's real pixel scale)
+  // rather than manual pixel math, so it stays accurate regardless of
+  // chart margins/axis width. Same handler serves mouse and touch since
+  // recharts passes the same shape of state for both.
+  const handleChartDrag = (state) => {
+    if (!dragging) return;
+    const idx = state?.activeTooltipIndex;
+    if (idx == null) return;
+    if (dragging === "start") {
+      setTrimRange([Math.max(0, Math.min(idx, trimEnd)), trimEnd]);
+    } else {
+      setTrimRange([trimStart, Math.min(elevationData.length - 1, Math.max(idx, trimStart))]);
+    }
+  };
+  const endDrag = () => setDragging(null);
+
+  const enterEditMode = () => {
+    setTrimRange([0, elevationData.length - 1]);
+    setEditMode(true);
+  };
+  const exitEditMode = () => {
+    setTrimRange(null);
+    setEditMode(false);
+  };
 
   return (
     <div>
-      <ActivityTitle activity={activity} />
-      <p>
-        <span className="activity-type-badge">{activity.activityType}</span>{" "}
-        {new Date(activity.startTime).toLocaleString()}
-      </p>
+      <ActivityHeader
+        activity={activity}
+        editMode={editMode}
+        onEditModeChange={(next) => (next ? enterEditMode() : exitEditMode())}
+      />
 
       <div className="metrics-row">
         <div>Duration: {formatDuration(activity.durationSeconds)}</div>
@@ -99,32 +265,145 @@ export default function ActivityDetail() {
         <div>Elevation Loss: {formatElevation(activity.totalElevationLoss, unit)}</div>
       </div>
 
-      {positions.length > 0 && (
-        <MapContainer bounds={positions} boundsOptions={{ padding: [20, 20] }} className="activity-map">
+      {visiblePositions.length > 0 && (
+        <MapContainer bounds={visiblePositions} boundsOptions={{ padding: [20, 20] }} className="activity-map">
           <TileLayer
             attribution='&copy; OpenStreetMap contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <Polyline positions={positions} />
+          <Polyline positions={visiblePositions} />
         </MapContainer>
       )}
 
       <h2>Elevation Profile</h2>
-      <ResponsiveContainer width="100%" height={250}>
-        <LineChart data={elevationData}>
+      <p className="chart-hint">Line color shows speed (blue = fast, red = slow); shaded bands mark rest stops.</p>
+      <ResponsiveContainer width="100%" height={250} className="elevation-chart">
+        <LineChart
+          data={elevationData}
+          onMouseMove={handleChartDrag}
+          onMouseUp={endDrag}
+          onMouseLeave={endDrag}
+          onTouchMove={handleChartDrag}
+          onTouchEnd={endDrag}
+        >
+          <defs>
+            <linearGradient id="speedGradient" x1="0" y1="0" x2="1" y2="0">
+              {speedGradientStops.map((stop, i) => (
+                <stop key={i} offset={stop.offset} stopColor={stop.color} />
+              ))}
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis
             dataKey="dist"
             label={{ value: `Distance (${distanceUnitLabel(unit)})`, position: "insideBottom", offset: -5 }}
           />
+          {/* Hidden axis keyed by point index rather than "dist": recharts'
+              category-axis Reference* lookup silently fails to render at all
+              once the axis key has duplicate values, which "dist" (rounded
+              to 2 decimals) does constantly on real tracks — index is always
+              unique, so Reference* components below target this axis instead. */}
+          <XAxis dataKey="idx" xAxisId="idx" hide allowDuplicatedCategory={false} />
           <YAxis
             domain={elevationDomain}
             label={{ value: `Elevation (${elevationUnitLabel(unit)})`, angle: -90, position: "insideLeft" }}
           />
           <Tooltip />
-          <Line type="monotone" dataKey="elevation" stroke="#2563eb" dot={false} />
+          {restBands.map(([start, end]) => (
+            <ReferenceArea
+              key={`${start}-${end}`}
+              xAxisId="idx"
+              x1={start}
+              x2={end}
+              fill="#94a3b8"
+              fillOpacity={0.2}
+              strokeOpacity={0}
+            />
+          ))}
+          {trimActive && trimStart > 0 && (
+            <ReferenceArea xAxisId="idx" x1={0} x2={trimStart} fill="#ef4444" fillOpacity={0.4} strokeOpacity={0} />
+          )}
+          {trimActive && trimEnd < elevationData.length - 1 && (
+            <ReferenceArea xAxisId="idx" x1={trimEnd} x2={elevationData.length - 1} fill="#ef4444" fillOpacity={0.4} strokeOpacity={0} />
+          )}
+          <Line type="monotone" dataKey="elevation" stroke="url(#speedGradient)" strokeWidth={2} dot={false} />
+          {/* Recharts only recognizes Reference* components as direct chart
+              children, not ones nested inside a Fragment/wrapper — each must
+              be its own top-level conditional expression here. */}
+          {trimActive && (
+            <ReferenceLine xAxisId="idx" x={trimStart} stroke="#2563eb" strokeWidth={2} isFront />
+          )}
+          {trimActive && (
+            <ReferenceLine
+              xAxisId="idx"
+              x={trimStart}
+              stroke="transparent"
+              strokeWidth={24}
+              isFront
+              style={{ cursor: "ew-resize" }}
+              onMouseDown={() => setDragging("start")}
+              onTouchStart={() => setDragging("start")}
+            />
+          )}
+          {trimActive && (
+            <ReferenceDot
+              xAxisId="idx"
+              x={trimStart}
+              y={elevationDomain[1]}
+              r={9}
+              fill="#2563eb"
+              stroke="#fff"
+              strokeWidth={2}
+              isFront
+              style={{ cursor: "ew-resize" }}
+              onMouseDown={() => setDragging("start")}
+              onTouchStart={() => setDragging("start")}
+            />
+          )}
+          {trimActive && (
+            <ReferenceLine xAxisId="idx" x={trimEnd} stroke="#2563eb" strokeWidth={2} isFront />
+          )}
+          {trimActive && (
+            <ReferenceLine
+              xAxisId="idx"
+              x={trimEnd}
+              stroke="transparent"
+              strokeWidth={24}
+              isFront
+              style={{ cursor: "ew-resize" }}
+              onMouseDown={() => setDragging("end")}
+              onTouchStart={() => setDragging("end")}
+            />
+          )}
+          {trimActive && (
+            <ReferenceDot
+              xAxisId="idx"
+              x={trimEnd}
+              y={elevationDomain[1]}
+              r={9}
+              fill="#2563eb"
+              stroke="#fff"
+              strokeWidth={2}
+              isFront
+              style={{ cursor: "ew-resize" }}
+              onMouseDown={() => setDragging("end")}
+              onTouchStart={() => setDragging("end")}
+            />
+          )}
         </LineChart>
       </ResponsiveContainer>
+
+      {trimActive && (
+        <TrimControls
+          activity={activity}
+          pointCount={elevationData.length}
+          trimRange={trimRange}
+          onSaved={async () => {
+            await refetch();
+            exitEditMode();
+          }}
+        />
+      )}
     </div>
   );
 }
