@@ -114,9 +114,9 @@ type Query {
     activityType: String
     startDate: DateTime
     endDate: DateTime
-  ): [Activity!]! # sorted reverse-chronologically; the frontend Dashboard currently
-                   # calls this with a hardcoded limit: 50 and never passes offset —
-                   # there is no "load more"/pagination UI yet (see docs/TODO.md).
+  ): [Activity!]! # sorted reverse-chronologically; the Dashboard paginates through this
+                   # with limit: 50 and an increasing offset, loading further pages via
+                   # infinite scroll (IntersectionObserver on a sentinel element).
 
   activitySummary: ActivitySummary!
 
@@ -124,7 +124,9 @@ type Query {
     activityType: String
     startDate: DateTime
     endDate: DateTime
-  ): [AggregatedStatsByType!]! # not currently called from the frontend (see docs/TODO.md)
+  ): [AggregatedStatsByType!]! # powers the /stats page's per-activity-type breakdown
+                                # table; called unfiltered (no activityType/date range)
+                                # for an all-time view.
 }
 ```
 
@@ -141,5 +143,10 @@ type Mutation {
     startDate: DateTime!
     endDate: DateTime!
   ): ReanalysisStatus!
+
+  # Rewrites the <trk><name> element in the source .gpx file (string
+  # replacement, no XML DOM lib) and re-runs processFile() so the DB row
+  # and file stay in sync. Only the title is editable.
+  updateActivityTitle(id: ID!, title: String!): Activity!
 }
 ```
