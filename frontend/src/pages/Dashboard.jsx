@@ -26,6 +26,54 @@ function formatDuration(seconds) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+const THUMBNAIL_SIZE = 48;
+const THUMBNAIL_PADDING = 4;
+const THUMBNAIL_MAX_POINTS = 60;
+
+function routeThumbnailPoints(coordinates) {
+  if (!coordinates || coordinates.length < 2) return null;
+
+  const step = Math.max(1, Math.floor(coordinates.length / THUMBNAIL_MAX_POINTS));
+  const sampled = coordinates.filter((_, i) => i % step === 0);
+
+  const lats = sampled.map((p) => p.lat);
+  const lons = sampled.map((p) => p.lon);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons);
+  const maxLon = Math.max(...lons);
+  const latRange = maxLat - minLat || 1e-9;
+  const lonRange = maxLon - minLon || 1e-9;
+
+  const drawable = THUMBNAIL_SIZE - THUMBNAIL_PADDING * 2;
+  const scale = drawable / Math.max(latRange, lonRange);
+  const offsetX = THUMBNAIL_PADDING + (drawable - lonRange * scale) / 2;
+  const offsetY = THUMBNAIL_PADDING + (drawable - latRange * scale) / 2;
+
+  return sampled
+    .map((p) => {
+      const x = offsetX + (p.lon - minLon) * scale;
+      const y = offsetY + (maxLat - p.lat) * scale;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
+
+function RouteThumbnail({ coordinates }) {
+  const points = routeThumbnailPoints(coordinates);
+  if (!points) return <div className="activity-thumbnail activity-thumbnail-empty" aria-hidden="true" />;
+
+  return (
+    <svg
+      className="activity-thumbnail"
+      viewBox={`0 0 ${THUMBNAIL_SIZE} ${THUMBNAIL_SIZE}`}
+      aria-hidden="true"
+    >
+      <polyline points={points} fill="none" stroke="#2563eb" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export default function Dashboard() {
   const [activityType, setActivityType] = useState("");
   const { data, loading, error } = useQuery(GET_DASHBOARD, {
@@ -79,11 +127,14 @@ export default function Dashboard() {
       <ul className="activity-list">
         {activities.map((activity) => (
           <li key={activity.id}>
-            <Link to={`/activities/${activity.id}`}>
-              <div className="activity-list-title">{activity.title}</div>
-              <div className="activity-list-meta">
-                {activity.activityType} — {new Date(activity.startTime).toLocaleString()} —{" "}
-                {formatDistance(activity.distanceMeters)} — {formatDuration(activity.durationSeconds)}
+            <Link to={`/activities/${activity.id}`} className="activity-list-link">
+              <RouteThumbnail coordinates={activity.route.coordinates} />
+              <div>
+                <div className="activity-list-title">{activity.title}</div>
+                <div className="activity-list-meta">
+                  {activity.activityType} — {new Date(activity.startTime).toLocaleString()} —{" "}
+                  {formatDistance(activity.distanceMeters)} — {formatDuration(activity.durationSeconds)}
+                </div>
               </div>
             </Link>
           </li>

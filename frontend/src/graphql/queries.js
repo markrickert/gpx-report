@@ -16,6 +16,9 @@ export const GET_DASHBOARD = gql`
       startTime
       durationSeconds
       distanceMeters
+      route {
+        coordinates
+      }
     }
   }
 `;
