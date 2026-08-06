@@ -709,6 +709,37 @@ select {
   cursor: not-allowed;
 }
 
+.outlier-cleanup {
+  margin-top: 2rem;
+}
+
+.outlier-cleanup .stats-table-wrap {
+  margin: 0.75rem 0;
+}
+
+.outlier-cleanup .activity-map {
+  margin-bottom: 0.75rem;
+}
+
+.outlier-activity-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.outlier-activity-list li {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.outlier-activity-list li:last-child {
+  border-bottom: none;
+}
+
 @media (max-width: 600px) {
   .nav {
     padding: 0.75rem 1rem;

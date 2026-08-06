@@ -19,6 +19,8 @@ import {
   UPDATE_ACTIVITY_TITLE,
   UPDATE_ACTIVITY_TYPE,
   TRIM_ACTIVITY,
+  GET_ACTIVITY_OUTLIER_DIFF,
+  CLEAN_ACTIVITY_OUTLIERS,
 } from "../graphql/queries.js";
 import {
   useUnits,
@@ -249,6 +251,123 @@ function TrimControls({ activity, pointCount, trimRange, onSaved }) {
         Trim &amp; Save
       </button>
       {error && <p className="title-edit-error">Failed to save: {error}</p>}
+    </div>
+  );
+}
+
+// Surfaces the backend's outlier detector (track/outliers.js) for this one
+// activity: shows original vs. cleaned track on a map plus a stats diff, and
+// lets the user opt in to permanently rewriting the source file to drop the
+// flagged points. Self-hides when the activity has no flagged points, so it
+// costs nothing to always render on the page. Unlike title/type/trim
+// editing, this supports .igc as well (igc/writer.js can drop B-records).
+function OutlierCleanup({ activity }) {
+  const { unit } = useUnits();
+  const { theme } = useTheme();
+  const { data, loading, error, refetch } = useQuery(GET_ACTIVITY_OUTLIER_DIFF, {
+    variables: { id: activity.id },
+  });
+  const [cleanOutliers, { loading: cleaning }] = useMutation(CLEAN_ACTIVITY_OUTLIERS);
+  const [saveError, setSaveError] = useState(null);
+
+  if (loading || error || !data?.activityOutlierDiff) return null;
+  const diff = data.activityOutlierDiff;
+  if (diff.outlierPoints.length === 0) return null;
+
+  const removedSet = new Set(diff.outlierPoints.map((p) => p.index));
+  const originalPositions = activity.route.coordinates.map((p) => [p.lat, p.lon]);
+  const cleanedPositions = originalPositions.filter((_, i) => !removedSet.has(i));
+  const outlierPositions = diff.outlierPoints.map((p) => [p.lat, p.lon]);
+
+  const save = async () => {
+    if (
+      !window.confirm(
+        `Remove ${diff.outlierPoints.length} flagged GPS point(s) from the source file? This permanently rewrites the file and cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setSaveError(null);
+    try {
+      await cleanOutliers({ variables: { id: activity.id } });
+      await refetch();
+    } catch (e) {
+      setSaveError(e.message);
+    }
+  };
+
+  return (
+    <div className="outlier-cleanup">
+      <h2>⚠️ GPS Anomalies ({diff.outlierPoints.length})</h2>
+      <p className="chart-hint">
+        These points imply an implausible speed jump (device jitter or a GPS teleport glitch). Grey
+        is the original track, blue is the track with the flagged points removed; red markers are
+        the flagged points themselves.
+      </p>
+      <div className="stats-table-wrap">
+        <table className="stats-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Original</th>
+              <th>Cleaned</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Max Speed</td>
+              <td>{formatSpeed(diff.originalMaxSpeedMps, unit)}</td>
+              <td>{formatSpeed(diff.cleanedMaxSpeedMps, unit)}</td>
+            </tr>
+            <tr>
+              <td>Distance</td>
+              <td>{formatDistance(diff.originalDistanceMeters, unit)}</td>
+              <td>{formatDistance(diff.cleanedDistanceMeters, unit)}</td>
+            </tr>
+            <tr>
+              <td>Points</td>
+              <td>{diff.originalPointCount}</td>
+              <td>{diff.cleanedPointCount}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {originalPositions.length > 0 && (
+        <MapContainer
+          bounds={originalPositions}
+          boundsOptions={{ padding: [20, 20] }}
+          className="activity-map"
+        >
+          {theme === "dark" ? (
+            <TileLayer
+              attribution='&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+              subdomains="abcd"
+            />
+          ) : (
+            <TileLayer
+              attribution="&copy; OpenStreetMap contributors"
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+          )}
+          <Polyline positions={originalPositions} pathOptions={{ color: "#9ca3af", weight: 2 }} />
+          <Polyline positions={cleanedPositions} pathOptions={{ color: "#2563eb", weight: 3 }} />
+          {outlierPositions.map((pos, i) => (
+            <CircleMarker
+              key={i}
+              center={pos}
+              radius={7}
+              pathOptions={{ color: "#fff", weight: 2, fillColor: "#ef4444", fillOpacity: 1 }}
+            />
+          ))}
+        </MapContainer>
+      )}
+      <div className="trim-controls">
+        <button onClick={save} disabled={cleaning}>
+          Clean &amp; Save
+        </button>
+        {saveError && <p className="title-edit-error">Failed to save: {saveError}</p>}
+      </div>
     </div>
   );
 }
@@ -624,6 +743,8 @@ export default function ActivityDetail() {
           }}
         />
       )}
+
+      <OutlierCleanup activity={activity} />
     </div>
   );
 }

@@ -3,12 +3,14 @@ import path from "node:path";
 
 // IGC B-record: B HHMMSS DDMMmmm N/S DDDMMmmm E/W A PPPPP GGGGG ...
 // Fixed-width fields per the IGC spec (http://www.fai.org/igc-documents).
-const B_RECORD_RE =
+// Exported so igc/writer.js can replicate the same line-to-point-index
+// mapping when removing specific points.
+export const B_RECORD_RE =
   /^B(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{3})([NS])(\d{3})(\d{2})(\d{3})([EW])[AV](\d{5})(\d{5})/;
 
 // HFDTE date-of-flight header. Seen as both "HFDTEDDMMYY" and
 // "HFDTEDATE:DDMMYY" across loggers.
-const H_DATE_RE = /^HFDTE(?:DATE:)?(\d{2})(\d{2})(\d{2})/;
+export const H_DATE_RE = /^HFDTE(?:DATE:)?(\d{2})(\d{2})(\d{2})/;
 
 function parseLatLon(degStr, minStr, minFracStr, hemisphere, negativeHemisphere) {
   const deg = Number(degStr);

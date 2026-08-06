@@ -70,3 +70,31 @@ export async function trimGpxTrack(filePath, startIndex, endIndex) {
   result += xml.slice(cursor);
   await writeFile(filePath, result, "utf-8");
 }
+
+// Drops <trkpt> elements at specific indices (not necessarily contiguous),
+// e.g. GPS outlier points scattered through the track. Same index contract
+// as trimGpxTrack above.
+export async function removeGpxTrackPoints(filePath, indicesToRemove) {
+  const xml = await readFile(filePath, "utf-8");
+  const matches = [...xml.matchAll(TRKPT_RE)];
+  if (matches.length === 0) {
+    throw new Error(`No <trkpt> elements found in ${filePath}`);
+  }
+
+  const removeSet = new Set(indicesToRemove);
+  if (matches.length - removeSet.size < 2) {
+    throw new Error("Removing these points would leave fewer than 2 track points");
+  }
+
+  let result = "";
+  let cursor = 0;
+  matches.forEach((match, i) => {
+    result += xml.slice(cursor, match.index);
+    if (!removeSet.has(i)) {
+      result += match[0];
+    }
+    cursor = match.index + match[0].length;
+  });
+  result += xml.slice(cursor);
+  await writeFile(filePath, result, "utf-8");
+}

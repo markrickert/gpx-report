@@ -10,7 +10,7 @@ function toLineStringWkt(points) {
   return `LINESTRING(${coords})`;
 }
 
-function parseActivityFile(filePath) {
+export function parseActivityFile(filePath) {
   const lower = filePath.toLowerCase();
   if (lower.endsWith(".igc")) return parseIgcFile(filePath);
   if (lower.endsWith(".skiz")) return parseSkizFile(filePath);

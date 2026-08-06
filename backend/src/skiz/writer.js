@@ -73,3 +73,39 @@ export async function trimSkizTrack(filePath, startIndex, endIndex) {
   zip.updateFile("Nodes.csv", Buffer.from(updatedLines.join("\n") + "\n", "utf-8"));
   zip.writeZip(filePath);
 }
+
+// Drops Nodes.csv lines at specific point indices (not necessarily
+// contiguous), e.g. GPS outlier points scattered through the track. Same
+// index contract as trimSkizTrack above.
+export async function removeSkizTrackPoints(filePath, indicesToRemove) {
+  const zip = new AdmZip(filePath);
+  const entry = zip.getEntry("Nodes.csv");
+  if (!entry) {
+    throw new Error(`No Nodes.csv found in ${filePath}`);
+  }
+
+  const lines = entry.getData().toString("utf-8").split(/\r?\n/);
+  const validLineIndices = [];
+  lines.forEach((line, i) => {
+    if (!line.trim()) return;
+    const [ts, lat, lon, ele] = line.split(",").map(Number);
+    if ([ts, lat, lon, ele].some(Number.isNaN)) return;
+    validLineIndices.push(i);
+  });
+
+  if (validLineIndices.length === 0) {
+    throw new Error(`No GPS points found in ${filePath}`);
+  }
+
+  const removeSet = new Set(indicesToRemove);
+  if (validLineIndices.length - removeSet.size < 2) {
+    throw new Error("Removing these points would leave fewer than 2 track points");
+  }
+
+  const removeLineIndices = new Set(
+    [...removeSet].map((pointIndex) => validLineIndices[pointIndex]),
+  );
+  const updatedLines = lines.filter((_, i) => !removeLineIndices.has(i));
+  zip.updateFile("Nodes.csv", Buffer.from(updatedLines.join("\n") + "\n", "utf-8"));
+  zip.writeZip(filePath);
+}
