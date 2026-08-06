@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@apollo/client";
 import { Link } from "react-router-dom";
 import { GET_DASHBOARD } from "../graphql/queries.js";
+
+const PAGE_SIZE = 50;
 
 const ACTIVITY_TYPES = [
   "Running",
@@ -76,14 +78,55 @@ function RouteThumbnail({ coordinates }) {
 
 export default function Dashboard() {
   const [activityType, setActivityType] = useState("");
-  const { data, loading, error } = useQuery(GET_DASHBOARD, {
-    variables: { activityType: activityType || undefined },
+  const { data, loading, error, fetchMore } = useQuery(GET_DASHBOARD, {
+    variables: { activityType: activityType || undefined, limit: PAGE_SIZE, offset: 0 },
   });
+
+  const [activities, setActivities] = useState([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadingMoreRef = useRef(false);
+  const sentinelRef = useRef(null);
+
+  useEffect(() => {
+    if (data?.activities) {
+      setActivities(data.activities);
+      setHasMore(data.activities.length === PAGE_SIZE);
+    }
+  }, [data]);
+
+  useEffect(() => {
+    if (!hasMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      async (entries) => {
+        if (!entries[0].isIntersecting || loadingMoreRef.current || !hasMore) return;
+        loadingMoreRef.current = true;
+        setLoadingMore(true);
+        try {
+          const res = await fetchMore({
+            variables: { activityType: activityType || undefined, limit: PAGE_SIZE, offset: activities.length },
+          });
+          const newItems = res.data.activities;
+          setActivities((prev) => [...prev, ...newItems]);
+          setHasMore(newItems.length === PAGE_SIZE);
+        } finally {
+          loadingMoreRef.current = false;
+          setLoadingMore(false);
+        }
+      },
+      { rootMargin: "400px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, activities.length, activityType, fetchMore]);
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p>Error loading dashboard: {error.message}</p>;
 
-  const { activitySummary, activities } = data;
+  const { activitySummary } = data;
 
   return (
     <div>
@@ -141,6 +184,8 @@ export default function Dashboard() {
         ))}
         {activities.length === 0 && <li>No activities found.</li>}
       </ul>
+      {hasMore && <div ref={sentinelRef} className="activity-list-sentinel" />}
+      {loadingMore && <p>Loading more...</p>}
     </div>
   );
 }
