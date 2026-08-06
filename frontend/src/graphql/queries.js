@@ -1,7 +1,7 @@
 import { gql } from "@apollo/client";
 
 export const GET_DASHBOARD = gql`
-  query GetDashboard($activityType: String) {
+  query GetDashboard($activityType: String, $limit: Int, $offset: Int) {
     activitySummary {
       totalActivities
       totalDistanceMeters
@@ -9,7 +9,7 @@ export const GET_DASHBOARD = gql`
       totalElevationGainMeters
       lastReanalysis
     }
-    activities(limit: 50, activityType: $activityType) {
+    activities(limit: $limit, offset: $offset, activityType: $activityType) {
       id
       title
       activityType
