@@ -87,6 +87,27 @@ export default function Dashboard() {
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
   const sentinelRef = useRef(null);
+  const [visibleIds, setVisibleIds] = useState(() => new Set());
+  const entranceObserverRef = useRef(null);
+
+  useEffect(() => {
+    entranceObserverRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const id = entry.target.dataset.activityId;
+          setVisibleIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+          entranceObserverRef.current.unobserve(entry.target);
+        });
+      },
+      { rootMargin: "0px 0px -40px 0px", threshold: 0.1 }
+    );
+    return () => entranceObserverRef.current.disconnect();
+  }, []);
+
+  const observeListItem = (node) => {
+    if (node) entranceObserverRef.current?.observe(node);
+  };
 
   useEffect(() => {
     if (data?.activities) {
@@ -169,7 +190,12 @@ export default function Dashboard() {
 
       <ul className="activity-list">
         {activities.map((activity) => (
-          <li key={activity.id}>
+          <li
+            key={activity.id}
+            ref={observeListItem}
+            data-activity-id={activity.id}
+            className={visibleIds.has(String(activity.id)) ? "visible" : ""}
+          >
             <Link to={`/activities/${activity.id}`} className="activity-list-link">
               <RouteThumbnail coordinates={activity.route.coordinates} />
               <div>
