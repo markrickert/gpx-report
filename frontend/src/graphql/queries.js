@@ -16,6 +16,8 @@ export const GET_DASHBOARD = gql`
       startTime
       durationSeconds
       distanceMeters
+      avgSpeedMps
+      totalElevationGain
       route {
         coordinates
       }

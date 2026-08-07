@@ -1,7 +1,16 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@apollo/client";
 import { GET_STATS_BY_TYPE, GET_ACTIVITY_DATES } from "../graphql/queries.js";
-import { useUnits, formatDistance, formatElevation } from "../units.jsx";
+import {
+  useUnits,
+  formatDistance,
+  formatElevation,
+  distanceValue,
+  distanceUnitLabel,
+  elevationValue,
+  elevationUnitLabel,
+} from "../units.jsx";
+import { downloadCsv } from "../csv.js";
 
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -180,6 +189,30 @@ export default function Stats() {
 
   const stats = data.aggregatedStatsByType;
 
+  const exportCsv = () => {
+    downloadCsv("stats-by-type.csv", stats, [
+      { header: "Type", accessor: (r) => r.activityType },
+      { header: "Count", accessor: (r) => r.count },
+      {
+        header: `Total Distance (${distanceUnitLabel(unit)})`,
+        accessor: (r) => distanceValue(r.totalDistanceMeters, unit).toFixed(2),
+      },
+      { header: "Total Duration", accessor: (r) => formatDuration(r.totalDurationSeconds) },
+      {
+        header: `Avg Distance (${distanceUnitLabel(unit)})`,
+        accessor: (r) => distanceValue(r.averageDistanceMeters, unit).toFixed(2),
+      },
+      { header: "Avg Duration", accessor: (r) => formatDuration(r.averageDurationSeconds) },
+      {
+        header: `Avg Elevation Gain (${elevationUnitLabel(unit)})`,
+        accessor: (r) =>
+          r.averageElevationGainMeters == null
+            ? ""
+            : Math.round(elevationValue(r.averageElevationGainMeters, unit)),
+      },
+    ]);
+  };
+
   return (
     <div>
       <h1>Stats</h1>
@@ -192,34 +225,41 @@ export default function Stats() {
       {stats.length === 0 ? (
         <p>No activities yet.</p>
       ) : (
-        <div className="stats-table-wrap">
-          <table className="stats-table">
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Count</th>
-                <th>Total Distance</th>
-                <th>Total Duration</th>
-                <th>Avg Distance</th>
-                <th>Avg Duration</th>
-                <th>Avg Elevation Gain</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.map((row) => (
-                <tr key={row.activityType}>
-                  <td>{row.activityType}</td>
-                  <td>{row.count}</td>
-                  <td>{formatDistance(row.totalDistanceMeters, unit)}</td>
-                  <td>{formatDuration(row.totalDurationSeconds)}</td>
-                  <td>{formatDistance(row.averageDistanceMeters, unit)}</td>
-                  <td>{formatDuration(row.averageDurationSeconds)}</td>
-                  <td>{formatElevation(row.averageElevationGainMeters, unit)}</td>
+        <>
+          <div className="button-row">
+            <button type="button" onClick={exportCsv}>
+              Download CSV
+            </button>
+          </div>
+          <div className="stats-table-wrap">
+            <table className="stats-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Count</th>
+                  <th>Total Distance</th>
+                  <th>Total Duration</th>
+                  <th>Avg Distance</th>
+                  <th>Avg Duration</th>
+                  <th>Avg Elevation Gain</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {stats.map((row) => (
+                  <tr key={row.activityType}>
+                    <td>{row.activityType}</td>
+                    <td>{row.count}</td>
+                    <td>{formatDistance(row.totalDistanceMeters, unit)}</td>
+                    <td>{formatDuration(row.totalDurationSeconds)}</td>
+                    <td>{formatDistance(row.averageDistanceMeters, unit)}</td>
+                    <td>{formatDuration(row.averageDurationSeconds)}</td>
+                    <td>{formatElevation(row.averageElevationGainMeters, unit)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

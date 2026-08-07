@@ -2,8 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@apollo/client";
 import { Link } from "react-router-dom";
 import { GET_DASHBOARD, GET_ON_THIS_DAY } from "../graphql/queries.js";
-import { useUnits, formatDistance, formatElevation } from "../units.jsx";
+import {
+  useUnits,
+  formatDistance,
+  formatElevation,
+  formatSpeed,
+  distanceValue,
+  distanceUnitLabel,
+  elevationValue,
+  elevationUnitLabel,
+} from "../units.jsx";
 import { ACTIVITY_TYPES } from "../activityTypes.js";
+import { downloadCsv } from "../csv.js";
 
 const PAGE_SIZE = 50;
 
@@ -203,6 +213,27 @@ export default function Dashboard() {
 
   const { activitySummary } = data;
 
+  const exportCsv = () => {
+    downloadCsv(`activities-${new Date().toISOString().slice(0, 10)}.csv`, activities, [
+      { header: "Title", accessor: (a) => a.title },
+      { header: "Type", accessor: (a) => a.activityType },
+      { header: "Date", accessor: (a) => new Date(a.startTime).toLocaleString() },
+      {
+        header: `Distance (${distanceUnitLabel(unit)})`,
+        accessor: (a) => distanceValue(a.distanceMeters, unit).toFixed(2),
+      },
+      { header: "Duration", accessor: (a) => formatDuration(a.durationSeconds) },
+      {
+        header: `Elevation Gain (${elevationUnitLabel(unit)})`,
+        accessor: (a) =>
+          a.totalElevationGain == null
+            ? ""
+            : Math.round(elevationValue(a.totalElevationGain, unit)),
+      },
+      { header: "Avg Speed", accessor: (a) => formatSpeed(a.avgSpeedMps, unit) },
+    ]);
+  };
+
   return (
     <div>
       <section className="summary-grid">
@@ -255,6 +286,12 @@ export default function Dashboard() {
           onChange={(e) => setSearchInput(e.target.value)}
         />
         {loading && data && <span className="filter-loading">Searching…</span>}
+      </div>
+
+      <div className="button-row">
+        <button type="button" onClick={exportCsv} disabled={activities.length === 0}>
+          Download CSV
+        </button>
       </div>
 
       <ul className="activity-list">
