@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client";
-import { MapContainer, TileLayer, Polyline, CircleMarker } from "react-leaflet";
+import { MapContainer, TileLayer, Polyline, CircleMarker, useMap } from "react-leaflet";
 import {
   LineChart,
   Line,
@@ -372,6 +372,21 @@ function OutlierCleanup({ activity }) {
   );
 }
 
+function ResetViewControl({ positions }) {
+  const map = useMap();
+  return (
+    <button
+      type="button"
+      className="map-reset-btn"
+      aria-label="Reset map view"
+      title="Reset view"
+      onClick={() => map.fitBounds(positions, { padding: [20, 20] })}
+    >
+      ⟲
+    </button>
+  );
+}
+
 export default function ActivityDetail() {
   const { id } = useParams();
   const { unit } = useUnits();
@@ -576,6 +591,7 @@ export default function ActivityDetail() {
               mouseout: clearHover,
             }}
           />
+          <ResetViewControl positions={visiblePositions} />
           {hoverIndex != null &&
             hoverIndex >= trimStart &&
             hoverIndex <= trimEnd &&
