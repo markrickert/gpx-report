@@ -144,6 +144,52 @@ export const resolvers = {
       return rows.map(mapActivityRow);
     },
 
+    activityStreak: async () => {
+      const { rows } = await pool.query(`
+        SELECT DISTINCT DATE(start_time) AS day
+        FROM activities
+        ORDER BY day
+      `);
+
+      const days = rows.map((row) => new Date(row.day));
+      const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+      let longestStreakDays = 0;
+      let runLength = 0;
+      let previousDay = null;
+      for (const day of days) {
+        if (previousDay !== null && day.getTime() - previousDay.getTime() === MS_PER_DAY) {
+          runLength += 1;
+        } else {
+          runLength = 1;
+        }
+        longestStreakDays = Math.max(longestStreakDays, runLength);
+        previousDay = day;
+      }
+
+      let currentStreakDays = 0;
+      if (days.length > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const lastDay = days[days.length - 1];
+        const daysSinceLast = Math.round((today.getTime() - lastDay.getTime()) / MS_PER_DAY);
+        // Streak is alive if the most recent activity was today or yesterday;
+        // otherwise a full day has passed with no activity and it's broken.
+        if (daysSinceLast <= 1) {
+          currentStreakDays = 1;
+          for (let i = days.length - 1; i > 0; i--) {
+            if (days[i].getTime() - days[i - 1].getTime() === MS_PER_DAY) {
+              currentStreakDays += 1;
+            } else {
+              break;
+            }
+          }
+        }
+      }
+
+      return { currentStreakDays, longestStreakDays };
+    },
+
     activitySummary: async () => {
       const { rows } = await pool.query(`
         SELECT

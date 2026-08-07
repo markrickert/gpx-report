@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@apollo/client";
-import { GET_STATS_BY_TYPE, GET_ACTIVITY_DATES } from "../graphql/queries.js";
+import { GET_STATS_BY_TYPE, GET_ACTIVITY_DATES, GET_ACTIVITY_STREAK } from "../graphql/queries.js";
 import {
   useUnits,
   formatDistance,
@@ -183,6 +183,11 @@ export default function Stats() {
     loading: datesLoading,
     error: datesError,
   } = useQuery(GET_ACTIVITY_DATES);
+  const {
+    data: streakData,
+    loading: streakLoading,
+    error: streakError,
+  } = useQuery(GET_ACTIVITY_STREAK);
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p>Error loading stats: {error.message}</p>;
@@ -216,6 +221,23 @@ export default function Stats() {
   return (
     <div>
       <h1>Stats</h1>
+
+      {!streakLoading && !streakError && (
+        <section className="summary-grid">
+          <div className="summary-tile">
+            <span className="summary-value">
+              {streakData.activityStreak.currentStreakDays.toLocaleString()}
+            </span>
+            <span className="summary-label">Current Streak (days)</span>
+          </div>
+          <div className="summary-tile">
+            <span className="summary-value">
+              {streakData.activityStreak.longestStreakDays.toLocaleString()}
+            </span>
+            <span className="summary-label">Longest Streak (days)</span>
+          </div>
+        </section>
+      )}
 
       {!datesLoading && !datesError && datesData.activities.length > 0 && (
         <ActivityHeatmap activities={datesData.activities} />

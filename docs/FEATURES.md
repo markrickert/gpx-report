@@ -69,6 +69,7 @@ This document details the features of gpx-report, and reflects what is actually 
 
 ## 5. Stats Page
 
+*   **Streak Tracker:** Two summary tiles at the top of the page — current consecutive-day streak of at-least-one-activity (alive if the most recent activity was today or yesterday, broken once a full day passes with none) and the longest such streak ever. Computed by the `activityStreak` query from `DISTINCT DATE(start_time)` values, with the consecutive-run logic done in the resolver rather than SQL.
 *   **Per-Activity-Type Breakdown:** A table of aggregate stats grouped by activity type — count, total/average distance, total/average duration, and average elevation gain — computed live from the database (all-time, unfiltered). A "Download CSV" button exports this table.
 *   **Calendar Heatmap:** A GitHub-style contribution grid (one square per day, 7 rows × ~53 columns) showing activity frequency across a chosen year, to surface seasonal patterns (e.g. skiing only showing up in winter months). Square intensity reflects activity count that day; a type dropdown (default "All types") filters which activities are counted, and a year dropdown switches between years present in the data. Built client-side from a lightweight `activities(limit: 1000)` fetch (id/startTime/activityType only), no backend aggregation needed at this dataset size.
 

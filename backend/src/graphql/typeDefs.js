@@ -50,6 +50,11 @@ export const typeDefs = `#graphql
     lastReanalysis: DateTime
   }
 
+  type ActivityStreak {
+    currentStreakDays: Int!
+    longestStreakDays: Int!
+  }
+
   type AggregatedStatsByType {
     activityType: String!
     count: Int!
@@ -119,6 +124,7 @@ export const typeDefs = `#graphql
     activityOutlierDiff(id: ID!): ActivityOutlierDiff!
     activitiesWithLiftSegments: [LiftActivitySummary!]!
     onThisDay: [Activity!]!
+    activityStreak: ActivityStreak!
   }
 
   type Mutation {

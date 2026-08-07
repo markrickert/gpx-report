@@ -127,6 +127,15 @@ export const GET_HEATMAP_POINTS = gql`
   }
 `;
 
+export const GET_ACTIVITY_STREAK = gql`
+  query GetActivityStreak {
+    activityStreak {
+      currentStreakDays
+      longestStreakDays
+    }
+  }
+`;
+
 export const GET_ACTIVITY_DATES = gql`
   query GetActivityDates {
     activities(limit: 1000) {
