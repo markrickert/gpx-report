@@ -1080,8 +1080,6 @@ export default function ActivityDetail() {
 
       <NotesSection activity={activity} />
 
-      <DeleteActivitySection activity={activity} />
-
       <div className="metrics-grid">
         <div className="metric-tile">
           <span className="metric-icon" aria-hidden="true">
@@ -1147,24 +1145,16 @@ export default function ActivityDetail() {
           </span>
           <span className="metric-body">
             <span className="metric-value">
-              {formatElevation(activity.totalElevationGain, unit)}
+              {formatElevation(
+                activity.route.liftSegments.length > 0
+                  ? elevationGainExcludingLift
+                  : activity.totalElevationGain,
+                unit,
+              )}
             </span>
             <span className="metric-label">Elevation Gain</span>
           </span>
         </div>
-        {activity.route.liftSegments.length > 0 && (
-          <div className="metric-tile">
-            <span className="metric-icon" aria-hidden="true">
-              🚡
-            </span>
-            <span className="metric-body">
-              <span className="metric-value">
-                {formatElevation(elevationGainExcludingLift, unit)}
-              </span>
-              <span className="metric-label">Gain Excluding Lift</span>
-            </span>
-          </div>
-        )}
         {runCount > 0 && (
           <div className="metric-tile">
             <span className="metric-icon" aria-hidden="true">
@@ -1435,6 +1425,8 @@ export default function ActivityDetail() {
       <ComparisonSection activity={activity} />
 
       <SimilarActivitiesSection activity={activity} />
+
+      <DeleteActivitySection activity={activity} />
     </div>
   );
 }
