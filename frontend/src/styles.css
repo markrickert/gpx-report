@@ -881,6 +881,61 @@ select {
   border-bottom: none;
 }
 
+.comparison-section {
+  margin-top: 2rem;
+}
+
+.comparison-section .stats-table-wrap {
+  margin: 0.75rem 0;
+}
+
+.compare-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 420px;
+}
+
+.compare-picker input {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.95rem;
+}
+
+.compare-picker-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.compare-picker-results li {
+  border-bottom: 1px solid var(--border);
+}
+
+.compare-picker-results li:last-child {
+  border-bottom: none;
+}
+
+.compare-picker-results button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: var(--bg-elevated);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.compare-picker-results button:hover {
+  background: var(--bg-subtle);
+}
+
 @media (max-width: 600px) {
   .nav {
     padding: 0.75rem 1rem;

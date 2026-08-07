@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client";
 import { MapContainer, TileLayer, Polyline, CircleMarker, useMap } from "react-leaflet";
 import {
@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   CartesianGrid,
   ResponsiveContainer,
   ReferenceArea,
@@ -22,6 +23,7 @@ import {
   TRIM_ACTIVITY,
   GET_ACTIVITY_OUTLIER_DIFF,
   CLEAN_ACTIVITY_OUTLIERS,
+  SEARCH_ACTIVITIES_FOR_COMPARE,
 } from "../graphql/queries.js";
 import {
   useUnits,
@@ -457,6 +459,255 @@ function ResetViewControl({ positions }) {
   );
 }
 
+// Lightweight search-by-title picker for choosing a second activity to
+// compare against. Mirrors Dashboard's debounced search-input pattern
+// rather than introducing a new one, backed by the same `activities(search)`
+// query with a trimmed field selection (SEARCH_ACTIVITIES_FOR_COMPARE).
+function ActivityPicker({ excludeId, onSelect, onClose }) {
+  const { unit } = useUnits();
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
+
+  const { data, loading } = useQuery(SEARCH_ACTIVITIES_FOR_COMPARE, {
+    variables: { search: search || undefined, limit: 8 },
+  });
+  const results = (data?.activities ?? []).filter((a) => a.id !== excludeId);
+
+  return (
+    <div className="compare-picker">
+      <input
+        type="text"
+        autoFocus
+        placeholder="Search activities to compare..."
+        value={searchInput}
+        onChange={(e) => setSearchInput(e.target.value)}
+      />
+      {loading && <span className="filter-loading">Searching…</span>}
+      {search && !loading && results.length === 0 && (
+        <p className="chart-hint">No matching activities.</p>
+      )}
+      {results.length > 0 && (
+        <ul className="compare-picker-results">
+          {results.map((a) => (
+            <li key={a.id}>
+              <button type="button" onClick={() => onSelect(a.id)}>
+                <span className="activity-list-title">{a.title}</span>
+                <span className="activity-list-meta">
+                  <span className="activity-type-badge">{a.activityType}</span>{" "}
+                  {new Date(a.startTime).toLocaleDateString()} ·{" "}
+                  {formatDistance(a.distanceMeters, unit)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <button type="button" className="title-edit-button" onClick={onClose}>
+        Cancel
+      </button>
+    </div>
+  );
+}
+
+// Delta cell for the compare stats table: signs the difference and formats
+// it with the same formatter used for the raw value (formatDuration takes
+// no unit arg, so the extra `unit` argument is simply ignored there).
+function diffLabel(primary, compare, formatFn, unit) {
+  if (primary == null || compare == null) return "—";
+  const delta = compare - primary;
+  const sign = delta > 0 ? "+" : delta < 0 ? "−" : "±";
+  return `${sign}${formatFn(Math.abs(delta), unit)}`;
+}
+
+// Additive comparison view: doesn't touch the primary elevation chart above
+// (still index-based, per its own big comment on why "dist" can't key
+// Reference* components). This chart uses its own two-Line overlay keyed by
+// percent-of-distance-covered instead of point index, since the two
+// activities being compared can have very different point counts/lengths
+// and raw index alignment would badly misrepresent them.
+function ComparisonSection({ activity }) {
+  const { unit } = useUnits();
+  const [compareId, setCompareId] = useState(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const { data } = useQuery(GET_ACTIVITY, { variables: { id: compareId }, skip: !compareId });
+  const compareActivity = data?.activity;
+
+  if (!compareId) {
+    return (
+      <div className="comparison-section">
+        {pickerOpen ? (
+          <ActivityPicker
+            excludeId={activity.id}
+            onSelect={(id) => {
+              setCompareId(id);
+              setPickerOpen(false);
+            }}
+            onClose={() => setPickerOpen(false)}
+          />
+        ) : (
+          <button type="button" className="title-edit-button" onClick={() => setPickerOpen(true)}>
+            Compare with another activity
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (!compareActivity) {
+    return (
+      <div className="comparison-section">
+        <p>Loading comparison…</p>
+      </div>
+    );
+  }
+
+  const totalPrimaryDist = activity.distanceMeters || 1;
+  const primarySeries = activity.route.elevationProfile.map((p) => ({
+    pct: (p.distanceMeters / totalPrimaryDist) * 100,
+    elevation: elevationValue(p.elevation, unit),
+  }));
+  const totalCompareDist = compareActivity.distanceMeters || 1;
+  const compareSeries = compareActivity.route.elevationProfile.map((p) => ({
+    pct: (p.distanceMeters / totalCompareDist) * 100,
+    elevation: elevationValue(p.elevation, unit),
+  }));
+  const combinedElevations = [...primarySeries, ...compareSeries].map((p) => p.elevation);
+  const comparePadding = unit === "imperial" ? 30 : 10;
+  const compareElevationDomain =
+    combinedElevations.length > 0
+      ? [
+          Math.floor(Math.min(...combinedElevations) - comparePadding),
+          Math.ceil(Math.max(...combinedElevations) + comparePadding),
+        ]
+      : [0, "auto"];
+
+  const rows = [
+    [
+      "Distance",
+      formatDistance(activity.distanceMeters, unit),
+      formatDistance(compareActivity.distanceMeters, unit),
+      diffLabel(activity.distanceMeters, compareActivity.distanceMeters, formatDistance, unit),
+    ],
+    [
+      "Duration",
+      formatDuration(activity.durationSeconds),
+      formatDuration(compareActivity.durationSeconds),
+      diffLabel(activity.durationSeconds, compareActivity.durationSeconds, formatDuration),
+    ],
+    [
+      "Elevation Gain",
+      formatElevation(activity.totalElevationGain, unit),
+      formatElevation(compareActivity.totalElevationGain, unit),
+      diffLabel(
+        activity.totalElevationGain,
+        compareActivity.totalElevationGain,
+        formatElevation,
+        unit,
+      ),
+    ],
+    [
+      "Avg Speed",
+      formatSpeed(activity.avgSpeedMps, unit),
+      formatSpeed(compareActivity.avgSpeedMps, unit),
+      diffLabel(activity.avgSpeedMps, compareActivity.avgSpeedMps, formatSpeed, unit),
+    ],
+  ];
+
+  return (
+    <div className="comparison-section">
+      <h2>Compare</h2>
+      <div className="stats-table-wrap">
+        <table className="stats-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>{activity.title}</th>
+              <th>{compareActivity.title}</th>
+              <th>Δ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([label, primary, compare, delta]) => (
+              <tr key={label}>
+                <td>{label}</td>
+                <td>{primary}</td>
+                <td>{compare}</td>
+                <td>{delta}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="chart-hint">
+        Elevation profiles aligned by percent of distance covered (rather than point index), since
+        the two tracks may have different lengths.
+      </p>
+      <ResponsiveContainer width="100%" height={250} className="elevation-chart">
+        <LineChart>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis
+            dataKey="pct"
+            type="number"
+            domain={[0, 100]}
+            tickFormatter={(v) => `${Math.round(v)}%`}
+            label={{ value: "Distance covered (%)", position: "insideBottom", offset: -5 }}
+          />
+          <YAxis
+            domain={compareElevationDomain}
+            tickFormatter={(v) => Math.round(v)}
+            label={{
+              value: `Elevation (${elevationUnitLabel(unit)})`,
+              angle: -90,
+              position: "insideLeft",
+            }}
+          />
+          <Tooltip
+            formatter={(v) => `${Math.round(v)} ${elevationUnitLabel(unit)}`}
+            labelFormatter={(v) => `${Math.round(v)}%`}
+            contentStyle={{ background: "rgba(17, 24, 39, 0.92)", border: "none", borderRadius: 6 }}
+            labelStyle={{ color: "#e5e7eb" }}
+            itemStyle={{ color: "#e5e7eb" }}
+          />
+          <Legend />
+          <Line
+            data={primarySeries}
+            type="monotone"
+            dataKey="elevation"
+            name={activity.title}
+            stroke="#2563eb"
+            strokeWidth={2}
+            dot={false}
+            isAnimationActive={false}
+          />
+          <Line
+            data={compareSeries}
+            type="monotone"
+            dataKey="elevation"
+            name={compareActivity.title}
+            stroke="#f97316"
+            strokeWidth={2}
+            dot={false}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+
+      <p>
+        <Link to={`/activities/${compareActivity.id}`}>View {compareActivity.title}</Link>{" "}
+        <button type="button" className="title-edit-button" onClick={() => setCompareId(null)}>
+          Remove comparison
+        </button>
+      </p>
+    </div>
+  );
+}
+
 export default function ActivityDetail() {
   const { id } = useParams();
   const { unit } = useUnits();
@@ -866,6 +1117,8 @@ export default function ActivityDetail() {
       )}
 
       <OutlierCleanup activity={activity} />
+
+      <ComparisonSection activity={activity} />
     </div>
   );
 }

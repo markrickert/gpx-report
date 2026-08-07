@@ -68,6 +68,18 @@ export const GET_ACTIVITY = gql`
   }
 `;
 
+export const SEARCH_ACTIVITIES_FOR_COMPARE = gql`
+  query SearchActivitiesForCompare($search: String, $limit: Int) {
+    activities(search: $search, limit: $limit) {
+      id
+      title
+      activityType
+      startTime
+      distanceMeters
+    }
+  }
+`;
+
 export const UPDATE_ACTIVITY_TITLE = gql`
   mutation UpdateActivityTitle($id: ID!, $title: String!) {
     updateActivityTitle(id: $id, title: $title) {
