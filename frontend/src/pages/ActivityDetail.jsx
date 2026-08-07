@@ -284,6 +284,64 @@ function buildRestBands(elevationData) {
   return bands;
 }
 
+const MAX_GRADE_FRACTION = 0.45; // clamp: Minetti's model is only fit over roughly this range
+const MIN_GRADE_WINDOW_METERS = 10; // aggregate this much horizontal distance before computing a grade
+
+// Metabolic cost of running on a grade, normalized to flat-ground cost (1.0
+// at grade 0), per Minetti et al. 2002 ("Energy cost of walking and running
+// at extreme uphill and downhill slopes", J. Appl. Physiol. 93(3)). Actual
+// speed * this multiplier gives the equivalent flat-ground speed for the
+// same effort — the basis of grade-adjusted pace (GAP).
+const FLAT_RUNNING_COST_J_PER_KG_PER_M = 3.6; // Minetti's C(0), used to normalize the polynomial to a ratio
+
+function gradeCostMultiplier(grade) {
+  const g = Math.max(-MAX_GRADE_FRACTION, Math.min(MAX_GRADE_FRACTION, grade));
+  const costJPerKgPerM =
+    155.4 * g ** 5 - 30.4 * g ** 4 - 43.3 * g ** 3 + 46.3 * g ** 2 + 19.5 * g + 3.6;
+  return costJPerKgPerM / FLAT_RUNNING_COST_J_PER_KG_PER_M;
+}
+
+// Time-weighted average of the equivalent-flat-ground speed across the
+// track, so climbs (which get a pace credit) and descents (a penalty, past
+// a certain steepness) don't skew raw avg speed. Consecutive points in
+// elevationProfile can be under a meter apart (dense recordings), far too
+// close together for a stable grade — elevation noise of a meter or two
+// would swing point-to-point grade wildly — so points are accumulated into
+// windows of at least MIN_GRADE_WINDOW_METERS before grade is computed,
+// while per-step time is still summed exactly within each window.
+function computeGradeAdjustedSpeedMps(elevationProfile) {
+  let weightedSpeedTime = 0;
+  let totalTime = 0;
+  let windowStart = 0;
+  let windowDt = 0;
+  for (let i = 1; i < elevationProfile.length; i++) {
+    const prev = elevationProfile[i - 1];
+    const curr = elevationProfile[i];
+    const stepDist = curr.distanceMeters - prev.distanceMeters;
+    const speedMps = curr.speedMps;
+    if (!(stepDist > 0) || !(speedMps > 0)) continue;
+    windowDt += stepDist / speedMps;
+
+    const windowDist = curr.distanceMeters - elevationProfile[windowStart].distanceMeters;
+    const isLastPoint = i === elevationProfile.length - 1;
+    if (windowDist < MIN_GRADE_WINDOW_METERS && !isLastPoint) continue;
+    if (!(windowDist > 0) || !(windowDt > 0)) {
+      windowStart = i;
+      windowDt = 0;
+      continue;
+    }
+
+    const grade = (curr.elevation - elevationProfile[windowStart].elevation) / windowDist;
+    const avgSpeedMps = windowDist / windowDt;
+    const adjustedSpeedMps = avgSpeedMps * gradeCostMultiplier(grade);
+    weightedSpeedTime += adjustedSpeedMps * windowDt;
+    totalTime += windowDt;
+    windowStart = i;
+    windowDt = 0;
+  }
+  return totalTime > 0 ? weightedSpeedTime / totalTime : null;
+}
+
 // Saves the range set by the two draggable ReferenceLine handles on the
 // elevation chart (see ActivityDetail below). Destructive-action
 // confirmation since trimActivity permanently deletes GPX track points.
@@ -742,6 +800,7 @@ export default function ActivityDetail() {
   const elevationMid = elevations.length > 0 ? (elevationDomain[0] + elevationDomain[1]) / 2 : 0;
   const speedGradientStops = buildSpeedGradientStops(elevationData, activity.maxSpeedMps);
   const restBands = buildRestBands(elevationData);
+  const gradeAdjustedSpeedMps = computeGradeAdjustedSpeedMps(activity.route.elevationProfile);
   const liftElevationGainMeters = activity.route.liftSegments.reduce(
     (sum, seg) => sum + Math.max(0, seg.elevationGainMeters),
     0,
@@ -852,6 +911,17 @@ export default function ActivityDetail() {
             <span className="metric-label">Max Speed</span>
           </span>
         </div>
+        {gradeAdjustedSpeedMps != null && (
+          <div className="metric-tile">
+            <span className="metric-icon" aria-hidden="true">
+              📐
+            </span>
+            <span className="metric-body">
+              <span className="metric-value">{formatSpeed(gradeAdjustedSpeedMps, unit)}</span>
+              <span className="metric-label">Grade-Adjusted Pace</span>
+            </span>
+          </div>
+        )}
         <div className="metric-tile">
           <span className="metric-icon" aria-hidden="true">
             ⛰️
