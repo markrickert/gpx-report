@@ -791,22 +791,24 @@ select {
 }
 
 .delete-activity-section {
-  margin-bottom: 1rem;
+  margin-top: 2rem;
+  text-align: center;
 }
 
 .delete-activity-button {
-  font-size: 0.8rem;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid var(--danger);
-  border-radius: 6px;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.6rem;
+  border: none;
   background: transparent;
-  color: var(--danger);
+  color: var(--text-muted);
   cursor: pointer;
+  opacity: 0.6;
 }
 
 .delete-activity-button:hover {
-  background: var(--danger);
-  color: white;
+  opacity: 1;
+  color: var(--danger);
+  text-decoration: underline;
 }
 
 .notes-text {
