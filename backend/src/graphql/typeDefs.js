@@ -55,6 +55,18 @@ export const typeDefs = `#graphql
     longestStreakDays: Int!
   }
 
+  type YearToDateTotals {
+    year: Int!
+    activityCount: Int!
+    totalDistanceMeters: Float!
+    totalElevationGainMeters: Float!
+  }
+
+  type YearOverYearComparison {
+    currentYear: YearToDateTotals!
+    previousYear: YearToDateTotals!
+  }
+
   type AggregatedStatsByType {
     activityType: String!
     count: Int!
@@ -125,6 +137,7 @@ export const typeDefs = `#graphql
     activitiesWithLiftSegments: [LiftActivitySummary!]!
     onThisDay: [Activity!]!
     activityStreak: ActivityStreak!
+    yearOverYearComparison: YearOverYearComparison!
   }
 
   type Mutation {

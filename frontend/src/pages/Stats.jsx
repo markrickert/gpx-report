@@ -1,6 +1,11 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@apollo/client";
-import { GET_STATS_BY_TYPE, GET_ACTIVITY_DATES, GET_ACTIVITY_STREAK } from "../graphql/queries.js";
+import {
+  GET_STATS_BY_TYPE,
+  GET_ACTIVITY_DATES,
+  GET_ACTIVITY_STREAK,
+  GET_YEAR_OVER_YEAR_COMPARISON,
+} from "../graphql/queries.js";
 import {
   useUnits,
   formatDistance,
@@ -175,6 +180,66 @@ function ActivityHeatmap({ activities }) {
   );
 }
 
+function formatDelta(current, previous) {
+  if (previous === 0) return null;
+  const pct = ((current - previous) / previous) * 100;
+  const sign = pct >= 0 ? "+" : "";
+  return {
+    text: `${sign}${pct.toFixed(0)}%`,
+    positive: pct >= 0,
+  };
+}
+
+function YearOverYearComparison({ comparison, unit }) {
+  const { currentYear, previousYear } = comparison;
+
+  const tiles = [
+    {
+      label: "Activities",
+      current: currentYear.activityCount.toLocaleString(),
+      delta: formatDelta(currentYear.activityCount, previousYear.activityCount),
+    },
+    {
+      label: "Distance",
+      current: formatDistance(currentYear.totalDistanceMeters, unit),
+      delta: formatDelta(currentYear.totalDistanceMeters, previousYear.totalDistanceMeters),
+    },
+    {
+      label: "Elevation Gain",
+      current: formatElevation(currentYear.totalElevationGainMeters, unit),
+      delta: formatDelta(
+        currentYear.totalElevationGainMeters,
+        previousYear.totalElevationGainMeters,
+      ),
+    },
+  ];
+
+  return (
+    <section>
+      <h2>
+        {currentYear.year} vs {previousYear.year} (Jan 1&ndash;today)
+      </h2>
+      <div className="summary-grid">
+        {tiles.map((tile) => (
+          <div className="summary-tile" key={tile.label}>
+            <span className="summary-value">{tile.current}</span>
+            <span className="summary-label">{tile.label}</span>
+            {tile.delta && (
+              <span
+                className={`summary-delta ${
+                  tile.delta.positive ? "summary-delta-positive" : "summary-delta-negative"
+                }`}
+              >
+                {tile.delta.text} vs {previousYear.year}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function Stats() {
   const { unit } = useUnits();
   const { data, loading, error } = useQuery(GET_STATS_BY_TYPE);
@@ -188,6 +253,11 @@ export default function Stats() {
     loading: streakLoading,
     error: streakError,
   } = useQuery(GET_ACTIVITY_STREAK);
+  const {
+    data: yoyData,
+    loading: yoyLoading,
+    error: yoyError,
+  } = useQuery(GET_YEAR_OVER_YEAR_COMPARISON);
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p>Error loading stats: {error.message}</p>;
@@ -237,6 +307,10 @@ export default function Stats() {
             <span className="summary-label">Longest Streak (days)</span>
           </div>
         </section>
+      )}
+
+      {!yoyLoading && !yoyError && (
+        <YearOverYearComparison comparison={yoyData.yearOverYearComparison} unit={unit} />
       )}
 
       {!datesLoading && !datesError && datesData.activities.length > 0 && (
