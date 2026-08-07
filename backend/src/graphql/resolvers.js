@@ -44,6 +44,7 @@ function mapActivityRow(row) {
     totalElevationGain: row.total_elevation_gain !== null ? Number(row.total_elevation_gain) : null,
     totalElevationLoss: row.total_elevation_loss !== null ? Number(row.total_elevation_loss) : null,
     notes: row.notes,
+    locationName: row.location_name,
   };
 }
 

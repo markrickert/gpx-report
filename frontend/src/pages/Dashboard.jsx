@@ -421,6 +421,12 @@ export default function Dashboard() {
                     {activity.activityType} — {new Date(activity.startTime).toLocaleString()} —{" "}
                     {formatDistance(activity.distanceMeters, unit)} —{" "}
                     {formatDuration(activity.durationSeconds)}
+                    {activity.locationName && (
+                      <>
+                        {" "}
+                        — <span className="activity-list-location">{activity.locationName}</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </Link>

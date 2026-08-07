@@ -18,6 +18,7 @@ export const GET_DASHBOARD = gql`
       distanceMeters
       avgSpeedMps
       totalElevationGain
+      locationName
       route {
         coordinates
       }
@@ -54,6 +55,7 @@ export const GET_ACTIVITY = gql`
       totalElevationGain
       totalElevationLoss
       notes
+      locationName
       route {
         coordinates
         elevationProfile

@@ -720,6 +720,11 @@ select {
   color: var(--text-muted);
 }
 
+.activity-list-location,
+.activity-location {
+  color: var(--text-muted);
+}
+
 .activity-type-badge {
   display: inline-block;
   background: var(--accent-soft-bg);

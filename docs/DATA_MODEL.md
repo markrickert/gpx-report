@@ -25,6 +25,7 @@ Stores the primary information for each recorded activity, one row per source fi
 | `max_speed_mps`    | `NUMERIC`         | `NULLABLE`                                      | Maximum speed recorded in meters per second (derived point-to-point). |
 | `total_elevation_gain` | `NUMERIC`     | `NULLABLE`                                      | Total cumulative elevation gain in meters, computed from a smoothed elevation series (see below), not raw point-to-point deltas. |
 | `total_elevation_loss` | `NUMERIC`     | `NULLABLE`                                      | Total cumulative elevation loss in meters, computed from a smoothed elevation series (see below), not raw point-to-point deltas. |
+| `location_name`    | `TEXT`            | `NULLABLE`                                      | Reverse-geocoded place name (city/town/village/suburb) nearest the activity's start point, via Nominatim; `NULL` if the lookup hasn't run yet or failed. |
 | `created_at`       | `TIMESTAMPTZ`     | `NOT NULL DEFAULT NOW()`                        | When the record was first created.                          |
 | `updated_at`       | `TIMESTAMPTZ`     | `NOT NULL DEFAULT NOW()`                        | When the record was last (re-)processed.                    |
 
@@ -74,6 +75,7 @@ type Activity {
   maxSpeedMps: Float
   totalElevationGain: Float
   totalElevationLoss: Float
+  locationName: String
   route: Route!
 }
 

@@ -92,7 +92,13 @@ function ActivityHeader({ activity, editMode, onEditModeChange }) {
         </h1>
         <p>
           <span className="activity-type-badge">{activity.activityType}</span>{" "}
-          {new Date(activity.startTime).toLocaleString()}{" "}
+          {new Date(activity.startTime).toLocaleString()}
+          {activity.locationName && (
+            <>
+              {" "}
+              — <span className="activity-location">{activity.locationName}</span>
+            </>
+          )}{" "}
           <a href={`${apiOrigin}/activities/${activity.id}/download`} className="download-link">
             Download {activity.gpxFilename.split(".").pop().toUpperCase()}
           </a>
