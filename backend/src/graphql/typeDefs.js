@@ -15,6 +15,7 @@ export const typeDefs = `#graphql
     maxSpeedMps: Float
     totalElevationGain: Float
     totalElevationLoss: Float
+    notes: String
     route: Route!
   }
 
@@ -122,6 +123,7 @@ export const typeDefs = `#graphql
     reanalyzeAllActivities: ReanalysisStatus!
     reanalyzeActivitiesByDateRange(startDate: DateTime!, endDate: DateTime!): ReanalysisStatus!
     updateActivityTitle(id: ID!, title: String!): Activity!
+    updateActivityNotes(id: ID!, notes: String!): Activity!
     updateActivityType(id: ID!, activityType: String!): Activity!
     trimActivity(id: ID!, startIndex: Int!, endIndex: Int!): Activity!
     saveRecordedActivity(gpxContent: String!): SaveRecordedActivityResult!

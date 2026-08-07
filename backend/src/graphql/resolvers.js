@@ -42,6 +42,7 @@ function mapActivityRow(row) {
     maxSpeedMps: row.max_speed_mps !== null ? Number(row.max_speed_mps) : null,
     totalElevationGain: row.total_elevation_gain !== null ? Number(row.total_elevation_gain) : null,
     totalElevationLoss: row.total_elevation_loss !== null ? Number(row.total_elevation_loss) : null,
+    notes: row.notes,
   };
 }
 
@@ -346,6 +347,15 @@ export const resolvers = {
 
       const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
       return mapActivityRow(updated[0]);
+    },
+
+    updateActivityNotes: async (_parent, { id, notes }) => {
+      const { rows } = await pool.query(
+        "UPDATE activities SET notes = $1, updated_at = NOW() WHERE id = $2 RETURNING *",
+        [notes, id],
+      );
+      if (!rows[0]) throw new Error(`Activity ${id} not found`);
+      return mapActivityRow(rows[0]);
     },
 
     updateActivityType: async (_parent, { id, activityType }) => {
