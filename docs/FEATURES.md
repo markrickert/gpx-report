@@ -35,6 +35,7 @@ This document details the features of gpx-report, and reflects what is actually 
 *   **Filtering:** The activity list can be filtered by `activityType`, and searched by title (case-insensitive substring match, debounced 300ms); changing either resets pagination to the first page.
 *   **"On This Day" Recap:** A card above the filter row surfaces past activities that happened on today's calendar date in a prior year, with each activity's "N years ago" label; hidden entirely when nothing matches.
 *   **CSV Export:** A "Download CSV" button exports the currently-loaded/filtered activity list (title, type, date, distance, duration, elevation gain, average speed) as a CSV file, honoring the active type/search filter — client-side only, exports just what's currently loaded rather than re-fetching everything.
+*   **Bulk Actions:** A "Select" toggle puts the activity list into multi-select mode, adding a checkbox to each row. With one or more selected, an action bar offers retyping all of them at once (via the same activity-type dropdown used elsewhere) or deleting all of them at once (same destructive-action confirmation as the single-activity delete on the Activity Detail page). Both actions reuse the existing per-activity `updateActivityType`/`deleteActivity` mutations, firing one per selected activity; the list refetches and select mode exits once the operation completes.
 
 ## 3. Individual Activity Detail Page
 

@@ -500,6 +500,55 @@ select {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.activity-list-checkbox {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+.bulk-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.bulk-action-bar select {
+  padding: 0.4rem 0.6rem;
+}
+
+.bulk-delete-button {
+  background: var(--danger);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+.bulk-delete-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bulk-action-error {
+  color: var(--danger);
+  font-size: 0.85rem;
 }
 
 .activity-thumbnail {
