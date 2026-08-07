@@ -172,6 +172,7 @@ export const GET_ACTIVITY_DATES = gql`
       id
       startTime
       activityType
+      distanceMeters
     }
   }
 `;
