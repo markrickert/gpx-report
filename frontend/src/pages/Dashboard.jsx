@@ -80,7 +80,13 @@ export default function Dashboard() {
     return () => clearTimeout(timeout);
   }, [searchInput]);
 
-  const { data, loading, error, fetchMore } = useQuery(GET_DASHBOARD, {
+  const {
+    data: freshData,
+    previousData,
+    loading,
+    error,
+    fetchMore,
+  } = useQuery(GET_DASHBOARD, {
     variables: {
       activityType: activityType || undefined,
       search: search || undefined,
@@ -88,6 +94,7 @@ export default function Dashboard() {
       offset: 0,
     },
   });
+  const data = freshData ?? previousData;
 
   const [activities, setActivities] = useState([]);
   const [hasMore, setHasMore] = useState(true);
