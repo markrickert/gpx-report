@@ -149,6 +149,12 @@ export const GET_HEATMAP_POINTS = gql`
   }
 `;
 
+export const GET_RECENT_ACTIVITY_BOUNDS = gql`
+  query GetRecentActivityBounds {
+    recentActivityBounds
+  }
+`;
+
 export const GET_ACTIVITY_STREAK = gql`
   query GetActivityStreak {
     activityStreak {
