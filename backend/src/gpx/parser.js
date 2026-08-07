@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import GpxParser from "gpxparser";
+import { computeElevationGainLoss } from "../track/elevation.js";
 
 // Points slower than this are considered "stopped" (traffic lights, breaks,
 // photo stops) when computing moving_avg_speed_mps. Matches
@@ -94,8 +95,14 @@ export async function parseGpxFile(filePath) {
   }
 
   const distanceMeters = gpx.tracks.reduce((sum, t) => sum + t.distance.total, 0);
-  const elevationGain = gpx.tracks.reduce((sum, t) => sum + (t.elevation.pos || 0), 0);
-  const elevationLoss = gpx.tracks.reduce((sum, t) => sum + (t.elevation.neg || 0), 0);
+  // gpxparser's own t.elevation.pos/neg sum every raw point-to-point delta,
+  // which bakes in GPS/barometric jitter as sawtooth gain/loss. Smooth each
+  // track's elevation series first so the totals reflect real climbing.
+  const elevationTotals = gpx.tracks.map((t) =>
+    computeElevationGainLoss(t.points.map((p) => p.ele ?? null)),
+  );
+  const elevationGain = elevationTotals.reduce((sum, e) => sum + e.gain, 0);
+  const elevationLoss = elevationTotals.reduce((sum, e) => sum + e.loss, 0);
 
   const startTime = points[0].time ? new Date(points[0].time) : null;
   const endTime = points[points.length - 1].time ? new Date(points[points.length - 1].time) : null;

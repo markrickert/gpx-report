@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { computeElevationGainLoss } from "../track/elevation.js";
 
 // IGC B-record: B HHMMSS DDMMmmm N/S DDDMMmmm E/W A PPPPP GGGGG ...
 // Fixed-width fields per the IGC spec (http://www.fai.org/igc-documents).
@@ -90,8 +91,6 @@ export async function parseIgcFile(filePath) {
   }
 
   let distanceMeters = 0;
-  let elevationGain = 0;
-  let elevationLoss = 0;
   let maxSpeedMps = 0;
   let movingDistance = 0;
   let movingSeconds = 0;
@@ -101,10 +100,6 @@ export async function parseIgcFile(filePath) {
     if (i > 0) {
       const segmentDistance = haversineMeters(points[i - 1], points[i]);
       distanceMeters += segmentDistance;
-
-      const elevationDelta = points[i].elevation - points[i - 1].elevation;
-      if (elevationDelta > 0) elevationGain += elevationDelta;
-      else elevationLoss += -elevationDelta;
 
       const dtSeconds = (points[i].timestamp - points[i - 1].timestamp) / 1000;
       if (dtSeconds > 0) {
@@ -124,6 +119,11 @@ export async function parseIgcFile(filePath) {
   const durationSeconds = Math.max(0, Math.round((endTime - startTime) / 1000));
   const avgSpeedMps = durationSeconds > 0 ? distanceMeters / durationSeconds : null;
   const movingAvgSpeedMps = movingSeconds > 0 ? movingDistance / movingSeconds : null;
+  // Smoothed separately from the distance/speed loop above so gain/loss
+  // aren't inflated by raw GPS elevation jitter (see track/elevation.js).
+  const { gain: elevationGain, loss: elevationLoss } = computeElevationGainLoss(
+    points.map((p) => p.elevation),
+  );
 
   return {
     title: resolveTitle(filePath),
