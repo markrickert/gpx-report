@@ -159,5 +159,6 @@ export const typeDefs = `#graphql
     saveRecordedActivity(gpxContent: String!): SaveRecordedActivityResult!
     setCodeServerTheme(theme: String!): Boolean!
     cleanActivityOutliers(id: ID!): Activity!
+    deleteActivity(id: ID!): Boolean!
   }
 `;

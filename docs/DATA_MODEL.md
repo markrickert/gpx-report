@@ -163,5 +163,12 @@ type Mutation {
   # title-cases it back on read. .igc has no writer path and the mutation
   # rejects it.
   updateActivityType(id: ID!, activityType: String!): Activity!
+
+  # Looks up gpx_filename from the DB row itself (never accepts a path from
+  # the client), deletes that exact file under GPX_FILES_DIRECTORY (a missing
+  # file is tolerated, not an error), then deletes the activities row.
+  # activity_routes cascades via its activity_id FK's ON DELETE CASCADE.
+  # Permanent — the source file is gone, so the watcher can't re-ingest it.
+  deleteActivity(id: ID!): Boolean!
 }
 ```

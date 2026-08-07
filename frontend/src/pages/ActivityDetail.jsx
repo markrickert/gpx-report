@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client";
 // Order matters: leafletRotateSetup.js puts `L` on window before
 // leaflet-rotate (a bare-global-patching plugin, see that file's comment)
@@ -29,6 +29,7 @@ import {
   GET_ACTIVITY_OUTLIER_DIFF,
   CLEAN_ACTIVITY_OUTLIERS,
   SEARCH_ACTIVITIES_FOR_COMPARE,
+  DELETE_ACTIVITY,
 } from "../graphql/queries.js";
 import {
   useUnits,
@@ -849,6 +850,42 @@ function ComparisonSection({ activity }) {
   );
 }
 
+// Permanently removes both the DB row and the source .gpx/.igc/.skiz file
+// (see deleteActivity resolver) — irreversible, so this requires the same
+// window.confirm guard used by the other destructive action on this page
+// (OutlierCleanup's "Clean & Save").
+function DeleteActivitySection({ activity }) {
+  const navigate = useNavigate();
+  const [deleteActivity, { loading: deleting }] = useMutation(DELETE_ACTIVITY);
+  const [error, setError] = useState(null);
+
+  const handleDelete = async () => {
+    if (
+      !window.confirm(
+        `Delete "${activity.title}" permanently? This removes the activity and its source file and cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    try {
+      await deleteActivity({ variables: { id: activity.id } });
+      navigate("/");
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  return (
+    <div className="delete-activity-section">
+      <button className="delete-activity-button" onClick={handleDelete} disabled={deleting}>
+        {deleting ? "Deleting…" : "Delete Activity"}
+      </button>
+      {error && <p className="title-edit-error">Failed to delete: {error}</p>}
+    </div>
+  );
+}
+
 export default function ActivityDetail() {
   const { id } = useParams();
   const { unit } = useUnits();
@@ -968,6 +1005,8 @@ export default function ActivityDetail() {
       />
 
       <NotesSection activity={activity} />
+
+      <DeleteActivitySection activity={activity} />
 
       <div className="metrics-grid">
         <div className="metric-tile">
