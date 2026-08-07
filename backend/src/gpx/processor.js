@@ -28,8 +28,8 @@ export async function processFile(filePath) {
     const activityResult = await client.query(
       `INSERT INTO activities (
          gpx_filename, title, activity_type, start_time, end_time, duration_seconds,
-         distance_meters, avg_speed_mps, max_speed_mps, total_elevation_gain, total_elevation_loss, updated_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, NOW())
+         distance_meters, avg_speed_mps, moving_avg_speed_mps, max_speed_mps, total_elevation_gain, total_elevation_loss, updated_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, NOW())
        ON CONFLICT (gpx_filename) DO UPDATE SET
          title = EXCLUDED.title,
          activity_type = EXCLUDED.activity_type,
@@ -38,6 +38,7 @@ export async function processFile(filePath) {
          duration_seconds = EXCLUDED.duration_seconds,
          distance_meters = EXCLUDED.distance_meters,
          avg_speed_mps = EXCLUDED.avg_speed_mps,
+         moving_avg_speed_mps = EXCLUDED.moving_avg_speed_mps,
          max_speed_mps = EXCLUDED.max_speed_mps,
          total_elevation_gain = EXCLUDED.total_elevation_gain,
          total_elevation_loss = EXCLUDED.total_elevation_loss,
@@ -52,6 +53,7 @@ export async function processFile(filePath) {
         parsed.durationSeconds,
         parsed.distanceMeters,
         parsed.avgSpeedMps,
+        parsed.movingAvgSpeedMps,
         parsed.maxSpeedMps,
         parsed.totalElevationGain,
         parsed.totalElevationLoss,

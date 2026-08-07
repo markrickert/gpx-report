@@ -1,6 +1,6 @@
 import path from "node:path";
 import AdmZip from "adm-zip";
-import { haversineMeters } from "../igc/parser.js";
+import { haversineMeters, MOVING_SPEED_THRESHOLD_MPS } from "../igc/parser.js";
 
 // Ski Tracks app export (.skiz): a zip archive containing Track.xml (a
 // single <track> element with name/activity attributes and precomputed
@@ -57,6 +57,8 @@ export async function parseSkizFile(filePath) {
   let elevationGain = 0;
   let elevationLoss = 0;
   let maxSpeedMps = 0;
+  let movingDistance = 0;
+  let movingSeconds = 0;
   const elevationProfile = [];
 
   for (let i = 0; i < points.length; i++) {
@@ -72,6 +74,10 @@ export async function parseSkizFile(filePath) {
       if (dtSeconds > 0) {
         const speed = segmentDistance / dtSeconds;
         if (speed > maxSpeedMps) maxSpeedMps = speed;
+        if (speed >= MOVING_SPEED_THRESHOLD_MPS) {
+          movingDistance += segmentDistance;
+          movingSeconds += dtSeconds;
+        }
       }
     }
     elevationProfile.push({ distanceMeters, elevation: points[i].elevation });
@@ -81,6 +87,7 @@ export async function parseSkizFile(filePath) {
   const endTime = new Date(points[points.length - 1].timestamp);
   const durationSeconds = Math.max(0, Math.round((endTime - startTime) / 1000));
   const avgSpeedMps = durationSeconds > 0 ? distanceMeters / durationSeconds : null;
+  const movingAvgSpeedMps = movingSeconds > 0 ? movingDistance / movingSeconds : null;
 
   return {
     title: resolveTitle(trackXml, filePath),
@@ -91,6 +98,7 @@ export async function parseSkizFile(filePath) {
     distanceMeters,
     avgSpeedMps,
     maxSpeedMps: maxSpeedMps || null,
+    movingAvgSpeedMps,
     totalElevationGain: elevationGain,
     totalElevationLoss: elevationLoss,
     points: points.map((p) => ({

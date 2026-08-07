@@ -12,6 +12,7 @@ export const typeDefs = `#graphql
     durationSeconds: Int!
     distanceMeters: Float!
     avgSpeedMps: Float
+    movingAvgSpeedMps: Float
     maxSpeedMps: Float
     totalElevationGain: Float
     totalElevationLoss: Float

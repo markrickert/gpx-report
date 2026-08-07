@@ -39,6 +39,7 @@ function mapActivityRow(row) {
     durationSeconds: row.duration_seconds,
     distanceMeters: Number(row.distance_meters),
     avgSpeedMps: row.avg_speed_mps !== null ? Number(row.avg_speed_mps) : null,
+    movingAvgSpeedMps: row.moving_avg_speed_mps !== null ? Number(row.moving_avg_speed_mps) : null,
     maxSpeedMps: row.max_speed_mps !== null ? Number(row.max_speed_mps) : null,
     totalElevationGain: row.total_elevation_gain !== null ? Number(row.total_elevation_gain) : null,
     totalElevationLoss: row.total_elevation_loss !== null ? Number(row.total_elevation_loss) : null,
