@@ -136,6 +136,25 @@ export const GET_ACTIVITY_STREAK = gql`
   }
 `;
 
+export const GET_YEAR_OVER_YEAR_COMPARISON = gql`
+  query GetYearOverYearComparison {
+    yearOverYearComparison {
+      currentYear {
+        year
+        activityCount
+        totalDistanceMeters
+        totalElevationGainMeters
+      }
+      previousYear {
+        year
+        activityCount
+        totalDistanceMeters
+        totalElevationGainMeters
+      }
+    }
+  }
+`;
+
 export const GET_ACTIVITY_DATES = gql`
   query GetActivityDates {
     activities(limit: 1000) {

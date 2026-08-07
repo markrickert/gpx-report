@@ -17,6 +17,7 @@
   --accent-soft-bg: #eef2ff;
   --accent-soft-text: #4338ca;
   --danger: #dc2626;
+  --success: #16a34a;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
@@ -36,6 +37,7 @@
   --accent-soft-bg: #1e2540;
   --accent-soft-text: #93aefc;
   --danger: #f87171;
+  --success: #4ade80;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
@@ -346,6 +348,19 @@ select {
 .summary-label {
   color: var(--text-muted);
   font-size: 0.85rem;
+}
+
+.summary-delta {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.summary-delta-positive {
+  color: var(--success);
+}
+
+.summary-delta-negative {
+  color: var(--danger);
 }
 
 .metrics-grid {

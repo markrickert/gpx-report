@@ -190,6 +190,54 @@ export const resolvers = {
       return { currentStreakDays, longestStreakDays };
     },
 
+    yearOverYearComparison: async () => {
+      const { rows } = await pool.query(`
+        SELECT
+          EXTRACT(YEAR FROM CURRENT_DATE)::int AS current_year,
+          EXTRACT(YEAR FROM CURRENT_DATE)::int - 1 AS previous_year,
+          COUNT(*) FILTER (
+            WHERE start_time >= date_trunc('year', CURRENT_DATE)
+              AND start_time <= CURRENT_DATE
+          )::int AS current_count,
+          COALESCE(SUM(distance_meters) FILTER (
+            WHERE start_time >= date_trunc('year', CURRENT_DATE)
+              AND start_time <= CURRENT_DATE
+          ), 0) AS current_distance_meters,
+          COALESCE(SUM(total_elevation_gain) FILTER (
+            WHERE start_time >= date_trunc('year', CURRENT_DATE)
+              AND start_time <= CURRENT_DATE
+          ), 0) AS current_elevation_gain_meters,
+          COUNT(*) FILTER (
+            WHERE start_time >= date_trunc('year', CURRENT_DATE) - INTERVAL '1 year'
+              AND start_time <= CURRENT_DATE - INTERVAL '1 year'
+          )::int AS previous_count,
+          COALESCE(SUM(distance_meters) FILTER (
+            WHERE start_time >= date_trunc('year', CURRENT_DATE) - INTERVAL '1 year'
+              AND start_time <= CURRENT_DATE - INTERVAL '1 year'
+          ), 0) AS previous_distance_meters,
+          COALESCE(SUM(total_elevation_gain) FILTER (
+            WHERE start_time >= date_trunc('year', CURRENT_DATE) - INTERVAL '1 year'
+              AND start_time <= CURRENT_DATE - INTERVAL '1 year'
+          ), 0) AS previous_elevation_gain_meters
+        FROM activities
+      `);
+      const row = rows[0];
+      return {
+        currentYear: {
+          year: row.current_year,
+          activityCount: row.current_count,
+          totalDistanceMeters: Number(row.current_distance_meters),
+          totalElevationGainMeters: Number(row.current_elevation_gain_meters),
+        },
+        previousYear: {
+          year: row.previous_year,
+          activityCount: row.previous_count,
+          totalDistanceMeters: Number(row.previous_distance_meters),
+          totalElevationGainMeters: Number(row.previous_elevation_gain_meters),
+        },
+      };
+    },
+
     activitySummary: async () => {
       const { rows } = await pool.query(`
         SELECT
