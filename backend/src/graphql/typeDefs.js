@@ -106,6 +106,7 @@ export const typeDefs = `#graphql
       activityType: String
       startDate: DateTime
       endDate: DateTime
+      search: String
     ): [Activity!]!
     activitySummary: ActivitySummary!
     aggregatedStatsByType(

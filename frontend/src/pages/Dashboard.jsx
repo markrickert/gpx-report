@@ -72,8 +72,21 @@ function RouteThumbnail({ coordinates }) {
 export default function Dashboard() {
   const { unit } = useUnits();
   const [activityType, setActivityType] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
+
   const { data, loading, error, fetchMore } = useQuery(GET_DASHBOARD, {
-    variables: { activityType: activityType || undefined, limit: PAGE_SIZE, offset: 0 },
+    variables: {
+      activityType: activityType || undefined,
+      search: search || undefined,
+      limit: PAGE_SIZE,
+      offset: 0,
+    },
   });
 
   const [activities, setActivities] = useState([]);
@@ -133,6 +146,7 @@ export default function Dashboard() {
           const res = await fetchMore({
             variables: {
               activityType: activityType || undefined,
+              search: search || undefined,
               limit: PAGE_SIZE,
               offset: activities.length,
             },
@@ -149,7 +163,7 @@ export default function Dashboard() {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasMore, activities.length, activityType, fetchMore]);
+  }, [hasMore, activities.length, activityType, search, fetchMore]);
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p>Error loading dashboard: {error.message}</p>;
@@ -197,6 +211,14 @@ export default function Dashboard() {
             </option>
           ))}
         </select>
+        <label htmlFor="titleSearch">Search: </label>
+        <input
+          id="titleSearch"
+          type="text"
+          placeholder="Search by title..."
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+        />
       </div>
 
       <ul className="activity-list">

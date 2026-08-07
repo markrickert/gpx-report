@@ -99,7 +99,10 @@ export const resolvers = {
       return rows[0] ? mapActivityRow(rows[0]) : null;
     },
 
-    activities: async (_parent, { limit = 20, offset = 0, activityType, startDate, endDate }) => {
+    activities: async (
+      _parent,
+      { limit = 20, offset = 0, activityType, startDate, endDate, search },
+    ) => {
       const conditions = [];
       const params = [];
 
@@ -114,6 +117,10 @@ export const resolvers = {
       if (endDate) {
         params.push(endDate);
         conditions.push(`start_time <= $${params.length}`);
+      }
+      if (search) {
+        params.push(`%${search}%`);
+        conditions.push(`title ILIKE $${params.length}`);
       }
 
       const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
