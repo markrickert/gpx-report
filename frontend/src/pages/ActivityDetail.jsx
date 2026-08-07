@@ -312,6 +312,46 @@ function buildRestBands(elevationData) {
   return bands;
 }
 
+// A few still points aren't meaningful (GPS jitter can dip under the speed
+// threshold for a point or two even while moving) - only pre-crop a
+// lead-in/trailing stretch if it lasted at least this long. Measured via
+// point timestamps rather than a point count since recording interval
+// varies by device.
+const MIN_STILLNESS_DURATION_SECONDS = 30;
+
+// Pre-positions the trim handles by walking in from each end while points
+// are below REST_SPEED_THRESHOLD_MPS (the same threshold buildRestBands
+// uses), then only committing to that crop if the stillness it found lasted
+// long enough to be worth trimming. Falls back to the full track when
+// there's nothing meaningful to crop at either end.
+function suggestTrimRange(elevationData, coordinates) {
+  const lastIdx = elevationData.length - 1;
+  if (lastIdx < 1) return [0, lastIdx];
+
+  let start = 0;
+  while (start < lastIdx && (elevationData[start].speedMps ?? 0) < REST_SPEED_THRESHOLD_MPS) {
+    start++;
+  }
+  const startStillSeconds =
+    coordinates[0]?.timestamp != null && coordinates[start]?.timestamp != null
+      ? (coordinates[start].timestamp - coordinates[0].timestamp) / 1000
+      : 0;
+  const suggestedStart = startStillSeconds >= MIN_STILLNESS_DURATION_SECONDS ? start : 0;
+
+  let end = lastIdx;
+  while (end > 0 && (elevationData[end].speedMps ?? 0) < REST_SPEED_THRESHOLD_MPS) {
+    end--;
+  }
+  const endStillSeconds =
+    coordinates[end]?.timestamp != null && coordinates[lastIdx]?.timestamp != null
+      ? (coordinates[lastIdx].timestamp - coordinates[end].timestamp) / 1000
+      : 0;
+  const suggestedEnd = endStillSeconds >= MIN_STILLNESS_DURATION_SECONDS ? end : lastIdx;
+
+  if (suggestedStart >= suggestedEnd) return [0, lastIdx];
+  return [suggestedStart, suggestedEnd];
+}
+
 const MAX_GRADE_FRACTION = 0.45; // clamp: Minetti's model is only fit over roughly this range
 const MIN_GRADE_WINDOW_METERS = 10; // aggregate this much horizontal distance before computing a grade
 
@@ -896,7 +936,7 @@ export default function ActivityDetail() {
   };
 
   const enterEditMode = () => {
-    setTrimRange([0, elevationData.length - 1]);
+    setTrimRange(suggestTrimRange(elevationData, activity.route.coordinates));
     setEditMode(true);
   };
   const exitEditMode = () => {
