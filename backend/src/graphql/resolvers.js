@@ -72,21 +72,19 @@ const MAX_RECORDED_GPX_BYTES = 10 * 1024 * 1024;
 // would be tens of MB of JSON).
 const MAX_HEATMAP_POINTS_PER_ROUTE = 300;
 
+// heatmapPoints is expensive (scans every stored track point across all
+// activities to sample it down) and rarely changes between requests, so
+// cache the result for a few minutes instead of recomputing on every page
+// load. Staleness up to HEATMAP_CACHE_TTL_MS after a new activity is
+// ingested is acceptable for this personal, single-user app.
+const HEATMAP_CACHE_TTL_MS = 5 * 60 * 1000;
+let heatmapCache = null;
+
 async function removeTrackPointsByFormat(filePath, filename, indices) {
   if (filename.endsWith(".skiz")) return removeSkizTrackPoints(filePath, indices);
   if (filename.endsWith(".igc")) return removeIgcTrackPoints(filePath, indices);
   if (filename.endsWith(".gpx")) return removeGpxTrackPoints(filePath, indices);
   throw new Error("Cleaning is only supported for .gpx, .skiz, and .igc files");
-}
-
-function sampleRoutePoints(points) {
-  if (!points || points.length <= MAX_HEATMAP_POINTS_PER_ROUTE) return points ?? [];
-  const step = points.length / MAX_HEATMAP_POINTS_PER_ROUTE;
-  const sampled = [];
-  for (let i = 0; i < MAX_HEATMAP_POINTS_PER_ROUTE; i++) {
-    sampled.push(points[Math.floor(i * step)]);
-  }
-  return sampled;
 }
 
 export const resolvers = {
@@ -216,14 +214,35 @@ export const resolvers = {
       }));
     },
 
+    // Sampling happens in SQL rather than fetching full-resolution points_data
+    // and sampling in JS: the latter pulled every stored point (hundreds of
+    // MB of JSON text across all activities) over the wire just to keep 300
+    // of them per route, which is what made this query slow.
     heatmapPoints: async () => {
-      const { rows } = await pool.query("SELECT points_data FROM activity_routes");
-      const points = [];
-      for (const row of rows) {
-        for (const p of sampleRoutePoints(row.points_data)) {
-          points.push([p.lat, p.lon, p.elevation ?? null]);
-        }
+      if (heatmapCache && Date.now() - heatmapCache.computedAt < HEATMAP_CACHE_TTL_MS) {
+        return heatmapCache.points;
       }
+      const { rows } = await pool.query(
+        `
+        WITH lens AS MATERIALIZED (
+          SELECT activity_id, jsonb_array_length(points_data) AS len FROM activity_routes
+        )
+        SELECT jsonb_agg(
+          jsonb_build_array(
+            (elem->>'lat')::float8,
+            (elem->>'lon')::float8,
+            (elem->>'elevation')::float8
+          )
+        ) AS sampled
+        FROM activity_routes r
+        JOIN lens l ON l.activity_id = r.activity_id,
+        LATERAL jsonb_array_elements(r.points_data) WITH ORDINALITY AS e(elem, ord)
+        WHERE (ord - 1) % GREATEST(1, l.len / $1) = 0
+        `,
+        [MAX_HEATMAP_POINTS_PER_ROUTE],
+      );
+      const points = rows[0]?.sampled ?? [];
+      heatmapCache = { points, computedAt: Date.now() };
       return points;
     },
 

@@ -75,7 +75,8 @@ This document details the features of gpx-report, and reflects what is actually 
 
 *   **Density Heatmap:** A nav tab (`/heatmap`) renders every activity's route coordinates as a single `leaflet.heat` density heatmap over a basemap, using the same CARTO-dark/OSM-light tile split (by theme) as the Activity Detail map.
 *   **Elevation Banding:** A "Color by elevation" checkbox switches to 4 separate heat layers, one per elevation quartile of the dataset (computed from all loaded points), each rendered in a fixed single-color gradient with a swatch-and-range legend below the checkbox.
-*   **Payload Sizing:** The backing `heatmapPoints` GraphQL query returns `[lat, lon, elevation]` triples for every activity at once (no pagination), but caps/samples each route at 300 points server-side so a personal-scale dataset (hundreds of activities) stays a few MB rather than tens of MB at full GPS resolution.
+*   **Payload Sizing:** The backing `heatmapPoints` GraphQL query returns `[lat, lon, elevation]` triples for every activity at once (no pagination), but caps/samples each route at 300 points server-side so a personal-scale dataset (hundreds of activities) stays a few MB rather than tens of MB at full GPS resolution. Sampling is done in SQL (a `jsonb_array_elements`/modulo pass per route) rather than fetching every stored point and sampling in JS, so the DB->backend transfer stays proportional to the sampled output, not the full-resolution dataset.
+*   **In-Memory Caching:** `heatmapPoints` is expensive to compute (still a multi-second full scan over every activity's points at this dataset size) and rarely changes, so the resolver caches the sampled result in memory for 5 minutes — repeat loads of `/heatmap` within that window are near-instant instead of recomputing every time. Staleness after a new activity is ingested (up to 5 minutes) is an accepted tradeoff for a personal, single-user app.
 
 ## 7. Units
 
