@@ -210,6 +210,15 @@ export const GET_RECENT_ACTIVITIES_FOR_POLL = gql`
   }
 `;
 
+export const GET_LATEST_ACTIVITY_FOR_NOTIFY = gql`
+  query GetLatestActivityForNotify {
+    activities(limit: 1) {
+      id
+      title
+    }
+  }
+`;
+
 export const GET_ACTIVITIES_WITH_OUTLIERS = gql`
   query GetActivitiesWithOutliers {
     activitiesWithOutliers {

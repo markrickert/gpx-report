@@ -6,6 +6,7 @@ import "leaflet/dist/leaflet.css";
 import { apolloClient } from "./apolloClient.js";
 import { UnitsProvider } from "./units.jsx";
 import { ThemeProvider } from "./theme.jsx";
+import { NotificationsProvider } from "./notifications.jsx";
 import App from "./App.jsx";
 import "./styles.css";
 
@@ -14,11 +15,13 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <ApolloProvider client={apolloClient}>
       <ThemeProvider>
         <UnitsProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
+          <NotificationsProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </NotificationsProvider>
         </UnitsProvider>
       </ThemeProvider>
     </ApolloProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

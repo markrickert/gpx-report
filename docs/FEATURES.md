@@ -73,6 +73,7 @@ This document details the features of gpx-report, and reflects what is actually 
     *   Displays progress or completion status.
 *   **GPS Anomaly Cleanup List:** Lists every activity with at least one GPS point flagged as an implausible speed jump (>55 m/s / ~200 km/h from the last non-flagged point) — detection is opt-in and never runs automatically at ingest, so stats/`points_data` always reflect the raw source file until the user explicitly cleans an activity from its Activity Detail page (above). Each entry links straight there to review and decide.
 *   **Suspected Lift Rides List:** Lists every activity with at least one detected lift segment (straight-line, roughly constant speed, steady climb — see Activity Detail Page above), with the segment count and total lift-attributed elevation gain for that activity. Purely informational — nothing is removed or recomputed; each entry links to the activity to see the flagged range on its elevation chart.
+*   **New-Activity Notifications Toggle:** An opt-in checkbox ("Notify me when a new activity finishes ingesting") that, on enabling, requests browser Notification permission and then polls for the most-recently-ingested activity every 45 seconds while any tab is open, firing a `Notification` ("&lt;title&gt; ingested") the first time the most-recent activity changes. Foreground-only — no service-worker push, since that needs a server-side trigger this app doesn't have. Off by default; permission is never requested without this explicit opt-in.
 
 ## 5. Stats Page
 

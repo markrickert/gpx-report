@@ -7,6 +7,7 @@ import {
   GET_ACTIVITIES_WITH_OUTLIERS,
   GET_ACTIVITIES_WITH_LIFT_SEGMENTS,
 } from "../graphql/queries.js";
+import { useNotifications } from "../notifications.jsx";
 
 const RANGE_OPTIONS = [
   { label: "Last Week", days: 7 },
@@ -77,6 +78,47 @@ function LiftList() {
   );
 }
 
+// Opt-in toggle for foreground browser Notifications when the watcher
+// finishes ingesting a new activity (see notifications.jsx) — gated behind
+// this explicit toggle rather than prompting for permission on page load,
+// per standard Notification API UX norms.
+function NotificationsToggle() {
+  const { supported, enabled, permission, enableNotifications, disableNotifications } =
+    useNotifications();
+
+  if (!supported) {
+    return (
+      <p className="chart-hint">
+        This browser doesn&apos;t support notifications, so new-activity alerts aren&apos;t
+        available here.
+      </p>
+    );
+  }
+
+  return (
+    <div className="settings-section">
+      <label className="settings-toggle-row">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => (e.target.checked ? enableNotifications() : disableNotifications())}
+        />
+        Notify me when a new activity finishes ingesting
+      </label>
+      {permission === "denied" && (
+        <p className="chart-hint">
+          Notifications are blocked for this site in your browser settings — allow them there to
+          enable this.
+        </p>
+      )}
+      <p className="chart-hint">
+        Foreground-only: this checks for newly ingested activities while a tab is open, so keep one
+        open in the background to get the alert.
+      </p>
+    </div>
+  );
+}
+
 const TABS = [
   { id: "reanalysis", label: "Re-analysis" },
   { id: "outliers", label: "GPS Anomaly Cleanup" },
@@ -133,6 +175,7 @@ export default function Settings() {
   return (
     <div>
       <h1>Settings</h1>
+      <NotificationsToggle />
       <div className="settings-tabs">
         {TABS.map((tab) => (
           <button
