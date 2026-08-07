@@ -736,6 +736,25 @@ select {
   margin-bottom: 1rem;
 }
 
+.delete-activity-section {
+  margin-bottom: 1rem;
+}
+
+.delete-activity-button {
+  font-size: 0.8rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+}
+
+.delete-activity-button:hover {
+  background: var(--danger);
+  color: white;
+}
+
 .notes-text {
   white-space: pre-wrap;
   margin: 0 0 0.4rem;

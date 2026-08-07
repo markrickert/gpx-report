@@ -266,6 +266,12 @@ export const CLEAN_ACTIVITY_OUTLIERS = gql`
   }
 `;
 
+export const DELETE_ACTIVITY = gql`
+  mutation DeleteActivity($id: ID!) {
+    deleteActivity(id: $id)
+  }
+`;
+
 export const GET_STATS_BY_TYPE = gql`
   query GetStatsByType {
     aggregatedStatsByType {

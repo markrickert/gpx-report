@@ -27,6 +27,7 @@ This document outlines the architecture of gpx-report, a self-hosted platform fo
     *   **Mutations:**
         *   Trigger re-analysis of data (`reanalyzeAllActivities`, `reanalyzeActivitiesByDateRange(startDate: DateTime!, endDate: DateTime!)`).
         *   Save a browser-recorded track (`saveRecordedActivity(gpxContent: String!)`): validates the submitted GPX string minimally (size cap, looks like GPX), writes it to a server-generated filename (never derived from client input) in `GPX_FILES_DIRECTORY`, and returns without waiting for ingestion — the file watcher (below) picks it up asynchronously through the normal pipeline.
+        *   Permanently delete an activity (`deleteActivity(id: ID!)`): looks up `gpx_filename` from the DB row itself (never accepts a path from the client), `fs.unlink`s that exact file under `GPX_FILES_DIRECTORY` (tolerating an already-missing file), then deletes the `activities` row — `activity_routes` cascades via its `activity_id` FK's `ON DELETE CASCADE`. Since the source file itself is removed, the watcher can't re-ingest it on a later restart/rescan.
 *   **Resolver Logic:** `graphql/resolvers.js` queries `pg.Pool` directly with hand-written SQL (see `backend/src/graphql/resolvers.js`). `activitySummary` and `aggregatedStatsByType` are computed live with `SUM`/`AVG`/`GROUP BY` on each request — there is no materialized view or cache.
 
 ## 3. Database (PostgreSQL with PostGIS)

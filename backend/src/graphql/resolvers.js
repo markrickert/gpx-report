@@ -1,6 +1,6 @@
 import path from "node:path";
 import os from "node:os";
-import { writeFile, readFile, mkdir, copyFile, rm } from "node:fs/promises";
+import { writeFile, readFile, mkdir, copyFile, rm, unlink } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { pool } from "../db.js";
 import {
@@ -595,6 +595,23 @@ export const resolvers = {
 
       const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
       return mapActivityRow(updated[0]);
+    },
+
+    // activity_routes.activity_id has ON DELETE CASCADE (see db/init.sql), so
+    // deleting the activities row alone removes the route too.
+    deleteActivity: async (_parent, { id }) => {
+      const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
+      if (!rows[0]) throw new Error(`Activity ${id} not found`);
+
+      const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
+      try {
+        await unlink(filePath);
+      } catch (err) {
+        if (err.code !== "ENOENT") throw err;
+      }
+
+      await pool.query("DELETE FROM activities WHERE id = $1", [id]);
+      return true;
     },
 
     setCodeServerTheme: async (_parent, { theme }) => {
