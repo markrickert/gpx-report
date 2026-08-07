@@ -892,6 +892,31 @@ function DeleteActivitySection({ activity }) {
   );
 }
 
+// similarActivities comes from a resolver-side ST_HausdorffDistance spatial
+// match (see backend/src/graphql/resolvers.js), already filtered/sorted/
+// capped server-side — this just hides the section entirely when empty
+// rather than rendering an empty heading.
+function SimilarActivitiesSection({ activity }) {
+  const { unit } = useUnits();
+  if (activity.similarActivities.length === 0) return null;
+
+  return (
+    <section className="on-this-day">
+      <h2>Similar Past Activities</h2>
+      <ul className="on-this-day-list">
+        {activity.similarActivities.map((match) => (
+          <li key={match.id}>
+            <Link to={`/activities/${match.id}`}>
+              {match.title} — {new Date(match.startTime).toLocaleDateString()} ({match.activityType}
+              , {formatDistance(match.distanceMeters, unit)})
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function ActivityDetail() {
   const { id } = useParams();
   const { unit } = useUnits();
@@ -1354,6 +1379,8 @@ export default function ActivityDetail() {
       <OutlierCleanup activity={activity} />
 
       <ComparisonSection activity={activity} />
+
+      <SimilarActivitiesSection activity={activity} />
     </div>
   );
 }

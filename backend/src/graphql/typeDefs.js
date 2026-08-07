@@ -19,6 +19,15 @@ export const typeDefs = `#graphql
     notes: String
     locationName: String
     route: Route!
+    similarActivities: [SimilarActivity!]!
+  }
+
+  type SimilarActivity {
+    id: ID!
+    title: String!
+    activityType: String!
+    startTime: DateTime!
+    distanceMeters: Float!
   }
 
   type Route {

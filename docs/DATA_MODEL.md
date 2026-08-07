@@ -40,7 +40,7 @@ Stores the geospatial path of each activity, one row per activity.
 | Column Name   | Data Type      | Constraints                                     | Description                                                      |
 | :------------ | :------------- | :----------------------------------------------- | :--------------------------------------------------------------- |
 | `activity_id` | `INTEGER`      | `PRIMARY KEY`, `FOREIGN KEY REFERENCES activities(id) ON DELETE CASCADE` | Links to the `activities` table.                                 |
-| `route_geom`  | `GEOMETRY(LineString, 4326)` | `NOT NULL`                        | The route as a PostGIS LineString (SRID 4326 / WGS84). Not currently queried geospatially — stored for future use (GiST-indexed). |
+| `route_geom`  | `GEOMETRY(LineString, 4326)` | `NOT NULL`                        | The route as a PostGIS LineString (SRID 4326 / WGS84), GiST-indexed. Queried geospatially by `Activity.similarActivities` (`ST_HausdorffDistance` between `ST_Simplify`'d routes) to find past activities on the same route. |
 | `elevation_profile_data` | `JSONB` | `NULLABLE`                              | JSON array for the elevation chart: `[{"distanceMeters": 0, "elevation": 10, "speedMps": null}, ...]`. `speedMps` is the point-to-point speed arriving at that point (`null` for the first point or when either point lacks a timestamp). |
 | `points_data` | `JSONB`        | `NULLABLE`                                      | Full point list used directly by the frontend map: `[{"lat", "lon", "elevation", "timestamp"}, ...]`. Kept redundant with `route_geom` because GeoJSON round-tripping loses per-point elevation/timestamp. |
 

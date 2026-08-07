@@ -82,6 +82,26 @@ const MAX_HEATMAP_POINTS_PER_ROUTE = 300;
 const HEATMAP_CACHE_TTL_MS = 5 * 60 * 1000;
 let heatmapCache = null;
 
+// similarActivities: ST_HausdorffDistance measures how far apart the two
+// most-divergent points of two line shapes are, which is a good proxy for
+// "same route" (small if one track is a near-superset/subset or minor
+// variant of the other, large if the paths diverge anywhere). Comparing
+// full-resolution tracks (some routes have 10k+ points) makes it O(n*m) and
+// too slow, so both sides are ST_Simplify'd first — verified empirically
+// against this deployment's real repeat routes (e.g. "Slickrock loop",
+// ridden ~10 times) that a 0.0003-degree (~33m) tolerance keeps route shape
+// distinct while cutting runtime from >1s to ~350ms for a full ~511-row
+// scan. The *111320 conversion is an approximate degrees-to-meters factor
+// (exact at the equator, close enough for a single-region personal
+// deployment) used only for thresholding/sorting, not as an exact distance.
+// SIMILAR_ROUTE_THRESHOLD_METERS was picked empirically: real repeats of
+// the same route measured 80-510m apart, a near-variant (partial overlap)
+// measured ~975m, and unrelated routes measured 4km+ apart — 1000m sits
+// just above the near-variant case and well below unrelated routes.
+const SIMILAR_ROUTE_SIMPLIFY_TOLERANCE_DEGREES = 0.0003;
+const SIMILAR_ROUTE_THRESHOLD_METERS = 1000;
+const DEGREES_TO_METERS = 111320;
+
 async function removeTrackPointsByFormat(filePath, filename, indices) {
   if (filename.endsWith(".skiz")) return removeSkizTrackPoints(filePath, indices);
   if (filename.endsWith(".igc")) return removeIgcTrackPoints(filePath, indices);
@@ -644,6 +664,41 @@ export const resolvers = {
         elevationProfile: row?.elevation_profile_data ?? [],
         liftSegments: detectLiftSegments(row?.points_data ?? []),
       };
+    },
+
+    similarActivities: async (parent) => {
+      const { rows } = await pool.query(
+        `
+        WITH target AS (
+          SELECT ST_Simplify(route_geom, $2) AS geom
+          FROM activity_routes WHERE activity_id = $1
+        ), scored AS (
+          SELECT a.id, a.title, a.activity_type, a.start_time, a.distance_meters,
+                 ST_HausdorffDistance(ST_Simplify(r.route_geom, $2), target.geom) * $4 AS hausdorff_meters
+          FROM activity_routes r
+          JOIN activities a ON a.id = r.activity_id
+          CROSS JOIN target
+          WHERE r.activity_id != $1
+        )
+        SELECT * FROM scored
+        WHERE hausdorff_meters <= $3
+        ORDER BY hausdorff_meters ASC
+        LIMIT 5
+        `,
+        [
+          parent.id,
+          SIMILAR_ROUTE_SIMPLIFY_TOLERANCE_DEGREES,
+          SIMILAR_ROUTE_THRESHOLD_METERS,
+          DEGREES_TO_METERS,
+        ],
+      );
+      return rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        activityType: row.activity_type,
+        startTime: row.start_time,
+        distanceMeters: Number(row.distance_meters),
+      }));
     },
   },
 };
