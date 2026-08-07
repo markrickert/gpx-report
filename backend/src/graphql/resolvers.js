@@ -388,6 +388,37 @@ export const resolvers = {
       return points;
     },
 
+    // Bounding box of activity routes from the last `months` months, used by
+    // the heatmap page to default its initial view to wherever the user has
+    // actually been active lately instead of a fixed region. Deliberately a
+    // separate, much cheaper query than heatmapPoints (ST_Extent over an
+    // already-indexed geometry column for a small recent subset) rather than
+    // deriving it from the full, sampled-down heatmapPoints result, since
+    // that result carries no per-point timestamp to filter by. Returns null
+    // if there's no activity in the window (e.g. fresh install, or a stale
+    // deployment), so the caller can fall back to its existing default.
+    recentActivityBounds: async (_parent, { months = 6 }) => {
+      const { rows } = await pool.query(
+        `
+        SELECT
+          ST_YMin(ST_Extent(r.route_geom)) AS min_lat,
+          ST_YMax(ST_Extent(r.route_geom)) AS max_lat,
+          ST_XMin(ST_Extent(r.route_geom)) AS min_lon,
+          ST_XMax(ST_Extent(r.route_geom)) AS max_lon
+        FROM activity_routes r
+        JOIN activities a ON a.id = r.activity_id
+        WHERE a.start_time >= NOW() - ($1 || ' months')::interval
+        `,
+        [months],
+      );
+      const row = rows[0];
+      if (!row || row.min_lat == null) return null;
+      return [
+        [row.min_lat, row.min_lon],
+        [row.max_lat, row.max_lon],
+      ];
+    },
+
     activitiesWithOutliers: async () => {
       const { rows } = await pool.query(`
         SELECT a.id, a.title, a.activity_type, a.start_time, a.gpx_filename, r.points_data

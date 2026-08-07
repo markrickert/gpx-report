@@ -150,6 +150,7 @@ export const typeDefs = `#graphql
       endDate: DateTime
     ): [AggregatedStatsByType!]!
     heatmapPoints: JSON!
+    recentActivityBounds(months: Int = 6): JSON
     activitiesWithOutliers: [OutlierSummary!]!
     activityOutlierDiff(id: ID!): ActivityOutlierDiff!
     activitiesWithLiftSegments: [LiftActivitySummary!]!
