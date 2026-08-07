@@ -101,7 +101,13 @@ export default function Heatmap() {
           </ul>
         )}
       </div>
-      <MapContainer bounds={bounds} boundsOptions={{ padding: [20, 20] }} className="heatmap-map">
+      <MapContainer
+        bounds={bounds}
+        boundsOptions={{ padding: [20, 20] }}
+        className="heatmap-map"
+        rotateControl={false}
+        shiftKeyRotate={false}
+      >
         {theme === "dark" ? (
           <TileLayer
             attribution='&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
