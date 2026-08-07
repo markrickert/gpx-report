@@ -5,6 +5,12 @@ description: Autonomous, unattended sweep through docs/TODO.md's Planned feature
 
 Read this fully before starting — it's the ruleset, not a suggestion.
 
+## 0. Pull check
+
+`git fetch`, then `git rev-list HEAD..origin/main --count`. Nonzero → `git pull --ff-only`, then re-read `docs/TODO.md` (the pulled commits may have added/removed/edited items — build the work list off the post-pull file, not a stale read). Fast-forward fails (diverged history) → stop and report, don't force anything.
+
+This is running overnight/unattended — a same-night human edit landing mid-run is unlikely, so expect this check to almost always be a no-op. It's here for the case a change *did* land (last-minute manual commit before the loop started, previous day's edit not yet pulled) — cheap to check, expensive to miss.
+
 ## 1. Build the work list
 
 Read `docs/TODO.md`'s unfinished tasks. For each, decide **do** or **skip** before touching anything.
