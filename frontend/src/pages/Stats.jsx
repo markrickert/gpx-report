@@ -5,6 +5,7 @@ import {
   GET_ACTIVITY_DATES,
   GET_ACTIVITY_STREAK,
   GET_YEAR_OVER_YEAR_COMPARISON,
+  GET_TRAINING_LOAD,
 } from "../graphql/queries.js";
 import {
   useUnits,
@@ -258,6 +259,7 @@ export default function Stats() {
     loading: yoyLoading,
     error: yoyError,
   } = useQuery(GET_YEAR_OVER_YEAR_COMPARISON);
+  const { data: loadData, loading: loadLoading, error: loadError } = useQuery(GET_TRAINING_LOAD);
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p>Error loading stats: {error.message}</p>;
@@ -305,6 +307,31 @@ export default function Stats() {
               {streakData.activityStreak.longestStreakDays.toLocaleString()}
             </span>
             <span className="summary-label">Longest Streak (days)</span>
+          </div>
+        </section>
+      )}
+
+      {!loadLoading && !loadError && (
+        <section className="summary-grid">
+          <div className="summary-tile">
+            <span className="summary-value">
+              {formatDistance(loadData.trainingLoad.acuteDistanceMeters, unit)}
+            </span>
+            <span className="summary-label">Acute Load (7-day)</span>
+          </div>
+          <div className="summary-tile">
+            <span className="summary-value">
+              {formatDistance(loadData.trainingLoad.chronicWeeklyAvgDistanceMeters, unit)}
+            </span>
+            <span className="summary-label">Chronic Load (28-day weekly avg)</span>
+          </div>
+          <div className="summary-tile">
+            <span className="summary-value">
+              {loadData.trainingLoad.ratio == null ? "–" : loadData.trainingLoad.ratio.toFixed(2)}
+            </span>
+            <span className="summary-label">
+              Training Load Ratio ({loadData.trainingLoad.label})
+            </span>
           </div>
         </section>
       )}
