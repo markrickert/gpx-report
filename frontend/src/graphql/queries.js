@@ -23,6 +23,18 @@ export const GET_DASHBOARD = gql`
   }
 `;
 
+export const GET_ON_THIS_DAY = gql`
+  query GetOnThisDay {
+    onThisDay {
+      id
+      title
+      activityType
+      startTime
+      distanceMeters
+    }
+  }
+`;
+
 export const GET_ACTIVITY = gql`
   query GetActivity($id: ID!) {
     activity(id: $id) {

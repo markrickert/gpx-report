@@ -135,6 +135,17 @@ export const resolvers = {
       return rows.map(mapActivityRow);
     },
 
+    onThisDay: async () => {
+      const { rows } = await pool.query(`
+        SELECT * FROM activities
+        WHERE EXTRACT(MONTH FROM start_time) = EXTRACT(MONTH FROM CURRENT_DATE)
+          AND EXTRACT(DAY FROM start_time) = EXTRACT(DAY FROM CURRENT_DATE)
+          AND EXTRACT(YEAR FROM start_time) <> EXTRACT(YEAR FROM CURRENT_DATE)
+        ORDER BY start_time DESC
+      `);
+      return rows.map(mapActivityRow);
+    },
+
     activitySummary: async () => {
       const { rows } = await pool.query(`
         SELECT

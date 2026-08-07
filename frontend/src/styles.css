@@ -388,6 +388,29 @@ select {
   font-size: 0.8rem;
 }
 
+.on-this-day {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow);
+}
+
+.on-this-day h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.on-this-day-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
 .filter-row {
   margin-bottom: 1rem;
 }

@@ -118,6 +118,7 @@ export const typeDefs = `#graphql
     activitiesWithOutliers: [OutlierSummary!]!
     activityOutlierDiff(id: ID!): ActivityOutlierDiff!
     activitiesWithLiftSegments: [LiftActivitySummary!]!
+    onThisDay: [Activity!]!
   }
 
   type Mutation {
