@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@apollo/client";
 import { Link } from "react-router-dom";
-import { GET_DASHBOARD } from "../graphql/queries.js";
+import { GET_DASHBOARD, GET_ON_THIS_DAY } from "../graphql/queries.js";
 import { useUnits, formatDistance, formatElevation } from "../units.jsx";
 import { ACTIVITY_TYPES } from "../activityTypes.js";
 
@@ -66,6 +66,32 @@ function RouteThumbnail({ coordinates }) {
         strokeLinecap="round"
       />
     </svg>
+  );
+}
+
+function OnThisDayCard() {
+  const { unit } = useUnits();
+  const { data } = useQuery(GET_ON_THIS_DAY);
+  const activities = data?.onThisDay;
+  if (!activities || activities.length === 0) return null;
+
+  return (
+    <section className="on-this-day">
+      <h2>On This Day</h2>
+      <ul className="on-this-day-list">
+        {activities.map((activity) => {
+          const yearsAgo = new Date().getFullYear() - new Date(activity.startTime).getFullYear();
+          return (
+            <li key={activity.id}>
+              <Link to={`/activities/${activity.id}`}>
+                {activity.title} — {yearsAgo} {yearsAgo === 1 ? "year" : "years"} ago (
+                {activity.activityType}, {formatDistance(activity.distanceMeters, unit)})
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -203,6 +229,8 @@ export default function Dashboard() {
           <span className="summary-label">Elevation Gain</span>
         </div>
       </section>
+
+      <OnThisDayCard />
 
       <div className="filter-row">
         <label htmlFor="activityType">Filter by type: </label>
