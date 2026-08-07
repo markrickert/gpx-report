@@ -20,7 +20,8 @@ Stores the primary information for each recorded activity, one row per source fi
 | `end_time`         | `TIMESTAMPTZ`     | `NOT NULL`                                      | Timestamp of the last track point.                          |
 | `duration_seconds` | `INTEGER`         | `NOT NULL`                                      | `end_time - start_time`, in seconds.                         |
 | `distance_meters`  | `NUMERIC`         | `NOT NULL`                                      | Total distance covered in meters.                            |
-| `avg_speed_mps`    | `NUMERIC`         | `NULLABLE`                                      | Average speed in meters per second.                          |
+| `avg_speed_mps`    | `NUMERIC`         | `NULLABLE`                                      | Average speed in meters per second, `distance_meters / duration_seconds` — includes stopped time (traffic lights, breaks, photo stops). |
+| `moving_avg_speed_mps` | `NUMERIC`     | `NULLABLE`                                      | Average speed in meters per second over only the point-to-point segments at or above a 0.3 m/s "moving" threshold, excluding stopped time. |
 | `max_speed_mps`    | `NUMERIC`         | `NULLABLE`                                      | Maximum speed recorded in meters per second (derived point-to-point). |
 | `total_elevation_gain` | `NUMERIC`     | `NULLABLE`                                      | Total cumulative elevation gain in meters.                  |
 | `total_elevation_loss` | `NUMERIC`     | `NULLABLE`                                      | Total cumulative elevation loss in meters.                  |
@@ -67,6 +68,7 @@ type Activity {
   durationSeconds: Int!
   distanceMeters: Float!
   avgSpeedMps: Float
+  movingAvgSpeedMps: Float
   maxSpeedMps: Float
   totalElevationGain: Float
   totalElevationLoss: Float

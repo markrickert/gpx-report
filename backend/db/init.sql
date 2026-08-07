@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS activities (
   duration_seconds      INTEGER NOT NULL,
   distance_meters       NUMERIC NOT NULL,
   avg_speed_mps         NUMERIC,
+  moving_avg_speed_mps  NUMERIC,
   max_speed_mps         NUMERIC,
   total_elevation_gain  NUMERIC,
   total_elevation_loss  NUMERIC,

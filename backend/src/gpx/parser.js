@@ -2,6 +2,12 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import GpxParser from "gpxparser";
 
+// Points slower than this are considered "stopped" (traffic lights, breaks,
+// photo stops) when computing moving_avg_speed_mps. Matches
+// REST_SPEED_THRESHOLD_MPS in frontend/src/pages/ActivityDetail.jsx, which
+// uses the same threshold to detect rest bands for the auto-crop feature.
+const MOVING_SPEED_THRESHOLD_MPS = 0.3;
+
 const KNOWN_ACTIVITY_TYPES = [
   "running",
   "hiking",
@@ -33,7 +39,7 @@ const ACTIVITY_TYPE_LABELS = {
 // the frontend's preselected list back into the raw <trk><type> value that
 // resolveActivityType() above will read back as that same label.
 const LABEL_TO_ACTIVITY_TYPE = Object.fromEntries(
-  Object.entries(ACTIVITY_TYPE_LABELS).map(([raw, label]) => [label, raw])
+  Object.entries(ACTIVITY_TYPE_LABELS).map(([raw, label]) => [label, raw]),
 );
 
 export function activityTypeToRawType(label) {
@@ -98,6 +104,7 @@ export async function parseGpxFile(filePath) {
 
   const avgSpeedMps = durationSeconds > 0 ? distanceMeters / durationSeconds : null;
   const maxSpeedMps = computeMaxSpeed(gpx.tracks);
+  const movingAvgSpeedMps = computeMovingAvgSpeed(gpx.tracks);
 
   let cumulativeDistance = 0;
   const elevationProfile = [];
@@ -113,7 +120,11 @@ export async function parseGpxFile(filePath) {
           if (dtSeconds > 0) speedMps = segmentDistance / dtSeconds;
         }
       }
-      elevationProfile.push({ distanceMeters: cumulativeDistance, elevation: p.ele ?? null, speedMps });
+      elevationProfile.push({
+        distanceMeters: cumulativeDistance,
+        elevation: p.ele ?? null,
+        speedMps,
+      });
     });
   });
 
@@ -128,6 +139,7 @@ export async function parseGpxFile(filePath) {
     distanceMeters,
     avgSpeedMps,
     maxSpeedMps,
+    movingAvgSpeedMps,
     totalElevationGain: elevationGain,
     totalElevationLoss: elevationLoss,
     points: points.map((p) => ({
@@ -155,4 +167,28 @@ function computeMaxSpeed(tracks) {
     }
   }
   return maxSpeed || null;
+}
+
+// Average speed over only the "moving" segments (those at or above
+// MOVING_SPEED_THRESHOLD_MPS), excluding stopped time such as traffic
+// lights, breaks, and photo stops.
+function computeMovingAvgSpeed(tracks) {
+  let movingDistance = 0;
+  let movingSeconds = 0;
+  for (const track of tracks) {
+    for (let i = 1; i < track.points.length; i++) {
+      const prev = track.points[i - 1];
+      const curr = track.points[i];
+      if (!prev.time || !curr.time) continue;
+      const dtSeconds = (new Date(curr.time) - new Date(prev.time)) / 1000;
+      if (dtSeconds <= 0) continue;
+      const dDistance = track.distance.cumul[i] - track.distance.cumul[i - 1];
+      const speed = dDistance / dtSeconds;
+      if (speed >= MOVING_SPEED_THRESHOLD_MPS) {
+        movingDistance += dDistance;
+        movingSeconds += dtSeconds;
+      }
+    }
+  }
+  return movingSeconds > 0 ? movingDistance / movingSeconds : null;
 }

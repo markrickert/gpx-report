@@ -49,6 +49,7 @@ export const GET_ACTIVITY = gql`
       durationSeconds
       distanceMeters
       avgSpeedMps
+      movingAvgSpeedMps
       maxSpeedMps
       totalElevationGain
       totalElevationLoss

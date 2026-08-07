@@ -982,6 +982,17 @@ export default function ActivityDetail() {
             <span className="metric-label">Avg Speed</span>
           </span>
         </div>
+        {activity.movingAvgSpeedMps != null && (
+          <div className="metric-tile">
+            <span className="metric-icon" aria-hidden="true">
+              🏃
+            </span>
+            <span className="metric-body">
+              <span className="metric-value">{formatSpeed(activity.movingAvgSpeedMps, unit)}</span>
+              <span className="metric-label">Moving Speed</span>
+            </span>
+          </div>
+        )}
         <div className="metric-tile">
           <span className="metric-icon" aria-hidden="true">
             🚀

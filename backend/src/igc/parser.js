@@ -12,6 +12,12 @@ export const B_RECORD_RE =
 // "HFDTEDATE:DDMMYY" across loggers.
 export const H_DATE_RE = /^HFDTE(?:DATE:)?(\d{2})(\d{2})(\d{2})/;
 
+// Points slower than this are considered "stopped" when computing
+// moving_avg_speed_mps. Matches REST_SPEED_THRESHOLD_MPS in
+// frontend/src/pages/ActivityDetail.jsx and MOVING_SPEED_THRESHOLD_MPS in
+// gpx/parser.js.
+export const MOVING_SPEED_THRESHOLD_MPS = 0.3;
+
 function parseLatLon(degStr, minStr, minFracStr, hemisphere, negativeHemisphere) {
   const deg = Number(degStr);
   const min = Number(minStr) + Number(minFracStr) / 1000;
@@ -87,6 +93,8 @@ export async function parseIgcFile(filePath) {
   let elevationGain = 0;
   let elevationLoss = 0;
   let maxSpeedMps = 0;
+  let movingDistance = 0;
+  let movingSeconds = 0;
   const elevationProfile = [];
 
   for (let i = 0; i < points.length; i++) {
@@ -102,6 +110,10 @@ export async function parseIgcFile(filePath) {
       if (dtSeconds > 0) {
         const speed = segmentDistance / dtSeconds;
         if (speed > maxSpeedMps) maxSpeedMps = speed;
+        if (speed >= MOVING_SPEED_THRESHOLD_MPS) {
+          movingDistance += segmentDistance;
+          movingSeconds += dtSeconds;
+        }
       }
     }
     elevationProfile.push({ distanceMeters, elevation: points[i].elevation });
@@ -111,6 +123,7 @@ export async function parseIgcFile(filePath) {
   const endTime = new Date(points[points.length - 1].timestamp);
   const durationSeconds = Math.max(0, Math.round((endTime - startTime) / 1000));
   const avgSpeedMps = durationSeconds > 0 ? distanceMeters / durationSeconds : null;
+  const movingAvgSpeedMps = movingSeconds > 0 ? movingDistance / movingSeconds : null;
 
   return {
     title: resolveTitle(filePath),
@@ -121,6 +134,7 @@ export async function parseIgcFile(filePath) {
     distanceMeters,
     avgSpeedMps,
     maxSpeedMps: maxSpeedMps || null,
+    movingAvgSpeedMps,
     totalElevationGain: elevationGain,
     totalElevationLoss: elevationLoss,
     points: points.map((p) => ({
