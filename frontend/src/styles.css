@@ -672,6 +672,46 @@ select {
   margin: 0;
 }
 
+.notes-section {
+  margin-bottom: 1rem;
+}
+
+.notes-text {
+  white-space: pre-wrap;
+  margin: 0 0 0.4rem;
+}
+
+.notes-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.notes-textarea {
+  width: 100%;
+  font: inherit;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  resize: vertical;
+  margin-bottom: 0.5rem;
+}
+
+.notes-actions button {
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+  margin-right: 0.5rem;
+}
+
+.notes-actions button:hover {
+  background: var(--accent-hover);
+}
+
 .trim-controls {
   display: flex;
   flex-wrap: wrap;

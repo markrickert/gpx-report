@@ -38,6 +38,7 @@ export const GET_ACTIVITY = gql`
       maxSpeedMps
       totalElevationGain
       totalElevationLoss
+      notes
       route {
         coordinates
         elevationProfile
@@ -58,6 +59,15 @@ export const UPDATE_ACTIVITY_TITLE = gql`
     updateActivityTitle(id: $id, title: $title) {
       id
       title
+    }
+  }
+`;
+
+export const UPDATE_ACTIVITY_NOTES = gql`
+  mutation UpdateActivityNotes($id: ID!, $notes: String!) {
+    updateActivityNotes(id: $id, notes: $notes) {
+      id
+      notes
     }
   }
 `;

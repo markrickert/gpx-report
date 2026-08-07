@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS activities (
   max_speed_mps         NUMERIC,
   total_elevation_gain  NUMERIC,
   total_elevation_loss  NUMERIC,
+  notes                 TEXT,
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

@@ -17,6 +17,7 @@ import {
 import {
   GET_ACTIVITY,
   UPDATE_ACTIVITY_TITLE,
+  UPDATE_ACTIVITY_NOTES,
   UPDATE_ACTIVITY_TYPE,
   TRIM_ACTIVITY,
   GET_ACTIVITY_OUTLIER_DIFF,
@@ -134,6 +135,75 @@ function ActivityHeader({ activity, editMode, onEditModeChange }) {
       <button onClick={() => onEditModeChange(false)} disabled={saving}>
         Cancel
       </button>
+      {error && <p className="title-edit-error">Failed to save: {error}</p>}
+    </div>
+  );
+}
+
+// Freeform notes are DB-only (no source-file round-trip), so this edits
+// independently of the title/type/trim edit-mode flag above and works for
+// every file type, including .igc which has no writer.js equivalent.
+function NotesSection({ activity }) {
+  const [updateNotes] = useMutation(UPDATE_ACTIVITY_NOTES);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(activity.notes || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  if (!editing) {
+    return (
+      <div className="notes-section">
+        {activity.notes ? (
+          <p className="notes-text">{activity.notes}</p>
+        ) : (
+          <p className="notes-text notes-empty">No notes yet.</p>
+        )}
+        <button
+          className="title-edit-button"
+          onClick={() => {
+            setDraft(activity.notes || "");
+            setError(null);
+            setEditing(true);
+          }}
+        >
+          {activity.notes ? "Edit notes" : "Add notes"}
+        </button>
+      </div>
+    );
+  }
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await updateNotes({ variables: { id: activity.id, notes: draft.trim() } });
+      setEditing(false);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="notes-section">
+      <textarea
+        className="notes-textarea"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Route conditions, how it felt, gear used..."
+        rows={4}
+        autoFocus
+        disabled={saving}
+      />
+      <div className="notes-actions">
+        <button onClick={save} disabled={saving}>
+          Save
+        </button>
+        <button onClick={() => setEditing(false)} disabled={saving}>
+          Cancel
+        </button>
+      </div>
       {error && <p className="title-edit-error">Failed to save: {error}</p>}
     </div>
   );
@@ -491,6 +561,8 @@ export default function ActivityDetail() {
         editMode={editMode}
         onEditModeChange={(next) => (next ? enterEditMode() : exitEditMode())}
       />
+
+      <NotesSection activity={activity} />
 
       <div className="metrics-grid">
         <div className="metric-tile">
