@@ -997,6 +997,7 @@ export default function ActivityDetail() {
     (sum, seg) => sum + Math.max(0, seg.elevationGainMeters),
     0,
   );
+  const runCount = activity.route.liftSegments.filter((seg) => seg.elevationGainMeters > 0).length;
   const elevationGainExcludingLift =
     activity.totalElevationGain != null
       ? activity.totalElevationGain - liftElevationGainMeters
@@ -1161,6 +1162,17 @@ export default function ActivityDetail() {
                 {formatElevation(elevationGainExcludingLift, unit)}
               </span>
               <span className="metric-label">Gain Excluding Lift</span>
+            </span>
+          </div>
+        )}
+        {runCount > 0 && (
+          <div className="metric-tile">
+            <span className="metric-icon" aria-hidden="true">
+              🎿
+            </span>
+            <span className="metric-body">
+              <span className="metric-value">{runCount}</span>
+              <span className="metric-label">Runs</span>
             </span>
           </div>
         )}
