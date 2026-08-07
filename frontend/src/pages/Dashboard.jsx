@@ -165,7 +165,7 @@ export default function Dashboard() {
     return () => observer.disconnect();
   }, [hasMore, activities.length, activityType, search, fetchMore]);
 
-  if (loading) return <p>Loading...</p>;
+  if (loading && !data) return <p>Loading...</p>;
   if (error) return <p>Error loading dashboard: {error.message}</p>;
 
   const { activitySummary } = data;
@@ -219,6 +219,7 @@ export default function Dashboard() {
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
         />
+        {loading && data && <span className="filter-loading">Searching…</span>}
       </div>
 
       <ul className="activity-list">

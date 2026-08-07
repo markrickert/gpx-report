@@ -392,6 +392,11 @@ select {
   margin-bottom: 1rem;
 }
 
+.filter-loading {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
 .activity-list {
   list-style: none;
   padding: 0;
