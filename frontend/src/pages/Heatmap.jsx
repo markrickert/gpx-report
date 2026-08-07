@@ -18,7 +18,21 @@ function HeatLayer({ points, gradient }) {
   useEffect(() => {
     if (!points.length) return undefined;
     const layer = L.heatLayer(points, { radius: 18, blur: 15, maxZoom: 17, gradient }).addTo(map);
-    return () => map.removeLayer(layer);
+
+    // leaflet.heat only repositions/redraws its canvas on "moveend" and
+    // "zoomanim" (the single CSS-animated transition from a button/wheel
+    // zoom). Touch pinch-zoom drives the map via repeated "move"/"zoom"
+    // events instead of a "zoomanim" transition, which leaflet.heat never
+    // listens for, so the overlay sat frozen for the whole pinch gesture
+    // and only snapped into place once the gesture ended. Re-running its
+    // own reset on every "move"/"zoom" event keeps it live during pinch too.
+    const follow = () => layer._reset();
+    map.on("move zoom", follow);
+
+    return () => {
+      map.off("move zoom", follow);
+      map.removeLayer(layer);
+    };
   }, [map, points, gradient]);
 
   return null;
