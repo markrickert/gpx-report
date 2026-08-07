@@ -81,6 +81,7 @@ Tracks work that is planned/wanted but not yet implemented, plus gaps found when
 - [ ] **No DB migration tooling.** `backend/db/init.sql` only runs against a fresh volume. Any schema change to an already-deployed instance needs a manual `psql`/`ALTER` step. Fine for now (single-user, low change rate) but worth a lightweight migration runner if schema churn picks up.
 - [ ] **No typecheck config anywhere in the repo.** ESLint/Prettier and backend parser unit tests now exist (see Done above); typechecking is still unaddressed, and frontend/GraphQL-layer test coverage remains thin.
 - [ ] **No auth on the API or frontend.** Acceptable for now since the intended deployment is Caddy + Tailscale (see `docs/SETUP.md` §6 reverse-proxy notes), but if the API/frontend domains are ever exposed outside Tailscale, this becomes a real gap, not just a v1 simplification.
+- [ ] **Node 18 is stale and breaks tooling.** Both the host/dev environment and the Docker base images are pinned to Node 18; Vitest's `rolldown` dependency needs `node:util`'s `styleText` export (Node ≥20), so `backend && npm test` currently fails to even start outside a Node 22 shell. Upgrade the Docker base images (`backend/Dockerfile`, `frontend/Dockerfile`) and any documented dev-environment Node version to a current LTS (22.x).
 
 ## Explicitly out of scope for v1 (not gaps, just noting so they don't get re-litigated)
 
