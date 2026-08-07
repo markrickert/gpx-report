@@ -883,6 +883,17 @@ select {
   font-size: 0.85rem;
 }
 
+.settings-section {
+  margin-bottom: 1.5rem;
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
 .settings-tabs {
   display: flex;
   flex-wrap: wrap;
