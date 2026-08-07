@@ -266,6 +266,34 @@ function buildSpeedGradientStops(elevationData, maxSpeedMps) {
   return stops;
 }
 
+// Leaflet has no per-segment line coloring either, so the route is rendered
+// as many short Polylines, each colored by that stretch's average speed
+// (same speedColor scale as the elevation chart's gradient, for a
+// consistent read between the two). Points are grouped into chunks rather
+// than one Polyline per point pair — routes can have thousands of points,
+// and thousands of individual Polyline components pans/zooms noticeably
+// worse than a bounded number of chunked segments. Consecutive chunks share
+// their boundary point so the rendered line stays visually continuous.
+const MAX_SPEED_MAP_SEGMENTS = 150;
+
+function buildSpeedMapSegments(positions, elevationData, maxSpeedMps) {
+  const n = positions.length;
+  if (n < 2) return [];
+  const maxSpeed = maxSpeedMps || Math.max(1, ...elevationData.map((p) => p.speedMps || 0));
+  const chunkSize = Math.max(1, Math.ceil((n - 1) / MAX_SPEED_MAP_SEGMENTS));
+  const segments = [];
+  for (let start = 0; start < n - 1; start += chunkSize) {
+    const end = Math.min(n - 1, start + chunkSize);
+    const chunkSpeeds = elevationData.slice(start, end + 1).map((p) => p.speedMps ?? 0);
+    const avgSpeed = chunkSpeeds.reduce((sum, s) => sum + s, 0) / chunkSpeeds.length;
+    segments.push({
+      positions: positions.slice(start, end + 1),
+      color: speedColor(Math.min(1, avgSpeed / maxSpeed)),
+    });
+  }
+  return segments;
+}
+
 function buildRestBands(elevationData) {
   const bands = [];
   let start = null;
@@ -813,6 +841,18 @@ export default function ActivityDetail() {
   const [trimStart, trimEnd] = trimRange ?? [0, elevationData.length - 1];
   const trimActive = editMode && isEditable(activity) && trimRange !== null;
   const visiblePositions = trimActive ? positions.slice(trimStart, trimEnd + 1) : positions;
+  const visibleElevationData = trimActive
+    ? elevationData.slice(trimStart, trimEnd + 1)
+    : elevationData;
+  const speedMapSegments = buildSpeedMapSegments(
+    visiblePositions,
+    visibleElevationData,
+    activity.maxSpeedMps,
+  );
+  const movingSpeeds = visibleElevationData
+    .map((p) => p.speedMps ?? 0)
+    .filter((s) => s >= REST_SPEED_THRESHOLD_MPS);
+  const minMovingSpeedMps = movingSpeeds.length > 0 ? Math.min(...movingSpeeds) : 0;
 
   // Drag handles report position via recharts' own hit-testing
   // (activeTooltipIndex, computed against the chart's real pixel scale)
@@ -977,13 +1017,17 @@ export default function ActivityDetail() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
           )}
-          <Polyline
-            positions={visiblePositions}
-            eventHandlers={{
-              mousemove: handleMapHover,
-              mouseout: clearHover,
-            }}
-          />
+          {speedMapSegments.map((segment, i) => (
+            <Polyline
+              key={i}
+              positions={segment.positions}
+              pathOptions={{ color: segment.color, weight: 4 }}
+              eventHandlers={{
+                mousemove: handleMapHover,
+                mouseout: clearHover,
+              }}
+            />
+          ))}
           <ResetViewControl positions={visiblePositions} />
           {hoverIndex != null &&
             hoverIndex >= trimStart &&
@@ -997,6 +1041,13 @@ export default function ActivityDetail() {
               />
             )}
         </MapContainer>
+      )}
+      {speedMapSegments.length > 0 && (
+        <div className="speed-map-legend">
+          <span>{formatSpeed(minMovingSpeedMps, unit)}</span>
+          <span className="speed-map-legend-bar" aria-hidden="true" />
+          <span>{formatSpeed(activity.maxSpeedMps, unit)}</span>
+        </div>
       )}
 
       <h2>Elevation Profile</h2>
