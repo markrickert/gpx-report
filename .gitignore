@@ -9,3 +9,6 @@ data/gpx/*
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 skills-lock.json
+
+# Claude scratch dir (per CLAUDE.md)
+.mark/
