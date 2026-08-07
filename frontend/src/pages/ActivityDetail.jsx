@@ -71,9 +71,18 @@ function matchedRecords(activity, record) {
   if (!record) return [];
   const matches = [];
   if (activity.distanceMeters === record.longestDistanceMeters) matches.push("Longest Distance");
+  // The record itself excludes lift-segment gain (see resolvers.js's
+  // personalRecordsByType), so an activity with lift segments has to be
+  // compared on the same lift-excluded basis, not its raw totalElevationGain.
+  const liftGainMeters = activity.route.liftSegments.reduce(
+    (sum, seg) => sum + Math.max(0, seg.elevationGainMeters),
+    0,
+  );
+  const elevationGainForRecord =
+    activity.totalElevationGain != null ? activity.totalElevationGain - liftGainMeters : null;
   if (
-    activity.totalElevationGain != null &&
-    activity.totalElevationGain === record.biggestElevationGainMeters
+    elevationGainForRecord != null &&
+    elevationGainForRecord === record.biggestElevationGainMeters
   ) {
     matches.push("Biggest Elevation Gain");
   }

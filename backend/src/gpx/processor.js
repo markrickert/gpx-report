@@ -6,6 +6,7 @@ import { parseIgcFile } from "../igc/parser.js";
 import { parseSkizFile } from "../skiz/parser.js";
 import { reverseGeocode } from "../geocoding.js";
 import { computeBestEfforts } from "../track/personalRecords.js";
+import { detectLiftSegments } from "../track/liftDetection.js";
 
 function toLineStringWkt(points) {
   const coords = points.map((p) => `${p.lon} ${p.lat}`).join(", ");
@@ -36,6 +37,16 @@ export async function processFile(filePath, { skipGeocode = false } = {}) {
     })),
   );
 
+  // Same lift-shape heuristic used live for the elevation-chart bands
+  // (track/liftDetection.js), run once here so "biggest elevation gain"
+  // records aren't dominated by lift climb rather than real climbing effort.
+  const liftGainMeters = detectLiftSegments(parsed.points).reduce(
+    (sum, seg) => sum + Math.max(0, seg.elevationGainMeters),
+    0,
+  );
+  const elevationGainExcludingLift =
+    parsed.totalElevationGain != null ? parsed.totalElevationGain - liftGainMeters : null;
+
   // Reverse-geocode the start point outside the transaction, before opening a
   // DB connection, so a slow Nominatim response doesn't hold a pool
   // connection idle. Skipped during bulk reanalyze (processAll runs with
@@ -64,9 +75,9 @@ export async function processFile(filePath, { skipGeocode = false } = {}) {
     const activityResult = await client.query(
       `INSERT INTO activities (
          gpx_filename, title, activity_type, start_time, end_time, duration_seconds,
-         distance_meters, avg_speed_mps, moving_avg_speed_mps, max_speed_mps, total_elevation_gain, total_elevation_loss, location_name,
+         distance_meters, avg_speed_mps, moving_avg_speed_mps, max_speed_mps, total_elevation_gain, total_elevation_loss, elevation_gain_excluding_lift_meters, location_name,
          best_1km_seconds, best_5km_seconds, best_10km_seconds, updated_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16, NOW())
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, NOW())
        ON CONFLICT (gpx_filename) DO UPDATE SET
          title = EXCLUDED.title,
          activity_type = EXCLUDED.activity_type,
@@ -79,6 +90,7 @@ export async function processFile(filePath, { skipGeocode = false } = {}) {
          max_speed_mps = EXCLUDED.max_speed_mps,
          total_elevation_gain = EXCLUDED.total_elevation_gain,
          total_elevation_loss = EXCLUDED.total_elevation_loss,
+         elevation_gain_excluding_lift_meters = EXCLUDED.elevation_gain_excluding_lift_meters,
          location_name = COALESCE(EXCLUDED.location_name, activities.location_name),
          best_1km_seconds = EXCLUDED.best_1km_seconds,
          best_5km_seconds = EXCLUDED.best_5km_seconds,
@@ -98,6 +110,7 @@ export async function processFile(filePath, { skipGeocode = false } = {}) {
         parsed.maxSpeedMps,
         parsed.totalElevationGain,
         parsed.totalElevationLoss,
+        elevationGainExcludingLift,
         locationName,
         bestEfforts[1000],
         bestEfforts[5000],

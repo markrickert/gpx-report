@@ -310,7 +310,8 @@ export const resolvers = {
         SELECT
           activity_type,
           MAX(distance_meters) AS longest_distance_meters,
-          MAX(total_elevation_gain) AS biggest_elevation_gain_meters,
+          MAX(COALESCE(elevation_gain_excluding_lift_meters, total_elevation_gain))
+            AS biggest_elevation_gain_meters,
           MIN(best_1km_seconds) AS best_1km_seconds,
           MIN(best_5km_seconds) AS best_5km_seconds,
           MIN(best_10km_seconds) AS best_10km_seconds
