@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@apollo/client";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 import {
   GET_STATS_BY_TYPE,
   GET_ACTIVITY_DATES,
@@ -181,6 +182,80 @@ function ActivityHeatmap({ activities }) {
   );
 }
 
+function monthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function TrainingVolumeChart({ activities, unit }) {
+  const types = useMemo(() => {
+    const set = new Set(activities.map((a) => a.activityType));
+    return [...set].sort();
+  }, [activities]);
+
+  const [activityType, setActivityType] = useState("All");
+
+  const monthlyData = useMemo(() => {
+    const byMonth = new Map();
+    for (const a of activities) {
+      if (activityType !== "All" && a.activityType !== activityType) continue;
+      const date = new Date(a.startTime);
+      const key = monthKey(date);
+      byMonth.set(key, (byMonth.get(key) || 0) + a.distanceMeters);
+    }
+    return [...byMonth.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([key, distanceMeters]) => {
+        const [year, month] = key.split("-").map(Number);
+        return {
+          key,
+          label: `${MONTH_LABELS[month - 1]} '${String(year).slice(2)}`,
+          distance: distanceValue(distanceMeters, unit),
+        };
+      });
+  }, [activities, activityType, unit]);
+
+  if (monthlyData.length === 0) return null;
+
+  return (
+    <div className="heatmap-card">
+      <div className="heatmap-header-row">
+        <h2>Training Volume</h2>
+        <div className="heatmap-selectors">
+          <select value={activityType} onChange={(e) => setActivityType(e.target.value)}>
+            <option value="All">All types</option>
+            {types.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={250}>
+        <BarChart data={monthlyData}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="label" />
+          <YAxis
+            tickFormatter={(value) => Math.round(value)}
+            label={{
+              value: `Distance (${distanceUnitLabel(unit)})`,
+              angle: -90,
+              position: "insideLeft",
+            }}
+          />
+          <Tooltip
+            contentStyle={{ background: "rgba(17, 24, 39, 0.92)", border: "none", borderRadius: 6 }}
+            labelStyle={{ color: "#e5e7eb" }}
+            itemStyle={{ color: "#e5e7eb" }}
+            formatter={(value) => [`${value.toFixed(1)} ${distanceUnitLabel(unit)}`, "Distance"]}
+          />
+          <Bar dataKey="distance" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function formatDelta(current, previous) {
   if (previous === 0) return null;
   const pct = ((current - previous) / previous) * 100;
@@ -341,7 +416,10 @@ export default function Stats() {
       )}
 
       {!datesLoading && !datesError && datesData.activities.length > 0 && (
-        <ActivityHeatmap activities={datesData.activities} />
+        <>
+          <ActivityHeatmap activities={datesData.activities} />
+          <TrainingVolumeChart activities={datesData.activities} unit={unit} />
+        </>
       )}
 
       <h2>By Activity Type</h2>
