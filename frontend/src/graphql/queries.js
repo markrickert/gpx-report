@@ -56,6 +56,9 @@ export const GET_ACTIVITY = gql`
       totalElevationLoss
       notes
       locationName
+      best1kmSeconds
+      best5kmSeconds
+      best10kmSeconds
       route {
         coordinates
         elevationProfile
@@ -306,6 +309,19 @@ export const GET_STATS_BY_TYPE = gql`
       averageDistanceMeters
       averageDurationSeconds
       averageElevationGainMeters
+    }
+  }
+`;
+
+export const GET_PERSONAL_RECORDS = gql`
+  query GetPersonalRecords {
+    personalRecordsByType {
+      activityType
+      longestDistanceMeters
+      biggestElevationGainMeters
+      best1kmSeconds
+      best5kmSeconds
+      best10kmSeconds
     }
   }
 `;

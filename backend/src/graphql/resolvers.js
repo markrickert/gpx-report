@@ -45,6 +45,9 @@ function mapActivityRow(row) {
     totalElevationLoss: row.total_elevation_loss !== null ? Number(row.total_elevation_loss) : null,
     notes: row.notes,
     locationName: row.location_name,
+    best1kmSeconds: row.best_1km_seconds !== null ? Number(row.best_1km_seconds) : null,
+    best5kmSeconds: row.best_5km_seconds !== null ? Number(row.best_5km_seconds) : null,
+    best10kmSeconds: row.best_10km_seconds !== null ? Number(row.best_10km_seconds) : null,
   };
 }
 
@@ -284,6 +287,40 @@ export const resolvers = {
         else if (ratio < 0.8) label = "detraining";
       }
       return { acuteDistanceMeters, chronicWeeklyAvgDistanceMeters, ratio, label };
+    },
+
+    // Longest distance / biggest elevation gain are plain MAX() aggregates;
+    // fastest 1km/5km/10km are MIN() over the best_*_seconds columns, which
+    // are precomputed once per activity at ingest time by
+    // track/personalRecords.js (see gpx/processor.js) rather than scanned
+    // live here — a live sliding-window scan across every activity on every
+    // Stats-page load would be far too expensive. MIN()/MAX() ignore NULLs,
+    // so activity types with no activity long enough for a given target
+    // distance correctly come back null for that field instead of erroring.
+    personalRecordsByType: async () => {
+      const { rows } = await pool.query(`
+        SELECT
+          activity_type,
+          MAX(distance_meters) AS longest_distance_meters,
+          MAX(total_elevation_gain) AS biggest_elevation_gain_meters,
+          MIN(best_1km_seconds) AS best_1km_seconds,
+          MIN(best_5km_seconds) AS best_5km_seconds,
+          MIN(best_10km_seconds) AS best_10km_seconds
+        FROM activities
+        GROUP BY activity_type
+        ORDER BY activity_type
+      `);
+      return rows.map((row) => ({
+        activityType: row.activity_type,
+        longestDistanceMeters: Number(row.longest_distance_meters),
+        biggestElevationGainMeters:
+          row.biggest_elevation_gain_meters !== null
+            ? Number(row.biggest_elevation_gain_meters)
+            : null,
+        best1kmSeconds: row.best_1km_seconds !== null ? Number(row.best_1km_seconds) : null,
+        best5kmSeconds: row.best_5km_seconds !== null ? Number(row.best_5km_seconds) : null,
+        best10kmSeconds: row.best_10km_seconds !== null ? Number(row.best_10km_seconds) : null,
+      }));
     },
 
     activitySummary: async () => {
