@@ -18,6 +18,9 @@ export const typeDefs = `#graphql
     totalElevationLoss: Float
     notes: String
     locationName: String
+    best1kmSeconds: Float
+    best5kmSeconds: Float
+    best10kmSeconds: Float
     route: Route!
     similarActivities: [SimilarActivity!]!
   }
@@ -95,6 +98,15 @@ export const typeDefs = `#graphql
     averageElevationGainMeters: Float
   }
 
+  type PersonalRecord {
+    activityType: String!
+    longestDistanceMeters: Float!
+    biggestElevationGainMeters: Float
+    best1kmSeconds: Float
+    best5kmSeconds: Float
+    best10kmSeconds: Float
+  }
+
   type ReanalysisStatus {
     message: String!
     success: Boolean!
@@ -158,6 +170,7 @@ export const typeDefs = `#graphql
     activityStreak: ActivityStreak!
     yearOverYearComparison: YearOverYearComparison!
     trainingLoad: TrainingLoad!
+    personalRecordsByType: [PersonalRecord!]!
   }
 
   type Mutation {

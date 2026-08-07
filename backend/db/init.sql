@@ -16,6 +16,13 @@ CREATE TABLE IF NOT EXISTS activities (
   max_speed_mps         NUMERIC,
   total_elevation_gain  NUMERIC,
   total_elevation_loss  NUMERIC,
+  -- Fastest-segment personal records: minimum time (seconds) to cover each
+  -- target distance anywhere in the activity, computed once at ingest by
+  -- track/personalRecords.js's sliding-window scan over points_data. Null
+  -- when the activity never covers that much distance.
+  best_1km_seconds      NUMERIC,
+  best_5km_seconds      NUMERIC,
+  best_10km_seconds     NUMERIC,
   notes                 TEXT,
   -- Reverse-geocoded place name (city/town/village near the start point), via
   -- Nominatim on ingest; null if the lookup failed or hasn't run yet.

@@ -30,6 +30,7 @@ import {
   CLEAN_ACTIVITY_OUTLIERS,
   SEARCH_ACTIVITIES_FOR_COMPARE,
   DELETE_ACTIVITY,
+  GET_PERSONAL_RECORDS,
 } from "../graphql/queries.js";
 import {
   useUnits,
@@ -62,7 +63,33 @@ function isEditable(activity) {
 // activity type, and future track-editing tools like trim), so entering
 // edit puts the whole activity into one consistent editable state rather
 // than each field toggling independently.
-function ActivityHeader({ activity, editMode, onEditModeChange }) {
+// Records that this activity matches count as a "PR" badge — an activity
+// only ever ties its own type's current best (never beats it, since the
+// record itself is derived by MIN/MAX over all activities including this
+// one), so equality is the right check rather than a > / < comparison.
+function matchedRecords(activity, record) {
+  if (!record) return [];
+  const matches = [];
+  if (activity.distanceMeters === record.longestDistanceMeters) matches.push("Longest Distance");
+  if (
+    activity.totalElevationGain != null &&
+    activity.totalElevationGain === record.biggestElevationGainMeters
+  ) {
+    matches.push("Biggest Elevation Gain");
+  }
+  if (activity.best1kmSeconds != null && activity.best1kmSeconds === record.best1kmSeconds) {
+    matches.push("Fastest 1km");
+  }
+  if (activity.best5kmSeconds != null && activity.best5kmSeconds === record.best5kmSeconds) {
+    matches.push("Fastest 5km");
+  }
+  if (activity.best10kmSeconds != null && activity.best10kmSeconds === record.best10kmSeconds) {
+    matches.push("Fastest 10km");
+  }
+  return matches;
+}
+
+function ActivityHeader({ activity, record, editMode, onEditModeChange }) {
   const [updateTitle] = useMutation(UPDATE_ACTIVITY_TITLE);
   const [updateType] = useMutation(UPDATE_ACTIVITY_TYPE);
   const [titleDraft, setTitleDraft] = useState(activity.title);
@@ -71,6 +98,7 @@ function ActivityHeader({ activity, editMode, onEditModeChange }) {
   const [error, setError] = useState(null);
 
   if (!editMode) {
+    const records = matchedRecords(activity, record);
     return (
       <>
         <h1>
@@ -90,6 +118,15 @@ function ActivityHeader({ activity, editMode, onEditModeChange }) {
             </button>
           )}
         </h1>
+        {records.length > 0 && (
+          <p>
+            {records.map((label) => (
+              <span className="activity-type-badge" key={label}>
+                {label} PR
+              </span>
+            ))}
+          </p>
+        )}
         <p>
           <span className="activity-type-badge">{activity.activityType}</span>{" "}
           {new Date(activity.startTime).toLocaleString()}
@@ -922,6 +959,7 @@ export default function ActivityDetail() {
   const { unit } = useUnits();
   const { theme } = useTheme();
   const { data, loading, error, refetch } = useQuery(GET_ACTIVITY, { variables: { id } });
+  const { data: recordsData } = useQuery(GET_PERSONAL_RECORDS);
   const [editMode, setEditMode] = useState(false);
   const [trimRange, setTrimRange] = useState(null);
   const [dragging, setDragging] = useState(null); // null | "start" | "end"
@@ -932,6 +970,9 @@ export default function ActivityDetail() {
   if (!data.activity) return <p>Activity not found.</p>;
 
   const activity = data.activity;
+  const personalRecord = recordsData?.personalRecordsByType.find(
+    (r) => r.activityType === activity.activityType,
+  );
   const positions = activity.route.coordinates.map((p) => [p.lat, p.lon]);
   const elevationData = activity.route.elevationProfile.map((p, i) => ({
     idx: i,
@@ -1031,6 +1072,7 @@ export default function ActivityDetail() {
     <div>
       <ActivityHeader
         activity={activity}
+        record={personalRecord}
         editMode={editMode}
         onEditModeChange={(next) => (next ? enterEditMode() : exitEditMode())}
       />

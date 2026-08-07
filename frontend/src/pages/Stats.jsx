@@ -17,6 +17,7 @@ import {
   GET_ACTIVITY_STREAK,
   GET_YEAR_OVER_YEAR_COMPARISON,
   GET_TRAINING_LOAD,
+  GET_PERSONAL_RECORDS,
 } from "../graphql/queries.js";
 import {
   useUnits,
@@ -33,6 +34,59 @@ function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+// mm:ss (or h:mm:ss for anything over an hour), for split times like
+// "fastest 1km" where formatDuration()'s minute-only precision would round
+// a sub-minute split down to "0m".
+function formatSplitTime(seconds) {
+  if (seconds == null) return "–";
+  const total = Math.round(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const mm = h > 0 ? String(m).padStart(2, "0") : String(m);
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+function PersonalRecords({ unit }) {
+  const { data, loading, error } = useQuery(GET_PERSONAL_RECORDS);
+  if (loading || error || !data) return null;
+  const records = data.personalRecordsByType;
+  if (records.length === 0) return null;
+
+  return (
+    <section>
+      <h2>Personal Records</h2>
+      <div className="stats-table-wrap">
+        <table className="stats-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Longest Distance</th>
+              <th>Biggest Elevation Gain</th>
+              <th>Fastest 1km</th>
+              <th>Fastest 5km</th>
+              <th>Fastest 10km</th>
+            </tr>
+          </thead>
+          <tbody>
+            {records.map((row) => (
+              <tr key={row.activityType}>
+                <td>{row.activityType}</td>
+                <td>{formatDistance(row.longestDistanceMeters, unit)}</td>
+                <td>{formatElevation(row.biggestElevationGainMeters, unit)}</td>
+                <td>{formatSplitTime(row.best1kmSeconds)}</td>
+                <td>{formatSplitTime(row.best5kmSeconds)}</td>
+                <td>{formatSplitTime(row.best10kmSeconds)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -555,6 +609,8 @@ export default function Stats() {
       {!yoyLoading && !yoyError && (
         <YearOverYearComparison comparison={yoyData.yearOverYearComparison} unit={unit} />
       )}
+
+      <PersonalRecords unit={unit} />
 
       {!datesLoading && !datesError && datesData.activities.length > 0 && (
         <>
