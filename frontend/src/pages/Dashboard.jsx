@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@apollo/client";
+import { useQuery, useMutation } from "@apollo/client";
 import { Link } from "react-router-dom";
-import { GET_DASHBOARD, GET_ON_THIS_DAY } from "../graphql/queries.js";
+import {
+  GET_DASHBOARD,
+  GET_ON_THIS_DAY,
+  UPDATE_ACTIVITY_TYPE,
+  DELETE_ACTIVITY,
+} from "../graphql/queries.js";
 import {
   useUnits,
   formatDistance,
@@ -122,6 +127,7 @@ export default function Dashboard() {
     loading,
     error,
     fetchMore,
+    refetch,
   } = useQuery(GET_DASHBOARD, {
     variables: {
       activityType: activityType || undefined,
@@ -139,6 +145,68 @@ export default function Dashboard() {
   const sentinelRef = useRef(null);
   const [visibleDelays, setVisibleDelays] = useState(() => new Map());
   const entranceObserverRef = useRef(null);
+
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkType, setBulkType] = useState(ACTIVITY_TYPES[0]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState(null);
+  const [updateActivityType] = useMutation(UPDATE_ACTIVITY_TYPE);
+  const [deleteActivity] = useMutation(DELETE_ACTIVITY);
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setBulkError(null);
+  };
+
+  const toggleSelected = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkRetype = async () => {
+    setBulkError(null);
+    setBulkBusy(true);
+    try {
+      await Promise.all(
+        [...selectedIds].map((id) =>
+          updateActivityType({ variables: { id, activityType: bulkType } }),
+        ),
+      );
+      await refetch();
+      exitSelectMode();
+    } catch (e) {
+      setBulkError(e.message);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (
+      !window.confirm(
+        `Delete ${selectedIds.size} selected ${selectedIds.size === 1 ? "activity" : "activities"} permanently? This removes each activity and its source file and cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setBulkError(null);
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) => deleteActivity({ variables: { id } })));
+      await refetch();
+      exitSelectMode();
+    } catch (e) {
+      setBulkError(e.message);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   useEffect(() => {
     entranceObserverRef.current = new IntersectionObserver(
@@ -292,7 +360,39 @@ export default function Dashboard() {
         <button type="button" onClick={exportCsv} disabled={activities.length === 0}>
           Download CSV
         </button>
+        <button
+          type="button"
+          onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+          disabled={activities.length === 0}
+        >
+          {selectMode ? "Cancel Selection" : "Select"}
+        </button>
       </div>
+
+      {selectMode && selectedIds.size > 0 && (
+        <div className="bulk-action-bar">
+          <span>{selectedIds.size} selected</span>
+          <select value={bulkType} onChange={(e) => setBulkType(e.target.value)}>
+            {ACTIVITY_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+          <button type="button" onClick={handleBulkRetype} disabled={bulkBusy}>
+            Retype Selected
+          </button>
+          <button
+            type="button"
+            className="bulk-delete-button"
+            onClick={handleBulkDelete}
+            disabled={bulkBusy}
+          >
+            Delete Selected
+          </button>
+          {bulkError && <span className="bulk-action-error">{bulkError}</span>}
+        </div>
+      )}
 
       <ul className="activity-list">
         {activities.map((activity) => (
@@ -303,17 +403,28 @@ export default function Dashboard() {
             className={visibleDelays.has(String(activity.id)) ? "visible" : ""}
             style={{ transitionDelay: `${visibleDelays.get(String(activity.id)) ?? 0}ms` }}
           >
-            <Link to={`/activities/${activity.id}`} className="activity-list-link">
-              <RouteThumbnail coordinates={activity.route.coordinates} />
-              <div>
-                <div className="activity-list-title">{activity.title}</div>
-                <div className="activity-list-meta">
-                  {activity.activityType} — {new Date(activity.startTime).toLocaleString()} —{" "}
-                  {formatDistance(activity.distanceMeters, unit)} —{" "}
-                  {formatDuration(activity.durationSeconds)}
+            <div className="activity-list-row">
+              {selectMode && (
+                <input
+                  type="checkbox"
+                  className="activity-list-checkbox"
+                  aria-label={`Select ${activity.title}`}
+                  checked={selectedIds.has(activity.id)}
+                  onChange={() => toggleSelected(activity.id)}
+                />
+              )}
+              <Link to={`/activities/${activity.id}`} className="activity-list-link">
+                <RouteThumbnail coordinates={activity.route.coordinates} />
+                <div>
+                  <div className="activity-list-title">{activity.title}</div>
+                  <div className="activity-list-meta">
+                    {activity.activityType} — {new Date(activity.startTime).toLocaleString()} —{" "}
+                    {formatDistance(activity.distanceMeters, unit)} —{" "}
+                    {formatDuration(activity.durationSeconds)}
+                  </div>
                 </div>
-              </div>
-            </Link>
+              </Link>
+            </div>
           </li>
         ))}
         {activities.length === 0 && <li>No activities found.</li>}
