@@ -185,6 +185,9 @@ export const GET_ACTIVITY_DATES = gql`
       startTime
       activityType
       distanceMeters
+      durationSeconds
+      totalElevationGain
+      avgSpeedMps
     }
   }
 `;
