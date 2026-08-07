@@ -238,6 +238,32 @@ export const resolvers = {
       };
     },
 
+    trainingLoad: async () => {
+      const { rows } = await pool.query(`
+        SELECT
+          COALESCE(SUM(distance_meters) FILTER (
+            WHERE start_time >= CURRENT_DATE - INTERVAL '6 days'
+          ), 0) AS acute_distance_meters,
+          COALESCE(SUM(distance_meters) FILTER (
+            WHERE start_time >= CURRENT_DATE - INTERVAL '27 days'
+          ), 0) AS chronic_28day_distance_meters
+        FROM activities
+      `);
+      const row = rows[0];
+      const acuteDistanceMeters = Number(row.acute_distance_meters);
+      const chronicWeeklyAvgDistanceMeters = Number(row.chronic_28day_distance_meters) / 4;
+      const ratio =
+        chronicWeeklyAvgDistanceMeters > 0
+          ? acuteDistanceMeters / chronicWeeklyAvgDistanceMeters
+          : null;
+      let label = "steady";
+      if (ratio !== null) {
+        if (ratio > 1.5) label = "ramping up";
+        else if (ratio < 0.8) label = "detraining";
+      }
+      return { acuteDistanceMeters, chronicWeeklyAvgDistanceMeters, ratio, label };
+    },
+
     activitySummary: async () => {
       const { rows } = await pool.query(`
         SELECT

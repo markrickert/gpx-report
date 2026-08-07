@@ -155,6 +155,17 @@ export const GET_YEAR_OVER_YEAR_COMPARISON = gql`
   }
 `;
 
+export const GET_TRAINING_LOAD = gql`
+  query GetTrainingLoad {
+    trainingLoad {
+      acuteDistanceMeters
+      chronicWeeklyAvgDistanceMeters
+      ratio
+      label
+    }
+  }
+`;
+
 export const GET_ACTIVITY_DATES = gql`
   query GetActivityDates {
     activities(limit: 1000) {

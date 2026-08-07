@@ -67,6 +67,13 @@ export const typeDefs = `#graphql
     previousYear: YearToDateTotals!
   }
 
+  type TrainingLoad {
+    acuteDistanceMeters: Float!
+    chronicWeeklyAvgDistanceMeters: Float!
+    ratio: Float
+    label: String!
+  }
+
   type AggregatedStatsByType {
     activityType: String!
     count: Int!
@@ -138,6 +145,7 @@ export const typeDefs = `#graphql
     onThisDay: [Activity!]!
     activityStreak: ActivityStreak!
     yearOverYearComparison: YearOverYearComparison!
+    trainingLoad: TrainingLoad!
   }
 
   type Mutation {
