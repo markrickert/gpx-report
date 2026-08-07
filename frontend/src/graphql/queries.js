@@ -67,6 +67,13 @@ export const GET_ACTIVITY = gql`
           avgSpeedMps
         }
       }
+      similarActivities {
+        id
+        title
+        activityType
+        startTime
+        distanceMeters
+      }
     }
   }
 `;
