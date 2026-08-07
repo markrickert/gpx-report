@@ -25,7 +25,15 @@ import { removeIgcTrackPoints } from "../igc/writer.js";
 import { activityTypeToRawType } from "../gpx/parser.js";
 import { detectOutliers } from "../track/outliers.js";
 import { detectLiftSegments } from "../track/liftDetection.js";
-import { haversineMeters } from "../track/geo.js";
+import { haversineMeters, computeTrackStats } from "../track/geo.js";
+
+// A flagged point only actually matters if removing it noticeably moves the
+// track's total distance — some flagged jumps are implausible-speed but
+// low-distance (e.g. a brief GPS wobble at a dead stop), and aren't worth
+// surfacing as something to clean up. 100m is a cheap haversine estimate
+// over points_data (not the real format-specific reparse activityOutlierDiff
+// does), which is fine for this list/filter purpose.
+const MIN_OUTLIER_DISTANCE_DELTA_METERS = 100;
 import { DateTimeScalar, JSONScalar } from "./scalars.js";
 
 function mapActivityRow(row) {
@@ -463,15 +471,28 @@ export const resolvers = {
         JOIN activity_routes r ON r.activity_id = a.id
       `);
       return rows
-        .map((row) => ({
-          activityId: row.id,
-          title: row.title,
-          activityType: row.activity_type,
-          startTime: row.start_time,
-          gpxFilename: row.gpx_filename,
-          outlierPointCount: detectOutliers(row.points_data || []).length,
-        }))
-        .filter((r) => r.outlierPointCount > 0)
+        .map((row) => {
+          const points = row.points_data || [];
+          const removedIndices = detectOutliers(points);
+          const cleanedPoints = points.filter((_, i) => !removedIndices.includes(i));
+          const distanceDeltaMeters =
+            removedIndices.length > 0
+              ? Math.abs(
+                  computeTrackStats(points).distanceMeters -
+                    computeTrackStats(cleanedPoints).distanceMeters,
+                )
+              : 0;
+          return {
+            activityId: row.id,
+            title: row.title,
+            activityType: row.activity_type,
+            startTime: row.start_time,
+            gpxFilename: row.gpx_filename,
+            outlierPointCount: removedIndices.length,
+            distanceDeltaMeters,
+          };
+        })
+        .filter((r) => r.distanceDeltaMeters > MIN_OUTLIER_DISTANCE_DELTA_METERS)
         .sort((a, b) => b.outlierPointCount - a.outlierPointCount);
     },
 
