@@ -32,7 +32,7 @@ This document details the features of gpx-report, and reflects what is actually 
     *   Rows fade/slide into view as they scroll into the viewport, staggered slightly so a batch doesn't all animate at once (respects `prefers-reduced-motion`).
     *   Clicking an item navigates to the individual Activity Detail Page.
 *   **Infinite Scroll:** Loads 50 activities at a time and fetches more automatically via an `IntersectionObserver` as the user scrolls, rather than capping the list.
-*   **Filtering:** The activity list can be filtered by `activityType`; changing the filter resets pagination to the first page.
+*   **Filtering:** The activity list can be filtered by `activityType`, and searched by title (case-insensitive substring match, debounced 300ms); changing either resets pagination to the first page.
 
 ## 3. Individual Activity Detail Page
 
