@@ -4,6 +4,7 @@ import { pool } from "../db.js";
 import { parseGpxFile } from "./parser.js";
 import { parseIgcFile } from "../igc/parser.js";
 import { parseSkizFile } from "../skiz/parser.js";
+import { reverseGeocode } from "../geocoding.js";
 
 function toLineStringWkt(points) {
   const coords = points.map((p) => `${p.lon} ${p.lat}`).join(", ");
@@ -17,9 +18,30 @@ export function parseActivityFile(filePath) {
   return parseGpxFile(filePath);
 }
 
-export async function processFile(filePath) {
+export async function processFile(filePath, { skipGeocode = false } = {}) {
   const filename = path.basename(filePath);
   const parsed = await parseActivityFile(filePath);
+
+  // Reverse-geocode the start point outside the transaction, before opening a
+  // DB connection, so a slow Nominatim response doesn't hold a pool
+  // connection idle. Skipped during bulk reanalyze (processAll runs with
+  // concurrency; reverseGeocode() self-throttles to ~1 req/s regardless, but
+  // reanalyzing hundreds of files at once would still take far too long) and
+  // skipped when this file already has a location_name — the watcher replays
+  // every pre-existing file on startup (chokidar's `ignoreInitial: false`),
+  // and without this check that replay would re-request a geocode for every
+  // already-resolved activity on every backend restart.
+  let locationName = null;
+  if (!skipGeocode && parsed.points.length > 0) {
+    const { rows: existing } = await pool.query(
+      "SELECT location_name FROM activities WHERE gpx_filename = $1",
+      [filename],
+    );
+    if (existing.length === 0 || !existing[0].location_name) {
+      const start = parsed.points[0];
+      locationName = await reverseGeocode(start.lat, start.lon);
+    }
+  }
 
   const client = await pool.connect();
   try {
@@ -28,8 +50,8 @@ export async function processFile(filePath) {
     const activityResult = await client.query(
       `INSERT INTO activities (
          gpx_filename, title, activity_type, start_time, end_time, duration_seconds,
-         distance_meters, avg_speed_mps, moving_avg_speed_mps, max_speed_mps, total_elevation_gain, total_elevation_loss, updated_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, NOW())
+         distance_meters, avg_speed_mps, moving_avg_speed_mps, max_speed_mps, total_elevation_gain, total_elevation_loss, location_name, updated_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, NOW())
        ON CONFLICT (gpx_filename) DO UPDATE SET
          title = EXCLUDED.title,
          activity_type = EXCLUDED.activity_type,
@@ -42,6 +64,7 @@ export async function processFile(filePath) {
          max_speed_mps = EXCLUDED.max_speed_mps,
          total_elevation_gain = EXCLUDED.total_elevation_gain,
          total_elevation_loss = EXCLUDED.total_elevation_loss,
+         location_name = COALESCE(EXCLUDED.location_name, activities.location_name),
          updated_at = NOW()
        RETURNING id`,
       [
@@ -57,6 +80,7 @@ export async function processFile(filePath) {
         parsed.maxSpeedMps,
         parsed.totalElevationGain,
         parsed.totalElevationLoss,
+        locationName,
       ],
     );
     const activityId = activityResult.rows[0].id;
@@ -101,7 +125,9 @@ async function processAll(files) {
   const results = [];
   for (let i = 0; i < files.length; i += CONCURRENCY) {
     const batch = files.slice(i, i + CONCURRENCY);
-    results.push(...(await Promise.allSettled(batch.map((f) => processFile(f)))));
+    results.push(
+      ...(await Promise.allSettled(batch.map((f) => processFile(f, { skipGeocode: true })))),
+    );
   }
   return results;
 }

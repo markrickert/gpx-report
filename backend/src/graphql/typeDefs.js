@@ -17,6 +17,7 @@ export const typeDefs = `#graphql
     totalElevationGain: Float
     totalElevationLoss: Float
     notes: String
+    locationName: String
     route: Route!
   }
 

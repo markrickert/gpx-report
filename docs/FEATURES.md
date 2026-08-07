@@ -18,6 +18,7 @@ This document details the features of gpx-report, and reflects what is actually 
 *   **Route Data Extraction:** Stores sequences of latitude, longitude, elevation, and timestamp for each activity.
 *   **Database Storage:** Processed data is stored in PostgreSQL, with route geometries managed by PostGIS.
 *   **Re-analysis Capability:** Allows users to re-process existing GPX/IGC/Ski Tracks files (all, or by date range) via the Settings page. Only re-processes files that already have a matching `activities` row — see `docs/DATA_MODEL.md`.
+*   **Reverse-Geocoded Location Name:** Resolves each activity's start point to a place name (city/town/village/suburb) via Nominatim (OSM), stored as `activities.location_name` and shown on the Dashboard list and Activity Detail header when present. Only runs for genuinely new files reaching the watcher after startup, throttled to Nominatim's 1 req/sec policy — never for bulk re-analysis or the watcher's startup replay of existing files, which would need many requests at once. A separate throttled script backfills existing activities; a failed/absent lookup just leaves the field blank rather than affecting ingestion.
 
 ## 2. Dashboard View
 
@@ -28,7 +29,7 @@ This document details the features of gpx-report, and reflects what is actually 
     *   Total elevation gain across all activities.
     *   Timestamp of the last full data re-analysis.
 *   **Activity List:** A reverse-chronologically sorted list of all recorded activities below the summary.
-    *   Each list item displays a small SVG route-shape thumbnail (client-side, built from route coordinates — no basemap tiles), plus Title, Activity Type, Date/Time, Distance, and Duration.
+    *   Each list item displays a small SVG route-shape thumbnail (client-side, built from route coordinates — no basemap tiles), plus Title, Activity Type, Date/Time, Distance, Duration, and — when resolved — the reverse-geocoded location name.
     *   Rows fade/slide into view as they scroll into the viewport, staggered slightly so a batch doesn't all animate at once (respects `prefers-reduced-motion`).
     *   Clicking an item navigates to the individual Activity Detail Page.
 *   **Infinite Scroll:** Loads 50 activities at a time and fetches more automatically via an `IntersectionObserver` as the user scrolls, rather than capping the list.
@@ -42,6 +43,7 @@ This document details the features of gpx-report, and reflects what is actually 
 *   **Header Information:** Displays core details for the selected activity:
     *   Activity Type
     *   Date & Time
+    *   Location Name (reverse-geocoded, when resolved)
     *   Duration
     *   Distance
     *   Average Speed/Pace

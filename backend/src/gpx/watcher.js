@@ -20,11 +20,23 @@ export function watchGpxDirectory(directory) {
     awaitWriteFinish: { stabilityThreshold: 1000, pollInterval: 100 },
   });
 
+  // chokidar's initial 'add' burst (every pre-existing file, on every backend
+  // restart) shouldn't trigger reverse-geocoding — that's a bulk operation
+  // and belongs to the dedicated, explicitly-throttled backfill script
+  // (backend/scripts/backfillLocationNames.js), not to a startup replay of
+  // the ingest path. Only 'add' events for genuinely new files (after the
+  // initial scan settles, per chokidar's 'ready' event) geocode.
+  let ready = false;
+  watcher.on("ready", () => {
+    ready = true;
+  });
+
   watcher.on("add", (filePath) => {
     if (!/\.(gpx|igc|skiz)$/i.test(filePath)) return;
+    const skipGeocode = !ready;
     enqueue(async () => {
       try {
-        await processFile(filePath);
+        await processFile(filePath, { skipGeocode });
         console.log(`Ingested ${filePath}`);
       } catch (err) {
         console.error(`Failed to ingest ${filePath}:`, err.message);

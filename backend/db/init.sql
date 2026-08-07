@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS activities (
   total_elevation_gain  NUMERIC,
   total_elevation_loss  NUMERIC,
   notes                 TEXT,
+  -- Reverse-geocoded place name (city/town/village near the start point), via
+  -- Nominatim on ingest; null if the lookup failed or hasn't run yet.
+  location_name         TEXT,
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
