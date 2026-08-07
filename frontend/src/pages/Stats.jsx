@@ -1,6 +1,16 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@apollo/client";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+  ScatterChart,
+  Scatter,
+} from "recharts";
 import {
   GET_STATS_BY_TYPE,
   GET_ACTIVITY_DATES,
@@ -256,6 +266,137 @@ function TrainingVolumeChart({ activities, unit }) {
   );
 }
 
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function scatterFields(unit) {
+  return {
+    distance: {
+      label: `Distance (${distanceUnitLabel(unit)})`,
+      value: (a) => distanceValue(a.distanceMeters, unit),
+    },
+    duration: {
+      label: "Duration (min)",
+      value: (a) => a.durationSeconds / 60,
+    },
+    elevationGain: {
+      label: `Elevation Gain (${elevationUnitLabel(unit)})`,
+      value: (a) =>
+        a.totalElevationGain == null ? null : elevationValue(a.totalElevationGain, unit),
+    },
+    avgSpeed: {
+      label: unit === "imperial" ? "Avg Speed (mph)" : "Avg Speed (km/h)",
+      value: (a) =>
+        a.avgSpeedMps == null ? null : a.avgSpeedMps * 3.6 * (unit === "imperial" ? 0.621371 : 1),
+    },
+    timeOfDay: {
+      label: "Time of Day (hour)",
+      value: (a) => {
+        const d = new Date(a.startTime);
+        return d.getHours() + d.getMinutes() / 60;
+      },
+    },
+    dayOfWeek: {
+      label: "Day of Week",
+      value: (a) => new Date(a.startTime).getDay(),
+    },
+  };
+}
+
+function ScatterPlotBuilder({ activities, unit }) {
+  const fields = useMemo(() => scatterFields(unit), [unit]);
+  const fieldKeys = Object.keys(fields);
+
+  const types = useMemo(() => {
+    const set = new Set(activities.map((a) => a.activityType));
+    return [...set].sort();
+  }, [activities]);
+
+  const [xField, setXField] = useState("distance");
+  const [yField, setYField] = useState("elevationGain");
+  const [activityType, setActivityType] = useState("All");
+
+  const points = useMemo(() => {
+    const x = fields[xField];
+    const y = fields[yField];
+    return activities
+      .filter((a) => activityType === "All" || a.activityType === activityType)
+      .map((a) => ({ x: x.value(a), y: y.value(a) }))
+      .filter((p) => p.x != null && p.y != null);
+  }, [activities, activityType, fields, xField, yField]);
+
+  return (
+    <div className="heatmap-card">
+      <div className="heatmap-header-row">
+        <h2>Stat Correlation</h2>
+        <div className="heatmap-selectors">
+          <select value={xField} onChange={(e) => setXField(e.target.value)}>
+            {fieldKeys.map((key) => (
+              <option key={key} value={key}>
+                X: {fields[key].label}
+              </option>
+            ))}
+          </select>
+          <select value={yField} onChange={(e) => setYField(e.target.value)}>
+            {fieldKeys.map((key) => (
+              <option key={key} value={key}>
+                Y: {fields[key].label}
+              </option>
+            ))}
+          </select>
+          <select value={activityType} onChange={(e) => setActivityType(e.target.value)}>
+            <option value="All">All types</option>
+            {types.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      {points.length === 0 ? (
+        <p>No activities with both fields available.</p>
+      ) : (
+        <ResponsiveContainer width="100%" height={300}>
+          <ScatterChart margin={{ top: 10, right: 10, bottom: 10, left: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis
+              type="number"
+              dataKey="x"
+              name={fields[xField].label}
+              label={{ value: fields[xField].label, position: "insideBottom", offset: -5 }}
+              tickFormatter={xField === "dayOfWeek" ? (v) => DAY_NAMES[v] : undefined}
+              domain={xField === "dayOfWeek" ? [0, 6] : ["auto", "auto"]}
+            />
+            <YAxis
+              type="number"
+              dataKey="y"
+              name={fields[yField].label}
+              label={{ value: fields[yField].label, angle: -90, position: "insideLeft" }}
+              tickFormatter={yField === "dayOfWeek" ? (v) => DAY_NAMES[v] : undefined}
+              domain={yField === "dayOfWeek" ? [0, 6] : ["auto", "auto"]}
+            />
+            <Tooltip
+              cursor={{ strokeDasharray: "3 3" }}
+              contentStyle={{
+                background: "rgba(17, 24, 39, 0.92)",
+                border: "none",
+                borderRadius: 6,
+              }}
+              labelStyle={{ color: "#e5e7eb" }}
+              itemStyle={{ color: "#e5e7eb" }}
+              formatter={(value, name) => [
+                name === fields.dayOfWeek?.label ? DAY_NAMES[value] : Number(value).toFixed(2),
+                name,
+              ]}
+            />
+            <Scatter data={points} fill="var(--accent)" />
+          </ScatterChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
 function formatDelta(current, previous) {
   if (previous === 0) return null;
   const pct = ((current - previous) / previous) * 100;
@@ -419,6 +560,7 @@ export default function Stats() {
         <>
           <ActivityHeatmap activities={datesData.activities} />
           <TrainingVolumeChart activities={datesData.activities} unit={unit} />
+          <ScatterPlotBuilder activities={datesData.activities} unit={unit} />
         </>
       )}
 
