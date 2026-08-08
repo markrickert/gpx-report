@@ -70,4 +70,13 @@ describe("detectLiftSegments", () => {
     const points = buildLiftPoints({}).map((p, i) => (i === 5 ? { ...p, timestamp: null } : p));
     expect(() => detectLiftSegments(points)).not.toThrow();
   });
+
+  it("does not flag a straight, steady, fast downhill stretch as a lift", () => {
+    // A bike-park singletrack descent: straight, roughly constant speed,
+    // monotonically losing elevation — same track shape as an uphill lift
+    // ride, just downhill and faster. Real bug: detected mid-descent on a
+    // real activity (2026-08-08) between two genuine uphill lift segments.
+    const points = buildLiftPoints({ climbPerStep: -2, stepMeters: 15 });
+    expect(detectLiftSegments(points)).toEqual([]);
+  });
 });

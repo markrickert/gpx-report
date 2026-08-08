@@ -1,10 +1,12 @@
 import { haversineMeters, bearingDegrees, bearingDiffDegrees } from "./geo.js";
 
 // Chairlifts/gondolas run in a straight line, at roughly constant speed, with
-// occasional short stops, and climb (or descend) steadily rather than the
-// noisy up-down pace of a hiker or skinner. This is a track-shape heuristic,
-// not gated by activityType, so it applies equally to hiking, skiing, or any
-// other activity whose GPX happens to include a lift ride.
+// occasional short stops, and climb steadily rather than the noisy up-down
+// pace of a hiker or skinner. This is a track-shape heuristic, not gated by
+// activityType, so it applies equally to hiking, skiing, or any other
+// activity whose GPX happens to include a lift ride. Uphill only — a fast,
+// straight downhill trail (e.g. a bike-park descent) can otherwise pass the
+// same checks and get mistaken for a lift ride down.
 const MIN_MOVE_METERS = 2; // below this, a point-to-point step is GPS jitter, not travel
 const BEARING_TOLERANCE_DEGREES = 20; // max heading drift allowed within one straight-line segment
 const MAX_STOP_SECONDS = 180; // longest single stall still consistent with a lift restart, not a rest break
@@ -108,18 +110,22 @@ export function detectLiftSegments(points) {
     const speedCv = avgSpeedMps > 0 ? stddev(movingSpeeds, avgSpeedMps) / avgSpeedMps : Infinity;
     if (speedCv > MAX_SPEED_COEFFICIENT_OF_VARIATION) continue;
 
+    // Uphill only: a straight, steady, fast-ish descent (e.g. a bike-park
+    // singletrack trail) can otherwise pass every other check here and get
+    // mistaken for a lift ride down. Every consumer of this data (the "Runs"
+    // count, "Gain Excluding Lift" tile) only ever uses positive gain
+    // anyway, so downhill "lift" detection wasn't buying anything.
     const elevationGainMeters =
       (segPoints[segPoints.length - 1].elevation ?? 0) - (segPoints[0].elevation ?? 0);
-    if (Math.abs(elevationGainMeters) < MIN_ELEVATION_GAIN_METERS) continue;
+    if (elevationGainMeters < MIN_ELEVATION_GAIN_METERS) continue;
 
-    const netDirection = Math.sign(elevationGainMeters);
     let matchingSteps = 0;
     let countedSteps = 0;
     for (let i = 1; i < segPoints.length; i++) {
       const delta = (segPoints[i].elevation ?? 0) - (segPoints[i - 1].elevation ?? 0);
       if (Math.abs(delta) < ELEVATION_NOISE_METERS) continue;
       countedSteps++;
-      if (Math.sign(delta) === netDirection) matchingSteps++;
+      if (delta > 0) matchingSteps++;
     }
     const monotonicity = countedSteps > 0 ? matchingSteps / countedSteps : 1;
     if (monotonicity < MIN_ELEVATION_MONOTONICITY) continue;
