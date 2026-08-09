@@ -29,7 +29,7 @@ This document details the features of gpx-report, and reflects what is actually 
     *   Total elevation gain across all activities.
     *   Timestamp of the last full data re-analysis.
 *   **Activity List:** A reverse-chronologically sorted list of all recorded activities below the summary.
-    *   Each list item displays a small SVG route-shape thumbnail (client-side, built from route coordinates — no basemap tiles), plus Title, Activity Type, Date/Time, Distance, Duration, and — when resolved — the reverse-geocoded location name.
+    *   Each list item displays a small SVG route-shape thumbnail (no basemap tiles), built client-side from a `routeThumbnail` field that's pre-sampled down to a handful of `[lat, lon]` pairs in SQL as part of the `activities` query — the list never fetches each route's full-resolution points just to draw a thumbnail — plus Title, Activity Type, Date/Time, Distance, Duration, and — when resolved — the reverse-geocoded location name.
     *   Rows fade/slide into view as they scroll into the viewport, staggered slightly so a batch doesn't all animate at once (respects `prefers-reduced-motion`).
     *   Clicking an item navigates to the individual Activity Detail Page.
 *   **Infinite Scroll:** Loads 50 activities at a time and fetches more automatically via an `IntersectionObserver` as the user scrolls, rather than capping the list.

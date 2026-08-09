@@ -56,6 +56,7 @@ function mapActivityRow(row) {
     best1kmSeconds: row.best_1km_seconds !== null ? Number(row.best_1km_seconds) : null,
     best5kmSeconds: row.best_5km_seconds !== null ? Number(row.best_5km_seconds) : null,
     best10kmSeconds: row.best_10km_seconds !== null ? Number(row.best_10km_seconds) : null,
+    routeThumbnail: row.route_thumbnail ?? null,
   };
 }
 
@@ -84,6 +85,11 @@ const MAX_RECORDED_GPX_BYTES = 10 * 1024 * 1024;
 // sent at full resolution (a few hundred activities at full GPS density
 // would be tens of MB of JSON).
 const MAX_HEATMAP_POINTS_PER_ROUTE = 300;
+
+// Dashboard list thumbnails only need a handful of points to draw a
+// recognizable polyline shape, matching frontend/src/pages/Dashboard.jsx's
+// THUMBNAIL_MAX_POINTS.
+const MAX_THUMBNAIL_POINTS_PER_ROUTE = 60;
 
 // heatmapPoints is expensive (scans every stored track point across all
 // activities to sample it down) and rarely changes between requests, so
@@ -155,11 +161,27 @@ export const resolvers = {
       }
 
       const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-      params.push(limit, offset);
+      params.push(MAX_THUMBNAIL_POINTS_PER_ROUTE, limit, offset);
 
+      // Thumbnails are sampled down to a handful of [lat, lon] pairs in SQL
+      // and joined in here, rather than the frontend fetching each
+      // activity's full-resolution route (as Activity.route does) just to
+      // downsample it client-side — that was the dashboard's main slow path.
       const { rows } = await pool.query(
-        `SELECT * FROM activities ${whereClause}
-         ORDER BY start_time DESC
+        `SELECT a.*, thumb.points AS route_thumbnail
+         FROM activities a
+         LEFT JOIN LATERAL (
+           SELECT jsonb_agg(
+             jsonb_build_array((e.elem->>'lat')::float8, (e.elem->>'lon')::float8)
+             ORDER BY e.ord
+           ) AS points
+           FROM activity_routes r,
+           LATERAL jsonb_array_elements(r.points_data) WITH ORDINALITY AS e(elem, ord)
+           WHERE r.activity_id = a.id
+             AND (e.ord - 1) % GREATEST(1, jsonb_array_length(r.points_data) / $${params.length - 2}) = 0
+         ) thumb ON true
+         ${whereClause}
+         ORDER BY a.start_time DESC
          LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params,
       );

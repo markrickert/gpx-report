@@ -22,6 +22,7 @@ export const typeDefs = `#graphql
     best5kmSeconds: Float
     best10kmSeconds: Float
     route: Route!
+    routeThumbnail: JSON
     similarActivities: [SimilarActivity!]!
   }
 
