@@ -153,6 +153,18 @@ select {
   position: relative;
 }
 
+/* Leaflet's own CSS sets touch-action: none once both its drag and zoom
+   touch handlers are active (.leaflet-touch-drag.leaflet-touch-zoom),
+   which hands 100% of pinch-zoom to Leaflet's JS instead of letting the
+   browser do the actual pinch scaling natively via the compositor —
+   noticeably choppier on mobile. touch-action: pinch-zoom lets the browser
+   handle the pinch gesture itself (smooth, GPU-composited) while Leaflet
+   still gets touchmove/touchend to sync its own zoom state. Leaflet's CSS
+   loads first (see main.jsx), so an equal-specificity rule here wins. */
+.leaflet-container.leaflet-touch-drag.leaflet-touch-zoom {
+  touch-action: pinch-zoom;
+}
+
 .speed-map-legend {
   display: flex;
   align-items: center;
