@@ -29,6 +29,7 @@ import {
   elevationUnitLabel,
 } from "../units.jsx";
 import { downloadCsv } from "../csv.js";
+import { activityTypeLabel } from "../activityTypeIcons.js";
 
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -74,7 +75,7 @@ function PersonalRecords({ unit }) {
           <tbody>
             {records.map((row) => (
               <tr key={row.activityType}>
-                <td>{row.activityType}</td>
+                <td>{activityTypeLabel(row.activityType)}</td>
                 <td>{formatDistance(row.longestDistanceMeters, unit)}</td>
                 <td>{formatElevation(row.biggestElevationGainMeters, unit)}</td>
                 <td>{formatSplitTime(row.best1kmSeconds)}</td>
@@ -646,7 +647,7 @@ export default function Stats() {
               <tbody>
                 {stats.map((row) => (
                   <tr key={row.activityType}>
-                    <td>{row.activityType}</td>
+                    <td>{activityTypeLabel(row.activityType)}</td>
                     <td>{row.count}</td>
                     <td>{formatDistance(row.totalDistanceMeters, unit)}</td>
                     <td>{formatDuration(row.totalDurationSeconds)}</td>

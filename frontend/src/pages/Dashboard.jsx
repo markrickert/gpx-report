@@ -18,6 +18,7 @@ import {
   elevationUnitLabel,
 } from "../units.jsx";
 import { ACTIVITY_TYPES } from "../activityTypes.js";
+import { activityTypeLabel } from "../activityTypeIcons.js";
 import { downloadCsv } from "../csv.js";
 
 const PAGE_SIZE = 50;
@@ -99,7 +100,8 @@ function OnThisDayCard() {
             <li key={activity.id}>
               <Link to={`/activities/${activity.id}`}>
                 {activity.title} — {yearsAgo} {yearsAgo === 1 ? "year" : "years"} ago (
-                {activity.activityType}, {formatDistance(activity.distanceMeters, unit)})
+                {activityTypeLabel(activity.activityType)},{" "}
+                {formatDistance(activity.distanceMeters, unit)})
               </Link>
             </li>
           );
@@ -417,7 +419,8 @@ export default function Dashboard() {
                 <div>
                   <div className="activity-list-title">{activity.title}</div>
                   <div className="activity-list-meta">
-                    {activity.activityType} — {new Date(activity.startTime).toLocaleString()} —{" "}
+                    {activityTypeLabel(activity.activityType)} —{" "}
+                    {new Date(activity.startTime).toLocaleString()} —{" "}
                     {formatDistance(activity.distanceMeters, unit)} —{" "}
                     {formatDuration(activity.durationSeconds)}
                     {activity.locationName && (
