@@ -19,9 +19,7 @@ export const GET_DASHBOARD = gql`
       avgSpeedMps
       totalElevationGain
       locationName
-      route {
-        coordinates
-      }
+      routeThumbnail
     }
   }
 `;

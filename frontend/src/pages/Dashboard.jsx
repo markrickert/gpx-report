@@ -30,16 +30,15 @@ function formatDuration(seconds) {
 
 const THUMBNAIL_SIZE = 48;
 const THUMBNAIL_PADDING = 4;
-const THUMBNAIL_MAX_POINTS = 60;
 
-function routeThumbnailPoints(coordinates) {
-  if (!coordinates || coordinates.length < 2) return null;
+// routeThumbnail arrives already sampled down to a handful of [lat, lon]
+// pairs by the activities query (see backend/src/graphql/resolvers.js) —
+// no further downsampling needed here.
+function routeThumbnailPoints(routeThumbnail) {
+  if (!routeThumbnail || routeThumbnail.length < 2) return null;
 
-  const step = Math.max(1, Math.floor(coordinates.length / THUMBNAIL_MAX_POINTS));
-  const sampled = coordinates.filter((_, i) => i % step === 0);
-
-  const lats = sampled.map((p) => p.lat);
-  const lons = sampled.map((p) => p.lon);
+  const lats = routeThumbnail.map((p) => p[0]);
+  const lons = routeThumbnail.map((p) => p[1]);
   const minLat = Math.min(...lats);
   const maxLat = Math.max(...lats);
   const minLon = Math.min(...lons);
@@ -52,17 +51,17 @@ function routeThumbnailPoints(coordinates) {
   const offsetX = THUMBNAIL_PADDING + (drawable - lonRange * scale) / 2;
   const offsetY = THUMBNAIL_PADDING + (drawable - latRange * scale) / 2;
 
-  return sampled
-    .map((p) => {
-      const x = offsetX + (p.lon - minLon) * scale;
-      const y = offsetY + (maxLat - p.lat) * scale;
+  return routeThumbnail
+    .map(([lat, lon]) => {
+      const x = offsetX + (lon - minLon) * scale;
+      const y = offsetY + (maxLat - lat) * scale;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
 }
 
-function RouteThumbnail({ coordinates }) {
-  const points = routeThumbnailPoints(coordinates);
+function RouteThumbnail({ routeThumbnail }) {
+  const points = routeThumbnailPoints(routeThumbnail);
   if (!points)
     return <div className="activity-thumbnail activity-thumbnail-empty" aria-hidden="true" />;
 
@@ -414,7 +413,7 @@ export default function Dashboard() {
                 />
               )}
               <Link to={`/activities/${activity.id}`} className="activity-list-link">
-                <RouteThumbnail coordinates={activity.route.coordinates} />
+                <RouteThumbnail routeThumbnail={activity.routeThumbnail} />
                 <div>
                   <div className="activity-list-title">{activity.title}</div>
                   <div className="activity-list-meta">
