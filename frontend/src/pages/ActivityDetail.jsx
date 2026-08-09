@@ -39,6 +39,7 @@ import {
 } from "../units.jsx";
 import { useTheme } from "../theme.jsx";
 import { ACTIVITY_TYPES } from "../activityTypes.js";
+import { activityTypeLabel } from "../activityTypeIcons.js";
 import { apiOrigin } from "../apolloClient.js";
 
 function formatDuration(seconds) {
@@ -132,7 +133,7 @@ function ActivityHeader({ activity, record, editMode, onEditModeChange }) {
           </p>
         )}
         <p>
-          <span className="activity-type-badge">{activity.activityType}</span>{" "}
+          <span className="activity-type-badge">{activityTypeLabel(activity.activityType)}</span>{" "}
           {new Date(activity.startTime).toLocaleString()}
           {activity.locationName && (
             <>
@@ -678,7 +679,7 @@ function ActivityPicker({ excludeId, onSelect, onClose }) {
               <button type="button" onClick={() => onSelect(a.id)}>
                 <span className="activity-list-title">{a.title}</span>
                 <span className="activity-list-meta">
-                  <span className="activity-type-badge">{a.activityType}</span>{" "}
+                  <span className="activity-type-badge">{activityTypeLabel(a.activityType)}</span>{" "}
                   {new Date(a.startTime).toLocaleDateString()} ·{" "}
                   {formatDistance(a.distanceMeters, unit)}
                 </span>
@@ -939,8 +940,8 @@ function SimilarActivitiesSection({ activity }) {
         {activity.similarActivities.map((match) => (
           <li key={match.id}>
             <Link to={`/activities/${match.id}`}>
-              {match.title} — {new Date(match.startTime).toLocaleDateString()} ({match.activityType}
-              , {formatDistance(match.distanceMeters, unit)})
+              {match.title} — {new Date(match.startTime).toLocaleDateString()} (
+              {activityTypeLabel(match.activityType)}, {formatDistance(match.distanceMeters, unit)})
             </Link>
           </li>
         ))}

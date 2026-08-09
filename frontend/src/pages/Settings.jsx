@@ -8,6 +8,7 @@ import {
   GET_ACTIVITIES_WITH_LIFT_SEGMENTS,
 } from "../graphql/queries.js";
 import { useNotifications } from "../notifications.jsx";
+import { activityTypeLabel } from "../activityTypeIcons.js";
 
 const RANGE_OPTIONS = [
   { label: "Last Week", days: 7 },
@@ -34,7 +35,7 @@ function OutlierList() {
       {activities.map((a) => (
         <li key={a.activityId}>
           <Link to={`/activities/${a.activityId}`}>{a.title}</Link>{" "}
-          <span className="activity-type-badge">{a.activityType}</span>{" "}
+          <span className="activity-type-badge">{activityTypeLabel(a.activityType)}</span>{" "}
           <span className="chart-hint">
             {new Date(a.startTime).toLocaleDateString()} — {a.outlierPointCount} flagged point
             {a.outlierPointCount === 1 ? "" : "s"}
@@ -66,7 +67,7 @@ function LiftList() {
       {activities.map((a) => (
         <li key={a.activityId}>
           <Link to={`/activities/${a.activityId}`}>{a.title}</Link>{" "}
-          <span className="activity-type-badge">{a.activityType}</span>{" "}
+          <span className="activity-type-badge">{activityTypeLabel(a.activityType)}</span>{" "}
           <span className="chart-hint">
             {new Date(a.startTime).toLocaleDateString()} — {a.liftSegmentCount} segment
             {a.liftSegmentCount === 1 ? "" : "s"}, {Math.round(a.totalLiftElevationGainMeters)} m
