@@ -1,11 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client";
-// Order matters: leafletRotateSetup.js puts `L` on window before
-// leaflet-rotate (a bare-global-patching plugin, see that file's comment)
-// evaluates and patches L.Map with rotate/touchRotate/bearing support.
-import "../leafletRotateSetup.js";
-import "leaflet-rotate";
 import { MapContainer, TileLayer, Polyline, CircleMarker, useMap } from "react-leaflet";
 import {
   LineChart,
@@ -593,8 +588,6 @@ function OutlierCleanup({ activity }) {
           bounds={originalPositions}
           boundsOptions={{ padding: [20, 20] }}
           className="activity-map"
-          rotateControl={false}
-          shiftKeyRotate={false}
         >
           {theme === "dark" ? (
             <TileLayer
@@ -630,11 +623,7 @@ function OutlierCleanup({ activity }) {
   );
 }
 
-// Resets pan/zoom back to the track bounds and, since leaflet-rotate lets
-// the map be rotated away from north (two-finger touch rotate, or
-// shift+scroll on desktop), also resets bearing back to 0 — one button for
-// "put the map back the way it started" rather than a separate compass
-// control.
+// Resets pan/zoom back to the track bounds.
 function ResetViewControl({ positions }) {
   const map = useMap();
   return (
@@ -643,10 +632,7 @@ function ResetViewControl({ positions }) {
       className="map-reset-btn"
       aria-label="Reset map view"
       title="Reset view"
-      onClick={() => {
-        map.fitBounds(positions, { padding: [20, 20] });
-        map.setBearing?.(0);
-      }}
+      onClick={() => map.fitBounds(positions, { padding: [20, 20] })}
     >
       ⟲
     </button>
@@ -1193,9 +1179,6 @@ export default function ActivityDetail() {
           bounds={visiblePositions}
           boundsOptions={{ padding: [20, 20] }}
           className="activity-map"
-          rotate
-          touchRotate
-          rotateControl={false}
         >
           {theme === "dark" ? (
             <TileLayer

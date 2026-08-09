@@ -35,12 +35,18 @@ function HeatLayer({ points, gradient = DEFAULT_GRADIENT }) {
     // events instead of a "zoomanim" transition, which leaflet.heat never
     // listens for, so the overlay sat frozen for the whole pinch gesture
     // and only snapped into place once the gesture ended. Re-running its
-    // own reset on every "move"/"zoom" event keeps it live during pinch too.
+    // own reset on "move" keeps it live during pinch too — "move" alone is
+    // enough (Leaflet's Map._move always fires "move" whenever it fires
+    // "zoom" for a pinch update), and listening to both fired the same
+    // O(latlngs.length) canvas redraw twice per animation frame during a
+    // two-finger pinch, which was the main cause of choppy pinch-zoom on
+    // this page (a plain one-finger drag never triggers the "zoom" event,
+    // so it never hit the double-redraw).
     const follow = () => layer._reset();
-    map.on("move zoom", follow);
+    map.on("move", follow);
 
     return () => {
-      map.off("move zoom", follow);
+      map.off("move", follow);
       map.removeLayer(layer);
     };
   }, [map, points, gradient]);
@@ -119,13 +125,7 @@ export default function Heatmap() {
           </ul>
         )}
       </div>
-      <MapContainer
-        bounds={bounds}
-        boundsOptions={{ padding: [20, 20] }}
-        className="heatmap-map"
-        rotateControl={false}
-        shiftKeyRotate={false}
-      >
+      <MapContainer bounds={bounds} boundsOptions={{ padding: [20, 20] }} className="heatmap-map">
         {theme === "dark" ? (
           <TileLayer
             attribution='&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'

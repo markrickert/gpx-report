@@ -297,13 +297,7 @@ export default function Record() {
           {isRecording ? "Waiting for a GPS fix..." : "Start recording to see your live track."}
         </p>
       ) : (
-        <MapContainer
-          center={positions[0]}
-          zoom={17}
-          className="record-map"
-          rotateControl={false}
-          shiftKeyRotate={false}
-        >
+        <MapContainer center={positions[0]} zoom={17} className="record-map">
           {theme === "dark" ? (
             <TileLayer
               attribution='&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
