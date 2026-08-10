@@ -12,7 +12,7 @@ import {
 } from "./writer.js";
 import { parseSkizFile } from "./parser.js";
 
-function writeSkiz(dir, filename, { trackXml, nodesCsv }) {
+function writeSkiz(dir, filename, { trackXml, nodesCsv }: { trackXml?: string; nodesCsv?: string }) {
   const zip = new AdmZip();
   if (trackXml != null) zip.addFile("Track.xml", Buffer.from(trackXml, "utf-8"));
   if (nodesCsv != null) zip.addFile("Nodes.csv", Buffer.from(nodesCsv, "utf-8"));

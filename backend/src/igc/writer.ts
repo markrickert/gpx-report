@@ -7,7 +7,7 @@ import { B_RECORD_RE, H_DATE_RE } from "./parser.js";
 // only once a date is known and the line matches B_RECORD_RE — mirrored
 // here via the same two conditions so index N always refers to the same
 // point removeIgcTrackPoints and parseIgcFile agree on.
-export async function removeIgcTrackPoints(filePath, indicesToRemove) {
+export async function removeIgcTrackPoints(filePath, indicesToRemove: number[]) {
   const text = await readFile(filePath, "utf-8");
   const lines = text.split(/\r?\n/);
 

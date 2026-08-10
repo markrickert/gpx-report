@@ -4,14 +4,14 @@ vi.mock("../db.js", () => ({ pool: { query: vi.fn() } }));
 vi.mock("../track/outliers.js", () => ({ detectOutliers: vi.fn() }));
 vi.mock("../track/liftDetection.js", () => ({ detectLiftSegments: vi.fn() }));
 vi.mock("../track/geo.js", async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = (await importOriginal()) as object;
   return { ...actual, computeTrackStats: vi.fn() };
 });
 
-const { pool } = await import("../db.js");
-const { detectOutliers } = await import("../track/outliers.js");
-const { detectLiftSegments } = await import("../track/liftDetection.js");
-const { computeTrackStats } = await import("../track/geo.js");
+const { pool } = (await import("../db.js")) as any;
+const { detectOutliers } = (await import("../track/outliers.js")) as any;
+const { detectLiftSegments } = (await import("../track/liftDetection.js")) as any;
+const { computeTrackStats } = (await import("../track/geo.js")) as any;
 const { resolvers } = await import("./resolvers.js");
 
 const { activityStreak, yearOverYearComparison, trainingLoad, personalRecordsByType } =

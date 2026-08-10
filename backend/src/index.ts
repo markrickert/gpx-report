@@ -91,7 +91,7 @@ async function* dbExportJsonChunks(rows) {
   yield "\n]\n";
 }
 
-await new Promise((resolve) => httpServer.listen({ port: PORT }, resolve));
+await new Promise<void>((resolve) => httpServer.listen({ port: PORT }, resolve));
 
 console.log(`GraphQL API ready at http://localhost:${PORT}/graphql`);
 

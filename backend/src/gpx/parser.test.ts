@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseGpxFile, activityTypeToRawType } from "./parser.js";
 
-function gpx({ name, type, trkpts }) {
+function gpx({ name, type, trkpts }: { name?: string; type?: string; trkpts: string[] }) {
   const trk = `<trk>${name ? `<name>${name}</name>` : ""}${type ? `<type>${type}</type>` : ""}<trkseg>${trkpts.join("")}</trkseg></trk>`;
   return `<?xml version="1.0"?><gpx version="1.1"><metadata></metadata>${trk}</gpx>`;
 }

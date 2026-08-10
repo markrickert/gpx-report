@@ -69,6 +69,6 @@ describe("JSONScalar", () => {
         },
       ],
     };
-    expect(JSONScalar.parseLiteral(ast)).toEqual({ a: 1, b: ["x", false] });
+    expect(JSONScalar.parseLiteral(ast as any)).toEqual({ a: 1, b: ["x", false] });
   });
 });
