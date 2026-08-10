@@ -12,6 +12,7 @@ import {
 import { useNotifications } from "../notifications.jsx";
 import { activityTypeLabel } from "../activityTypeIcons.js";
 import { downloadCsv, downloadJson } from "../csv.js";
+import { apiOrigin } from "../apolloClient.js";
 
 const RANGE_OPTIONS = [
   { label: "Last Week", days: 7 },
@@ -228,6 +229,22 @@ function ExportTab() {
         </button>
       </div>
       {status && <p>{status}</p>}
+
+      <div className="settings-section">
+        <p className="chart-hint">
+          Full backup — a .zip containing every raw source file (.gpx/.igc/.skiz) from{" "}
+          <code>data/gpx/</code> plus a <code>db-export.json</code> with every{" "}
+          <code>activities</code>/<code>activity_routes</code> row at full fidelity (including
+          per-point GPS track data and route geometry). For off-site backup or migrating to a
+          different host — everything needed to fully reconstitute this app&apos;s data, unlike the
+          summary-only export above.
+        </p>
+        <div className="button-row">
+          <a className="download-link" href={`${apiOrigin}/export/full`}>
+            Download Full Backup (.zip)
+          </a>
+        </div>
+      </div>
     </>
   );
 }
