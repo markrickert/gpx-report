@@ -65,7 +65,7 @@ function isEditable(activity) {
 // only ever ties its own type's current best (never beats it, since the
 // record itself is derived by MIN/MAX over all activities including this
 // one), so equality is the right check rather than a > / < comparison.
-function matchedRecords(activity, record) {
+export function matchedRecords(activity, record) {
   if (!record) return [];
   const matches = [];
   if (activity.distanceMeters === record.longestDistanceMeters) matches.push("Longest Distance");
