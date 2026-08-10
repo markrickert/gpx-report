@@ -79,4 +79,25 @@ describe("detectLiftSegments", () => {
     const points = buildLiftPoints({ climbPerStep: -2, stepMeters: 15 });
     expect(detectLiftSegments(points)).toEqual([]);
   });
+
+  it("does not flag a mostly-stationary stretch with drifting elevation as a lift", () => {
+    // A hiker stopped for several minutes (e.g. at a viewpoint); GPS/elevation
+    // sensor drifts slowly upward, and the handful of 1-2s jitter blips that
+    // clear MIN_MOVE_METERS happen to share a bearing. No single stall ever
+    // exceeds MAX_STOP_SECONDS because sampling is dense (~1s), so only a
+    // moving-time-fraction check catches this. Real bug: activities/409, a
+    // hike with a petroglyph/swimming-hole stop (2026-08-10).
+    const points = [];
+    let t = START_TIME;
+    for (let i = 0; i < 300; i++) {
+      points.push({
+        lat: 45 + (i % 5 === 0 ? 0.00002 : 0),
+        lon: 7,
+        elevation: 1500 + i * 0.12,
+        timestamp: t,
+      });
+      t += 1_000;
+    }
+    expect(detectLiftSegments(points)).toEqual([]);
+  });
 });
