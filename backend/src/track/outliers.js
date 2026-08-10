@@ -13,6 +13,28 @@ const DEFAULT_MAX_PLAUSIBLE_SPEED_MPS = 55;
 // speed can't be evaluated for them. Used by the outlier-cleanup GraphQL
 // resolvers to surface candidates for the user to review and optionally
 // remove — nothing calls this automatically at ingest time.
+//
+// Two real-world GPS/logging quirks, found by inspecting live flagged
+// activities, are deliberately *not* flagged:
+//
+// 1. Duplicate/out-of-order timestamps (dt <= 0) with near-zero movement.
+//    Some devices write more than one sample for the same instant while
+//    stationary; naively dividing by a zero (or negative) dt produces an
+//    infinite/undefined "speed" that always exceeds any threshold, even
+//    though the point hasn't actually moved. Treated the same as a missing
+//    timestamp: can't evaluate speed, so skip rather than flag.
+// 2. A single sample whose recorded time delta undercounts what actually
+//    elapsed (e.g. a device that freezes its position for several stale
+//    samples during a stop, then needs one sample to "catch up" once it
+//    reacquires and movement resumes) looks identical, from *this* point
+//    alone, to a genuine bad GPS fix: the implied speed is implausible
+//    either way. The two cases are told apart by what happens *next*: a
+//    real teleport is a blip that self-corrects — the following point lands
+//    back near the pre-jump trajectory. A mistimed-but-real position
+//    persists — the following point continues on plausibly from *it*, not
+//    from where the track was before. Checking the point right after a
+//    flagged jump for that corroboration (rather than only ever comparing
+//    against the stale last-kept point) tells real jumps from bad fixes.
 export function detectOutliers(points, maxSpeedMps = DEFAULT_MAX_PLAUSIBLE_SPEED_MPS) {
   if (points.length < 2) return [];
 
@@ -26,9 +48,23 @@ export function detectOutliers(points, maxSpeedMps = DEFAULT_MAX_PLAUSIBLE_SPEED
       continue;
     }
     const dtSeconds = (p.timestamp - lastKept.timestamp) / 1000;
+    if (dtSeconds <= 0) {
+      lastKeptIndex = i;
+      continue;
+    }
     const distance = haversineMeters(lastKept, p);
-    const speed = dtSeconds > 0 ? distance / dtSeconds : Infinity;
+    const speed = distance / dtSeconds;
     if (speed > maxSpeedMps) {
+      const next = points[i + 1];
+      if (next && next.timestamp) {
+        const dtNext = (next.timestamp - p.timestamp) / 1000;
+        if (dtNext > 0 && haversineMeters(p, next) / dtNext <= maxSpeedMps) {
+          // The point after the jump continues on plausibly from p, not
+          // from lastKept — a real (if mistimed) position, not a bad fix.
+          lastKeptIndex = i;
+          continue;
+        }
+      }
       removedIndices.push(i);
       continue;
     }
