@@ -18,7 +18,7 @@ This document outlines the architecture of gpx-report, a self-hosted platform fo
 ## 2. Backend API (GraphQL)
 
 *   **Purpose:** Serves as the interface between the React frontend and the data storage/processing layers.
-*   **Technology:** Apollo Server on Express (`expressMiddleware` mounted at `/graphql`, so a plain `GET /activities/:id/download` route can sit alongside it), plain Node.js with ESM, no ORM.
+*   **Technology:** Apollo Server on Express (`expressMiddleware` mounted at `/graphql`, so plain `GET /activities/:id/download` and `GET /export/full` routes can sit alongside it), plain Node.js with ESM, no ORM.
 *   **Key Operations:**
     *   **Queries:**
         *   Fetch individual activity details (`activity(id: ID!)`).
@@ -28,6 +28,7 @@ This document outlines the architecture of gpx-report, a self-hosted platform fo
         *   Trigger re-analysis of data (`reanalyzeAllActivities`, `reanalyzeActivitiesByDateRange(startDate: DateTime!, endDate: DateTime!)`).
         *   Save a browser-recorded track (`saveRecordedActivity(gpxContent: String!)`): validates the submitted GPX string minimally (size cap, looks like GPX), writes it to a server-generated filename (never derived from client input) in `GPX_FILES_DIRECTORY`, and returns without waiting for ingestion — the file watcher (below) picks it up asynchronously through the normal pipeline.
         *   Permanently delete an activity (`deleteActivity(id: ID!)`): looks up `gpx_filename` from the DB row itself (never accepts a path from the client), `fs.unlink`s that exact file under `GPX_FILES_DIRECTORY` (tolerating an already-missing file), then deletes the `activities` row — `activity_routes` cascades via its `activity_id` FK's `ON DELETE CASCADE`. Since the source file itself is removed, the watcher can't re-ingest it on a later restart/rescan.
+    *   **Full backup/export** (`GET /export/full`, plain Express route alongside `/activities/:id/download`): streams a `.zip` (via `archiver`) containing every raw source file under `GPX_FILES_DIRECTORY` (`gpx-files/`) plus a `db-export.json` with every `activities`/`activity_routes` row at full fidelity — `points_data`, `elevation_profile_data`, and `route_geom` (converted to GeoJSON via `ST_AsGeoJSON` so it round-trips as plain JSON rather than PostGIS binary). Reads only from the server's own `GPX_FILES_DIRECTORY` env var and DB connection, no client-supplied input. The DB rows are streamed into the archive one row at a time (an async generator piped through a `Readable`) rather than built as a single `JSON.stringify()`'d string — with ~500 activities' worth of `points_data`, a single pretty-printed string exceeds V8's per-string character limit (`RangeError: Invalid string length`) even though the raw data itself (~150MB across both tables) is well within the container's memory. For disaster recovery/migration to a new host; distinct from the Settings page's summary-only "Export Data" tab (`activities(limit: 10000)` GraphQL query), which excludes per-point track data.
 *   **Resolver Logic:** `graphql/resolvers.js` queries `pg.Pool` directly with hand-written SQL (see `backend/src/graphql/resolvers.js`). `activitySummary` and `aggregatedStatsByType` are computed live with `SUM`/`AVG`/`GROUP BY` on each request — there is no materialized view or cache.
 
 ## 3. Database (PostgreSQL with PostGIS)
