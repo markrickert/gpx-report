@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { toCsv, downloadCsv } from "./csv.js";
+import { toCsv, downloadCsv, downloadJson } from "./csv.js";
 
 const columns = [
   { header: "Name", accessor: (row) => row.name },
@@ -62,6 +62,33 @@ describe("downloadCsv", () => {
     downloadCsv("activities.csv", rows, columns);
 
     expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+  });
+});
+
+describe("downloadJson", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("creates an object URL from pretty-printed JSON, clicks a download link, and revokes the URL", () => {
+    const data = [{ name: "Morning Run", distance: 5 }];
+    let blobText;
+    const createObjectURL = vi.fn((blob) => {
+      blobText = blob;
+      return "blob:mock-url";
+    });
+    const revokeObjectURL = vi.fn();
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
+
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    downloadJson("activities.json", data);
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(blobText.type).toBe("application/json;charset=utf-8;");
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
   });

@@ -368,3 +368,32 @@ export const GET_PERSONAL_RECORDS = gql`
     }
   }
 `;
+
+// Summary/derived columns only, for the Settings "Export Data" tool — no
+// per-point route/track data, that's export-for-backup territory, not
+// analysis-portability territory. A single large limit is fine at this
+// tool's scale (a few hundred activities).
+export const GET_ACTIVITIES_FOR_EXPORT = gql`
+  query GetActivitiesForExport {
+    activities(limit: 10000) {
+      id
+      gpxFilename
+      title
+      activityType
+      startTime
+      endTime
+      durationSeconds
+      distanceMeters
+      avgSpeedMps
+      movingAvgSpeedMps
+      maxSpeedMps
+      totalElevationGain
+      totalElevationLoss
+      notes
+      locationName
+      best1kmSeconds
+      best5kmSeconds
+      best10kmSeconds
+    }
+  }
+`;

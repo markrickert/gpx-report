@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery } from "@apollo/client";
+import { useLazyQuery, useMutation, useQuery } from "@apollo/client";
 import { Link } from "react-router-dom";
 import {
   REANALYZE_ALL,
@@ -7,9 +7,11 @@ import {
   GET_ACTIVITIES_WITH_OUTLIERS,
   GET_ACTIVITIES_WITH_ELEVATION_SPIKES,
   GET_ACTIVITIES_WITH_LIFT_SEGMENTS,
+  GET_ACTIVITIES_FOR_EXPORT,
 } from "../graphql/queries.js";
 import { useNotifications } from "../notifications.jsx";
 import { activityTypeLabel } from "../activityTypeIcons.js";
+import { downloadCsv, downloadJson } from "../csv.js";
 
 const RANGE_OPTIONS = [
   { label: "Last Week", days: 7 },
@@ -156,7 +158,79 @@ const TABS = [
   { id: "outliers", label: "GPS Anomaly Cleanup" },
   { id: "elevation-spikes", label: "Elevation Spikes" },
   { id: "lifts", label: "Suspected Lift Rides" },
+  { id: "export", label: "Export Data" },
 ];
+
+// Raw SI-unit columns for the CSV export — deliberately not unit-converted
+// or display-formatted (unlike Dashboard's CSV export) since this is meant
+// for feeding into Python/Jupyter/a spreadsheet, not for reading.
+const EXPORT_COLUMNS = [
+  { header: "id", accessor: (a) => a.id },
+  { header: "gpxFilename", accessor: (a) => a.gpxFilename },
+  { header: "title", accessor: (a) => a.title },
+  { header: "activityType", accessor: (a) => a.activityType },
+  { header: "startTime", accessor: (a) => a.startTime },
+  { header: "endTime", accessor: (a) => a.endTime },
+  { header: "durationSeconds", accessor: (a) => a.durationSeconds },
+  { header: "distanceMeters", accessor: (a) => a.distanceMeters },
+  { header: "avgSpeedMps", accessor: (a) => a.avgSpeedMps },
+  { header: "movingAvgSpeedMps", accessor: (a) => a.movingAvgSpeedMps },
+  { header: "maxSpeedMps", accessor: (a) => a.maxSpeedMps },
+  { header: "totalElevationGain", accessor: (a) => a.totalElevationGain },
+  { header: "totalElevationLoss", accessor: (a) => a.totalElevationLoss },
+  { header: "notes", accessor: (a) => a.notes },
+  { header: "locationName", accessor: (a) => a.locationName },
+  { header: "best1kmSeconds", accessor: (a) => a.best1kmSeconds },
+  { header: "best5kmSeconds", accessor: (a) => a.best5kmSeconds },
+  { header: "best10kmSeconds", accessor: (a) => a.best10kmSeconds },
+];
+
+// Fetches every activity's summary/derived columns (distance, duration,
+// elevation, speeds, activity type, personal-record bests, etc) and
+// downloads them as JSON or CSV — for feeding into external analysis tools
+// this app doesn't support itself. Deliberately excludes per-point
+// route/track data (points_data/route_geom) — that's the separate,
+// not-yet-built full-backup export's job, not this one's.
+function ExportTab() {
+  const [status, setStatus] = useState(null);
+  const [fetchActivities, { loading }] = useLazyQuery(GET_ACTIVITIES_FOR_EXPORT, {
+    fetchPolicy: "network-only",
+  });
+
+  async function handleExport(format) {
+    setStatus(`Fetching activities for ${format.toUpperCase()} export...`);
+    const { data } = await fetchActivities();
+    const activities = data.activities;
+    const dateStamp = new Date().toISOString().slice(0, 10);
+
+    if (format === "json") {
+      downloadJson(`activities-export-${dateStamp}.json`, activities);
+    } else {
+      downloadCsv(`activities-export-${dateStamp}.csv`, activities, EXPORT_COLUMNS);
+    }
+    setStatus(`Downloaded ${activities.length} activities as ${format.toUpperCase()}.`);
+  }
+
+  return (
+    <>
+      <p className="chart-hint">
+        Exports every activity&apos;s summary data — distance, duration, elevation gain/loss,
+        speeds, activity type, start/end time, and personal-record bests — as JSON or CSV, for
+        analysis in Python/Jupyter/a spreadsheet. This does not include per-point GPS track data;
+        for a full backup (source GPX files + database), see the project TODO.
+      </p>
+      <div className="button-row">
+        <button disabled={loading} onClick={() => handleExport("json")}>
+          Download JSON
+        </button>
+        <button disabled={loading} onClick={() => handleExport("csv")}>
+          Download CSV
+        </button>
+      </div>
+      {status && <p>{status}</p>}
+    </>
+  );
+}
 
 function ReanalysisTab() {
   const [status, setStatus] = useState(null);
@@ -258,6 +332,8 @@ export default function Settings() {
           <LiftList />
         </>
       )}
+
+      {activeTab === "export" && <ExportTab />}
     </div>
   );
 }
