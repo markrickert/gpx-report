@@ -13,7 +13,7 @@
     "prettier": "^3.3.3"
   },
   "lint-staged": {
-    "backend/**/*.js": [
+    "backend/**/*.ts": [
       "backend/node_modules/.bin/eslint --config backend/eslint.config.js --fix",
       "prettier --write"
     ],
