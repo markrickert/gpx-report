@@ -167,18 +167,28 @@ export const resolvers = {
       // and joined in here, rather than the frontend fetching each
       // activity's full-resolution route (as Activity.route does) just to
       // downsample it client-side — that was the dashboard's main slow path.
+      // Sampling is done via generate_series indexing straight into the
+      // points_data array (r.points_data->i), not jsonb_array_elements +
+      // modulo filter — the latter expands every point of every route
+      // (hundreds to thousands each) just to throw most of them away, which
+      // dominated the dashboard's load time.
       const { rows } = await pool.query(
         `SELECT a.*, thumb.points AS route_thumbnail
          FROM activities a
          LEFT JOIN LATERAL (
            SELECT jsonb_agg(
-             jsonb_build_array((e.elem->>'lat')::float8, (e.elem->>'lon')::float8)
-             ORDER BY e.ord
+             jsonb_build_array(
+               (r.points_data->i->>'lat')::float8,
+               (r.points_data->i->>'lon')::float8
+             ) ORDER BY i
            ) AS points
            FROM activity_routes r,
-           LATERAL jsonb_array_elements(r.points_data) WITH ORDINALITY AS e(elem, ord)
+           LATERAL generate_series(
+             0,
+             jsonb_array_length(r.points_data) - 1,
+             GREATEST(1, jsonb_array_length(r.points_data) / $${params.length - 2})
+           ) AS i
            WHERE r.activity_id = a.id
-             AND (e.ord - 1) % GREATEST(1, jsonb_array_length(r.points_data) / $${params.length - 2}) = 0
          ) thumb ON true
          ${whereClause}
          ORDER BY a.start_time DESC
