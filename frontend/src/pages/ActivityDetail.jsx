@@ -23,6 +23,8 @@ import {
   TRIM_ACTIVITY,
   GET_ACTIVITY_OUTLIER_DIFF,
   CLEAN_ACTIVITY_OUTLIERS,
+  GET_ACTIVITY_ELEVATION_FIX_DIFF,
+  FIX_ACTIVITY_ELEVATION_SPIKES,
   SEARCH_ACTIVITIES_FOR_COMPARE,
   DELETE_ACTIVITY,
   GET_PERSONAL_RECORDS,
@@ -617,6 +619,157 @@ function OutlierCleanup({ activity }) {
       <div className="trim-controls">
         <button onClick={save} disabled={cleaning}>
           Clean &amp; Save
+        </button>
+        {saveError && <p className="title-edit-error">Failed to save: {saveError}</p>}
+      </div>
+    </div>
+  );
+}
+
+// Turns a flat list of flagged point indices into contiguous [start, end]
+// ranges, same grouping style as buildRestBands above — used to shade the
+// flagged stretches on the before/after elevation chart below.
+function groupConsecutiveIndices(indices) {
+  const sorted = [...indices].sort((a, b) => a - b);
+  const runs = [];
+  let start = null;
+  let prev = null;
+  for (const i of sorted) {
+    if (start === null) {
+      start = i;
+    } else if (i !== prev + 1) {
+      runs.push([start, prev]);
+      start = i;
+    }
+    prev = i;
+  }
+  if (start !== null) runs.push([start, prev]);
+  return runs;
+}
+
+function ElevationFixTool({ activity }) {
+  const { unit } = useUnits();
+  const { data, loading, error, refetch } = useQuery(GET_ACTIVITY_ELEVATION_FIX_DIFF, {
+    variables: { id: activity.id },
+  });
+  const [fixElevationSpikes, { loading: fixing }] = useMutation(FIX_ACTIVITY_ELEVATION_SPIKES);
+  const [saveError, setSaveError] = useState(null);
+
+  if (loading || error || !data?.activityElevationFixDiff) return null;
+  const diff = data.activityElevationFixDiff;
+  if (diff.spikePoints.length === 0) return null;
+
+  const correctedByIndex = new Map(diff.spikePoints.map((p) => [p.index, p.correctedElevation]));
+  const chartData = activity.route.elevationProfile.map((p, i) => ({
+    idx: i,
+    original: elevationValue(p.elevation, unit),
+    corrected: elevationValue(
+      correctedByIndex.has(i) ? correctedByIndex.get(i) : p.elevation,
+      unit,
+    ),
+  }));
+  const spikeBands = groupConsecutiveIndices(diff.spikePoints.map((p) => p.index));
+
+  const save = async () => {
+    if (
+      !window.confirm(
+        `Normalize ${diff.spikePoints.length} flagged elevation point(s) in the source file? This permanently rewrites the file and cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setSaveError(null);
+    try {
+      await fixElevationSpikes({ variables: { id: activity.id } });
+      await refetch();
+    } catch (e) {
+      setSaveError(e.message);
+    }
+  };
+
+  return (
+    <div className="outlier-cleanup">
+      <h2>⚠️ Elevation Spikes ({diff.spikePoints.length})</h2>
+      <p className="chart-hint">
+        These points imply a sudden elevation jump that doesn&apos;t match a GPS teleport or real
+        terrain — a bad altitude reading. Grey is the original elevation profile, blue is the
+        profile with the flagged stretches normalized by interpolating between their nearest good
+        neighbors.
+      </p>
+      <div className="stats-table-wrap">
+        <table className="stats-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Original</th>
+              <th>Normalized</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Elevation Gain</td>
+              <td>{formatElevation(diff.originalElevationGain, unit)}</td>
+              <td>{formatElevation(diff.correctedElevationGain, unit)}</td>
+            </tr>
+            <tr>
+              <td>Elevation Loss</td>
+              <td>{formatElevation(diff.originalElevationLoss, unit)}</td>
+              <td>{formatElevation(diff.correctedElevationLoss, unit)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <ResponsiveContainer width="100%" height={250} className="elevation-chart">
+        <LineChart data={chartData}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="idx" hide />
+          <YAxis
+            tickFormatter={(v) => Math.round(v)}
+            label={{
+              value: `Elevation (${elevationUnitLabel(unit)})`,
+              angle: -90,
+              position: "insideLeft",
+            }}
+          />
+          <Tooltip
+            contentStyle={{ background: "rgba(17, 24, 39, 0.92)", border: "none", borderRadius: 6 }}
+            labelStyle={{ color: "#e5e7eb" }}
+            itemStyle={{ color: "#e5e7eb" }}
+          />
+          <Legend />
+          {spikeBands.map(([start, end]) => (
+            <ReferenceArea
+              key={`${start}-${end}`}
+              x1={start}
+              x2={end}
+              fill="#ef4444"
+              fillOpacity={0.15}
+              strokeOpacity={0}
+            />
+          ))}
+          <Line
+            type="monotone"
+            dataKey="original"
+            name="Original"
+            stroke="#9ca3af"
+            strokeWidth={2}
+            dot={false}
+            isAnimationActive={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="corrected"
+            name="Normalized"
+            stroke="#2563eb"
+            strokeWidth={2}
+            dot={false}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+      <div className="trim-controls">
+        <button onClick={save} disabled={fixing}>
+          Normalize &amp; Save
         </button>
         {saveError && <p className="title-edit-error">Failed to save: {saveError}</p>}
       </div>
@@ -1414,6 +1567,8 @@ export default function ActivityDetail() {
       )}
 
       <OutlierCleanup activity={activity} />
+
+      <ElevationFixTool activity={activity} />
 
       <ComparisonSection activity={activity} />
 

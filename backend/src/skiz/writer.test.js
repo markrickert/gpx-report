@@ -3,7 +3,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import AdmZip from "adm-zip";
-import { updateSkizTitle, updateSkizType, trimSkizTrack, removeSkizTrackPoints } from "./writer.js";
+import {
+  updateSkizTitle,
+  updateSkizType,
+  trimSkizTrack,
+  removeSkizTrackPoints,
+  fixSkizElevations,
+} from "./writer.js";
 import { parseSkizFile } from "./parser.js";
 
 function writeSkiz(dir, filename, { trackXml, nodesCsv }) {
@@ -142,6 +148,31 @@ describe("skiz writer", () => {
         trackXml: `<track name="Run" activity="skiing"></track>`,
       });
       await expect(removeSkizTrackPoints(filePath, [0])).rejects.toThrow(/No Nodes.csv found/);
+    });
+  });
+
+  describe("fixSkizElevations", () => {
+    it("rewrites the ele field of specific rows, leaving lat/lon and other rows untouched", async () => {
+      const filePath = writeSkiz(dir, "fix.skiz", {
+        trackXml: `<track name="Run" activity="skiing"></track>`,
+        nodesCsv: NODES_CSV,
+      });
+      await fixSkizElevations(filePath, new Map([[1, 1234.5]]));
+      const result = await parseSkizFile(filePath);
+      expect(result.points).toHaveLength(4);
+      expect(result.points[1].elevation).toBeCloseTo(1234.5);
+      expect(result.points[1].lat).toBeCloseTo(45.001);
+      expect(result.points[0].elevation).toBeCloseTo(1000);
+      expect(result.points[2].elevation).toBeCloseTo(1020);
+    });
+
+    it("throws when Nodes.csv is missing", async () => {
+      const filePath = writeSkiz(dir, "fix-no-nodes.skiz", {
+        trackXml: `<track name="Run" activity="skiing"></track>`,
+      });
+      await expect(fixSkizElevations(filePath, new Map([[0, 100]]))).rejects.toThrow(
+        /No Nodes.csv found/,
+      );
     });
   });
 });

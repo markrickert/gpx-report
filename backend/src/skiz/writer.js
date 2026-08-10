@@ -109,3 +109,42 @@ export async function removeSkizTrackPoints(filePath, indicesToRemove) {
   zip.updateFile("Nodes.csv", Buffer.from(updatedLines.join("\n") + "\n", "utf-8"));
   zip.writeZip(filePath);
 }
+
+// Rewrites the `ele` (4th CSV field) of specific Nodes.csv lines in place,
+// e.g. to normalize elevation-spike glitches without touching lat/lon/time
+// or any other point. Same index contract as removeSkizTrackPoints above.
+// `corrections` is a Map<index, elevationMeters>.
+export async function fixSkizElevations(filePath, corrections) {
+  const zip = new AdmZip(filePath);
+  const entry = zip.getEntry("Nodes.csv");
+  if (!entry) {
+    throw new Error(`No Nodes.csv found in ${filePath}`);
+  }
+
+  const lines = entry.getData().toString("utf-8").split(/\r?\n/);
+  const validLineIndices = [];
+  lines.forEach((line, i) => {
+    if (!line.trim()) return;
+    const [ts, lat, lon, ele] = line.split(",").map(Number);
+    if ([ts, lat, lon, ele].some(Number.isNaN)) return;
+    validLineIndices.push(i);
+  });
+
+  if (validLineIndices.length === 0) {
+    throw new Error(`No GPS points found in ${filePath}`);
+  }
+
+  const correctionsByLineIndex = new Map(
+    [...corrections].map(([pointIndex, elevation]) => [validLineIndices[pointIndex], elevation]),
+  );
+
+  const updatedLines = lines.map((line, i) => {
+    if (!correctionsByLineIndex.has(i)) return line;
+    const fields = line.split(",");
+    fields[3] = String(correctionsByLineIndex.get(i));
+    return fields.join(",");
+  });
+
+  zip.updateFile("Nodes.csv", Buffer.from(updatedLines.join("\n") + "\n", "utf-8"));
+  zip.writeZip(filePath);
+}

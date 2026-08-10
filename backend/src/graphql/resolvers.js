@@ -14,18 +14,22 @@ import {
   updateGpxType,
   trimGpxTrack,
   removeGpxTrackPoints,
+  fixGpxElevations,
 } from "../gpx/writer.js";
 import {
   updateSkizTitle,
   updateSkizType,
   trimSkizTrack,
   removeSkizTrackPoints,
+  fixSkizElevations,
 } from "../skiz/writer.js";
-import { removeIgcTrackPoints } from "../igc/writer.js";
+import { removeIgcTrackPoints, fixIgcElevations } from "../igc/writer.js";
 import { activityTypeToRawType } from "../gpx/parser.js";
 import { detectOutliers } from "../track/outliers.js";
 import { detectLiftSegments } from "../track/liftDetection.js";
+import { detectElevationSpikes, correctElevationSpikes } from "../track/elevationSpikes.js";
 import { haversineMeters, computeTrackStats } from "../track/geo.js";
+import { computeElevationGainLoss } from "../track/elevation.js";
 
 // A flagged point only actually matters if removing it noticeably moves the
 // track's total distance — some flagged jumps are implausible-speed but
@@ -34,6 +38,11 @@ import { haversineMeters, computeTrackStats } from "../track/geo.js";
 // over points_data (not the real format-specific reparse activityOutlierDiff
 // does), which is fine for this list/filter purpose.
 const MIN_OUTLIER_DISTANCE_DELTA_METERS = 100;
+
+// Mirrors MIN_OUTLIER_DISTANCE_DELTA_METERS above: a flagged run only
+// matters if the correction noticeably changes the elevation profile.
+const MIN_ELEVATION_SPIKE_DELTA_METERS = 15;
+
 import { DateTimeScalar, JSONScalar } from "./scalars.js";
 
 function mapActivityRow(row) {
@@ -124,6 +133,26 @@ async function removeTrackPointsByFormat(filePath, filename, indices) {
   if (filename.endsWith(".igc")) return removeIgcTrackPoints(filePath, indices);
   if (filename.endsWith(".gpx")) return removeGpxTrackPoints(filePath, indices);
   throw new Error("Cleaning is only supported for .gpx, .skiz, and .igc files");
+}
+
+async function fixTrackElevationsByFormat(filePath, filename, corrections) {
+  if (filename.endsWith(".skiz")) return fixSkizElevations(filePath, corrections);
+  if (filename.endsWith(".igc")) return fixIgcElevations(filePath, corrections);
+  if (filename.endsWith(".gpx")) return fixGpxElevations(filePath, corrections);
+  throw new Error("Elevation fixing is only supported for .gpx, .skiz, and .igc files");
+}
+
+// { startIndex, endIndex }[] -> Map<index, correctedElevation>, built from
+// the already-corrected points array so callers don't recompute
+// interpolation themselves.
+function correctionsFromSpikeRuns(spikeRuns, correctedPoints) {
+  const corrections = new Map();
+  for (const { startIndex, endIndex } of spikeRuns) {
+    for (let i = startIndex; i <= endIndex; i++) {
+      corrections.set(i, correctedPoints[i].elevation);
+    }
+  }
+  return corrections;
 }
 
 export const resolvers = {
@@ -603,6 +632,81 @@ export const resolvers = {
       };
     },
 
+    activitiesWithElevationSpikes: async () => {
+      const { rows } = await pool.query(`
+        SELECT a.id, a.title, a.activity_type, a.start_time, a.gpx_filename, r.points_data
+        FROM activities a
+        JOIN activity_routes r ON r.activity_id = a.id
+      `);
+      return rows
+        .map((row) => {
+          const points = row.points_data || [];
+          const spikeRuns = detectElevationSpikes(points);
+          const correctedPoints = correctElevationSpikes(points, spikeRuns);
+          const totalElevationDeltaMeters = spikeRuns.reduce((sum, { startIndex, endIndex }) => {
+            for (let i = startIndex; i <= endIndex; i++) {
+              sum += Math.abs(correctedPoints[i].elevation - points[i].elevation);
+            }
+            return sum;
+          }, 0);
+          return {
+            activityId: row.id,
+            title: row.title,
+            activityType: row.activity_type,
+            startTime: row.start_time,
+            gpxFilename: row.gpx_filename,
+            spikeCount: spikeRuns.reduce(
+              (sum, { startIndex, endIndex }) => sum + (endIndex - startIndex + 1),
+              0,
+            ),
+            totalElevationDeltaMeters,
+          };
+        })
+        .filter((r) => r.totalElevationDeltaMeters > MIN_ELEVATION_SPIKE_DELTA_METERS)
+        .sort((a, b) => b.totalElevationDeltaMeters - a.totalElevationDeltaMeters);
+    },
+
+    // Doesn't need activityOutlierDiff's temp-file-reparse dance: fixing an
+    // elevation spike only ever changes one field (elevation) on already-
+    // flagged indices, never point count or lat/lon, so gain/loss can be
+    // recomputed directly from the corrected points with the same
+    // computeElevationGainLoss() every parser already uses at ingest time.
+    activityElevationFixDiff: async (_parent, { id }) => {
+      const { rows: routeRows } = await pool.query(
+        "SELECT points_data FROM activity_routes WHERE activity_id = $1",
+        [id],
+      );
+      const points = routeRows[0]?.points_data || [];
+      const spikeRuns = detectElevationSpikes(points);
+      const correctedPoints = correctElevationSpikes(points, spikeRuns);
+
+      const spikePoints = [];
+      for (const { startIndex, endIndex } of spikeRuns) {
+        for (let i = startIndex; i <= endIndex; i++) {
+          spikePoints.push({
+            index: i,
+            lat: points[i].lat,
+            lon: points[i].lon,
+            originalElevation: points[i].elevation ?? null,
+            correctedElevation: correctedPoints[i].elevation ?? null,
+            timestamp: points[i].timestamp ?? null,
+          });
+        }
+      }
+
+      const original = computeElevationGainLoss(points.map((p) => p.elevation));
+      const corrected = computeElevationGainLoss(correctedPoints.map((p) => p.elevation));
+
+      return {
+        activityId: id,
+        spikePoints,
+        originalElevationGain: original.gain,
+        correctedElevationGain: corrected.gain,
+        originalElevationLoss: original.loss,
+        correctedElevationLoss: corrected.loss,
+      };
+    },
+
     activitiesWithLiftSegments: async () => {
       const { rows } = await pool.query(`
         SELECT a.id, a.title, a.activity_type, a.start_time, r.points_data
@@ -733,6 +837,30 @@ export const resolvers = {
       if (removedIndices.length > 0) {
         const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
         await removeTrackPointsByFormat(filePath, filename, removedIndices);
+        await processFile(filePath);
+      }
+
+      const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
+      return mapActivityRow(updated[0]);
+    },
+
+    fixActivityElevationSpikes: async (_parent, { id }) => {
+      const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
+      if (!rows[0]) throw new Error(`Activity ${id} not found`);
+      const filename = rows[0].gpx_filename.toLowerCase();
+
+      const { rows: routeRows } = await pool.query(
+        "SELECT points_data FROM activity_routes WHERE activity_id = $1",
+        [id],
+      );
+      const points = routeRows[0]?.points_data || [];
+      const spikeRuns = detectElevationSpikes(points);
+
+      if (spikeRuns.length > 0) {
+        const correctedPoints = correctElevationSpikes(points, spikeRuns);
+        const corrections = correctionsFromSpikeRuns(spikeRuns, correctedPoints);
+        const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
+        await fixTrackElevationsByFormat(filePath, filename, corrections);
         await processFile(filePath);
       }
 

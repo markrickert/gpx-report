@@ -98,3 +98,34 @@ export async function removeGpxTrackPoints(filePath, indicesToRemove) {
   result += xml.slice(cursor);
   await writeFile(filePath, result, "utf-8");
 }
+
+// Replaces (or inserts) the <ele> of specific <trkpt> elements, e.g. to
+// normalize elevation-spike glitches without touching lat/lon/timestamp or
+// any other point. Same index contract as removeGpxTrackPoints above.
+// `corrections` is a Map<index, elevationMeters>.
+const ELE_RE = /<ele>[\s\S]*?<\/ele>/;
+
+export async function fixGpxElevations(filePath, corrections) {
+  const xml = await readFile(filePath, "utf-8");
+  const matches = [...xml.matchAll(TRKPT_RE)];
+  if (matches.length === 0) {
+    throw new Error(`No <trkpt> elements found in ${filePath}`);
+  }
+
+  let result = "";
+  let cursor = 0;
+  matches.forEach((match, i) => {
+    result += xml.slice(cursor, match.index);
+    let block = match[0];
+    if (corrections.has(i)) {
+      const elevation = corrections.get(i);
+      block = ELE_RE.test(block)
+        ? block.replace(ELE_RE, `<ele>${elevation}</ele>`)
+        : block.replace(/^(<trkpt\b[^>]*>)/, `$1<ele>${elevation}</ele>`);
+    }
+    result += block;
+    cursor = match.index + match[0].length;
+  });
+  result += xml.slice(cursor);
+  await writeFile(filePath, result, "utf-8");
+}
