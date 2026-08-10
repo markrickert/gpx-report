@@ -78,15 +78,34 @@ describe("detectElevationSpikes", () => {
     ]);
   });
 
+  it("flags a plateau whose entry/exit jumps aren't near-symmetric", () => {
+    // Real elevations from activity 27597, indices 1012-1020: a single-point
+    // dip (already handled elsewhere), then a plateau that jumps back up
+    // +50 and holds, then exits with a -60 drop back to the real trend — the
+    // 10m gap between the two jump magnitudes must not block the match.
+    const rawElevations = [2563, 2509, 2559, 2558, 2556, 2559, 2555, 2555, 2495, 2492];
+    const points = rawElevations.map((elevation, i) => ({
+      lat: 45 + i * 0.0001,
+      lon: 7,
+      elevation,
+      timestamp: START_TIME + i * 3000,
+    }));
+    const spikes = detectElevationSpikes(points);
+    expect(spikes).toEqual([
+      { startIndex: 1, endIndex: 1 },
+      { startIndex: 2, endIndex: 7 },
+    ]);
+  });
+
   it("does not flag good data just because its boundary happens to net out close to an unrelated later jump", () => {
     // A single-point dip (self-corrects immediately) followed, a few points
-    // later, by a real elevation drop — the dip's "return to trend" jump
-    // must not get reused as a false entry pairing with the unrelated later
-    // jump just because the numbers happen to net out within range.
+    // later, by a real elevation drop well outside the entry/exit magnitude
+    // tolerance — the dip's "return to trend" jump must not get reused as a
+    // false entry pairing with the unrelated later jump.
     const base = buildSmoothClimb();
     const points = base.map((p, i) => (i === 30 ? { ...p, elevation: p.elevation - 50 } : p));
     const withLaterDrop = points.map((p, i) =>
-      i >= 40 ? { ...p, elevation: p.elevation - 60 } : p,
+      i >= 40 ? { ...p, elevation: p.elevation - 100 } : p,
     );
     const spikes = detectElevationSpikes(withLaterDrop);
     expect(spikes).toEqual([{ startIndex: 30, endIndex: 30 }]);

@@ -61,8 +61,11 @@ export function detectElevationSpikes(points, options = {}) {
       // represent snapping to/from the same bad altitude offset). Without
       // this, an exit jump that coincidentally lands within thresholdMeters
       // of the pre-entry elevation can falsely pair with an unrelated later
-      // jump and flag perfectly good data in between as a spike.
-      if (Math.abs(Math.abs(entry.delta) - Math.abs(exit.delta)) > thresholdMeters / 2) continue;
+      // jump and flag perfectly good data in between as a spike. Real entry/
+      // exit pairs aren't always near-symmetric though (activity 27597's
+      // 1013-1020 plateau: +50 in, -60 out), so the tolerance is a full
+      // thresholdMeters rather than half.
+      if (Math.abs(Math.abs(entry.delta) - Math.abs(exit.delta)) > thresholdMeters) continue;
 
       const postExitElevation = elevations[exit.index];
       if (postExitElevation == null) continue;
