@@ -82,6 +82,7 @@ type Activity {
   totalElevationLoss: Float
   locationName: String
   route: Route!
+  suggestedActivityTypes: [String!]! # heuristic-ranked candidate types, computed live from avg/max speed + elevation gain/loss per km — see track/suggestType.js
 }
 
 type Route {

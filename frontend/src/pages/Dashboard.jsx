@@ -401,7 +401,12 @@ export default function Dashboard() {
             key={activity.id}
             ref={observeListItem}
             data-activity-id={activity.id}
-            className={visibleDelays.has(String(activity.id)) ? "visible" : ""}
+            className={[
+              visibleDelays.has(String(activity.id)) ? "visible" : "",
+              activity.activityType === "Unknown" ? "activity-unknown" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             style={{ transitionDelay: `${visibleDelays.get(String(activity.id)) ?? 0}ms` }}
           >
             <div className="activity-list-row">
@@ -419,6 +424,9 @@ export default function Dashboard() {
                 <div>
                   <div className="activity-list-title">{activity.title}</div>
                   <div className="activity-list-meta">
+                    {activity.activityType === "Unknown" && (
+                      <span className="activity-unknown-badge">Needs review</span>
+                    )}
                     {activityTypeLabel(activity.activityType)} —{" "}
                     {new Date(activity.startTime).toLocaleString()} —{" "}
                     {formatDistance(activity.distanceMeters, unit)} —{" "}

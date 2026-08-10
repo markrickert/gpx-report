@@ -57,6 +57,7 @@ export const GET_ACTIVITY = gql`
       best1kmSeconds
       best5kmSeconds
       best10kmSeconds
+      suggestedActivityTypes
       route {
         coordinates
         elevationProfile

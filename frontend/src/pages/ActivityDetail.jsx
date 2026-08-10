@@ -207,6 +207,22 @@ function ActivityHeader({ activity, record, editMode, onEditModeChange }) {
         autoFocus
         disabled={saving}
       />
+      {activity.activityType === "Unknown" && activity.suggestedActivityTypes?.length > 0 && (
+        <div className="type-suggestions">
+          <span className="type-suggestions-label">Suggested:</span>
+          {activity.suggestedActivityTypes.slice(0, 3).map((type) => (
+            <button
+              type="button"
+              key={type}
+              className={`type-suggestion-chip${typeDraft === type ? " selected" : ""}`}
+              onClick={() => setTypeDraft(type)}
+              disabled={saving}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
+      )}
       <select value={typeDraft} onChange={(e) => setTypeDraft(e.target.value)} disabled={saving}>
         {ACTIVITY_TYPES.map((type) => (
           <option key={type} value={type}>

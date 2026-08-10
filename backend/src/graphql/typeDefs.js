@@ -26,6 +26,7 @@ export const typeDefs = `#graphql
     similarActivities: [SimilarActivity!]!
     previousActivityId: ID
     nextActivityId: ID
+    suggestedActivityTypes: [String!]!
   }
 
   type SimilarActivity {
