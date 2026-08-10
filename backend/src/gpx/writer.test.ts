@@ -23,7 +23,11 @@ const POINTS = [
   trkpt(45.003, 7.0, 1030, "2024-01-01T00:00:30Z"),
 ];
 
-function gpxDoc({ name, type, points = POINTS } = {}) {
+function gpxDoc({
+  name,
+  type,
+  points = POINTS,
+}: { name?: string; type?: string; points?: string[] } = {}) {
   return `<?xml version="1.0"?>
 <gpx><trk>${name ? `<name>${name}</name>` : ""}${type ? `<type>${type}</type>` : ""}<trkseg>
 ${points.join("\n")}

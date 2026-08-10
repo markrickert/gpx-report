@@ -3,10 +3,10 @@
 #
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build backend frontend
 #
-# Swaps `backend`/`frontend` from their production build (compiled JS bundle,
+# Swaps `backend`/`frontend` from their production build (compiled output,
 # no source bind mount — see "Getting code changes live" in CLAUDE.md) to a
 # hot-reload dev setup: source is bind-mounted in, and each runs its dev
-# server (`node --watch`, Vite dev server) instead of the production
+# server (`tsx watch`, Vite dev server) instead of the production
 # command, so edits under backend/src or frontend/src take effect without a
 # rebuild. `db`/`syncthing`/`code-server` are untouched — dev containers talk
 # to the same live Postgres.
@@ -20,7 +20,10 @@
 #   docker compose up -d --build backend frontend
 services:
   backend:
-    command: node --watch src/index.js
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    command: npm run dev
     volumes:
       - ./backend/src:/app/src
 

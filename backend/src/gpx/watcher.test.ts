@@ -9,8 +9,8 @@ vi.mock("chokidar", () => ({
 
 vi.mock("./processor.js", () => ({ processFile: vi.fn() }));
 
-const chokidar = (await import("chokidar")).default;
-const { processFile } = await import("./processor.js");
+const chokidar = ((await import("chokidar")).default as any);
+const { processFile } = (await import("./processor.js")) as any;
 const { watchGpxDirectory } = await import("./watcher.js");
 
 describe("watchGpxDirectory", () => {

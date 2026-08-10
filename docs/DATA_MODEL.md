@@ -1,6 +1,6 @@
 # Data Model
 
-This document defines the data structures for gpx-report, covering both the database schema and the GraphQL API schema. Both sections describe what is actually implemented — see `backend/db/init.sql` and `backend/src/graphql/typeDefs.js` for the source of truth.
+This document defines the data structures for gpx-report, covering both the database schema and the GraphQL API schema. Both sections describe what is actually implemented — see `backend/db/init.sql` and `backend/src/graphql/typeDefs.ts` for the source of truth.
 
 ## PostgreSQL Schema
 
@@ -34,9 +34,9 @@ Stores the primary information for each recorded activity, one row per source fi
 
 Indexed on `start_time DESC` and `activity_type`.
 
-`total_elevation_gain`/`total_elevation_loss` are derived by `backend/src/track/elevation.js`'s `computeElevationGainLoss()`: a centered 5-point moving average smooths the per-point elevation series (falling back to raw deltas when a track has 5 points or fewer, since the window would otherwise flatten the whole thing), then positive/negative deltas between consecutive smoothed values are summed. This only affects the two summary columns — `points_data`/`elevation_profile_data` (below) always store raw, unsmoothed elevation.
+`total_elevation_gain`/`total_elevation_loss` are derived by `backend/src/track/elevation.ts`'s `computeElevationGainLoss()`: a centered 5-point moving average smooths the per-point elevation series (falling back to raw deltas when a track has 5 points or fewer, since the window would otherwise flatten the whole thing), then positive/negative deltas between consecutive smoothed values are summed. This only affects the two summary columns — `points_data`/`elevation_profile_data` (below) always store raw, unsmoothed elevation.
 
-`best_1km_seconds`/`best_5km_seconds`/`best_10km_seconds` are derived by `backend/src/track/personalRecords.js`'s `computeBestEfforts()`: an O(n) two-pointer sliding window over each point's cumulative distance/timestamp finds, for each target distance, the tightest (smallest-time) window that covers it anywhere in the track. Computed once at ingest by `gpx/processor.js`, not live per-query.
+`best_1km_seconds`/`best_5km_seconds`/`best_10km_seconds` are derived by `backend/src/track/personalRecords.ts`'s `computeBestEfforts()`: an O(n) two-pointer sliding window over each point's cumulative distance/timestamp finds, for each target distance, the tightest (smallest-time) window that covers it anywhere in the track. Computed once at ingest by `gpx/processor.js`, not live per-query.
 
 ### `activity_routes` Table
 
@@ -55,12 +55,12 @@ There is no `activity_summary` or `aggregated_stats_by_type` table. Both are com
 
 ## GraphQL Schema
 
-This mirrors `backend/src/graphql/typeDefs.js`.
+This mirrors `backend/src/graphql/typeDefs.ts`.
 
 ### Scalars
 
 *   Standard `ID!`, `String!`, `Int!`, `Float!`, `Boolean!`.
-*   `DateTime` — custom scalar (`backend/src/graphql/scalars.js`), ISO 8601.
+*   `DateTime` — custom scalar (`backend/src/graphql/scalars.ts`), ISO 8601.
 *   `JSON` — custom scalar for the free-form route/elevation payloads.
 
 ### Types

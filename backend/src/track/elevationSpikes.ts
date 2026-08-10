@@ -22,7 +22,10 @@ const DEFAULT_MAX_SPIKE_DURATION_SECONDS = 60; // longer than this, it's a real 
 // Detection only — does not mutate/filter anything. Returns contiguous index
 // ranges [{startIndex, endIndex}], sorted by startIndex, of points that sit
 // on the wrong side of a matched entry/exit jump pair.
-export function detectElevationSpikes(points, options = {}) {
+export function detectElevationSpikes(
+  points,
+  options: { thresholdMeters?: number; maxSpikeDurationSeconds?: number } = {},
+) {
   const thresholdMeters = options.thresholdMeters ?? DEFAULT_THRESHOLD_METERS;
   const maxSpikeDurationSeconds =
     options.maxSpikeDurationSeconds ?? DEFAULT_MAX_SPIKE_DURATION_SECONDS;

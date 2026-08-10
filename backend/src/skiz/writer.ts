@@ -77,7 +77,7 @@ export async function trimSkizTrack(filePath, startIndex, endIndex) {
 // Drops Nodes.csv lines at specific point indices (not necessarily
 // contiguous), e.g. GPS outlier points scattered through the track. Same
 // index contract as trimSkizTrack above.
-export async function removeSkizTrackPoints(filePath, indicesToRemove) {
+export async function removeSkizTrackPoints(filePath, indicesToRemove: number[]) {
   const zip = new AdmZip(filePath);
   const entry = zip.getEntry("Nodes.csv");
   if (!entry) {

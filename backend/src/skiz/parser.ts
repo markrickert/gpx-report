@@ -80,7 +80,7 @@ export async function parseSkizFile(filePath) {
 
   const startTime = new Date(points[0].timestamp);
   const endTime = new Date(points[points.length - 1].timestamp);
-  const durationSeconds = Math.max(0, Math.round((endTime - startTime) / 1000));
+  const durationSeconds = Math.max(0, Math.round((endTime.getTime() - startTime.getTime()) / 1000));
   const avgSpeedMps = durationSeconds > 0 ? distanceMeters / durationSeconds : null;
   const movingAvgSpeedMps = movingSeconds > 0 ? movingDistance / movingSeconds : null;
   // Smoothed separately from the distance/speed loop above so gain/loss

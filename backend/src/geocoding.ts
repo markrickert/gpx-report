@@ -34,7 +34,7 @@ export async function reverseGeocode(lat, lon) {
       console.warn(`Reverse geocode failed for ${lat},${lon}: HTTP ${res.status}`);
       return null;
     }
-    const body = await res.json();
+    const body: any = await res.json();
     const address = body.address || {};
     const name =
       address.city ||

@@ -3,11 +3,11 @@ import { GraphQLScalarType, Kind } from "graphql";
 export const DateTimeScalar = new GraphQLScalarType({
   name: "DateTime",
   description: "ISO 8601 date-time string",
-  serialize: (value) => {
+  serialize: (value: any) => {
     if (value === null || value === undefined) return null;
     return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
   },
-  parseValue: (value) => new Date(value),
+  parseValue: (value: any) => new Date(value),
   parseLiteral: (ast) => (ast.kind === Kind.STRING ? new Date(ast.value) : null),
 });
 
@@ -25,7 +25,7 @@ export const JSONScalar = new GraphQLScalarType({
       case Kind.FLOAT:
         return Number(ast.value);
       case Kind.OBJECT: {
-        const value = {};
+        const value: any = {};
         ast.fields.forEach((field) => {
           value[field.name.value] = parseLiteral(field.value);
         });

@@ -107,7 +107,7 @@ export async function parseGpxFile(filePath) {
   const startTime = points[0].time ? new Date(points[0].time) : null;
   const endTime = points[points.length - 1].time ? new Date(points[points.length - 1].time) : null;
   const durationSeconds =
-    startTime && endTime ? Math.max(0, Math.round((endTime - startTime) / 1000)) : 0;
+    startTime && endTime ? Math.max(0, Math.round((endTime.getTime() - startTime.getTime()) / 1000)) : 0;
 
   const avgSpeedMps = durationSeconds > 0 ? distanceMeters / durationSeconds : null;
   const maxSpeedMps = computeMaxSpeed(gpx.tracks);
@@ -123,7 +123,7 @@ export async function parseGpxFile(filePath) {
       if (i > 0) {
         const prev = track.points[i - 1];
         if (prev.time && p.time) {
-          const dtSeconds = (new Date(p.time) - new Date(prev.time)) / 1000;
+          const dtSeconds = (new Date(p.time).getTime() - new Date(prev.time).getTime()) / 1000;
           if (dtSeconds > 0) speedMps = segmentDistance / dtSeconds;
         }
       }
@@ -166,7 +166,7 @@ function computeMaxSpeed(tracks) {
       const prev = track.points[i - 1];
       const curr = track.points[i];
       if (!prev.time || !curr.time) continue;
-      const dtSeconds = (new Date(curr.time) - new Date(prev.time)) / 1000;
+      const dtSeconds = (new Date(curr.time).getTime() - new Date(prev.time).getTime()) / 1000;
       if (dtSeconds <= 0) continue;
       const dDistance = track.distance.cumul[i] - track.distance.cumul[i - 1];
       const speed = dDistance / dtSeconds;
@@ -187,7 +187,7 @@ function computeMovingAvgSpeed(tracks) {
       const prev = track.points[i - 1];
       const curr = track.points[i];
       if (!prev.time || !curr.time) continue;
-      const dtSeconds = (new Date(curr.time) - new Date(prev.time)) / 1000;
+      const dtSeconds = (new Date(curr.time).getTime() - new Date(prev.time).getTime()) / 1000;
       if (dtSeconds <= 0) continue;
       const dDistance = track.distance.cumul[i] - track.distance.cumul[i - 1];
       const speed = dDistance / dtSeconds;
