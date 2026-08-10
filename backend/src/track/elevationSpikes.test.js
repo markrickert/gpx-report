@@ -155,4 +155,57 @@ describe("correctElevationSpikes", () => {
     // Input array is not mutated.
     expect(points[35].elevation).toBe(base[35].elevation + 50);
   });
+
+  it("interpolates a chain of touching runs as one continuous ramp, not per-run against each other's bad boundary points", () => {
+    // Real pattern from beach-ride activity 829 (points_data indices
+    // ~792-963): a near-sea-level track (~-1.5m) whose altimeter drifts
+    // through three distinct bad-altitude plateaus in a row, each one
+    // touching the next (one run's endIndex + 1 === the next run's
+    // startIndex) before returning near the original trend (~-3.9m). Each
+    // plateau alone is a valid entry/exit-matched run, so detection
+    // (correctly) reports three separate runs — but correcting them
+    // independently would anchor each run's interpolation on the point just
+    // outside it, which for a touching run is the *next* run's own boundary
+    // point, itself still bad data. That produced corrected values that just
+    // reproduced the original bad plateaus instead of smoothing across the
+    // whole glitchy stretch.
+    const plateau = (elevation, count) => Array(count).fill(elevation);
+    const rawElevations = [
+      ...plateau(-1.5, 4),
+      ...plateau(-24.6, 10),
+      ...plateau(3.6, 10),
+      ...plateau(-26.2, 10),
+      ...plateau(-3.9, 4),
+    ];
+    const points = rawElevations.map((elevation, i) => ({
+      lat: 45,
+      lon: 7,
+      elevation,
+      timestamp: START_TIME + i * 1000,
+    }));
+
+    const spikes = detectElevationSpikes(points);
+    // Detection still reports three separate touching runs.
+    expect(spikes).toEqual([
+      { startIndex: 4, endIndex: 13 },
+      { startIndex: 14, endIndex: 23 },
+      { startIndex: 24, endIndex: 33 },
+    ]);
+
+    const corrected = correctElevationSpikes(points, spikes);
+
+    // The whole chain (indices 4-33) is one smooth, monotonic ramp between
+    // the real boundary points (index 3: -1.5, index 34: -3.9) — never
+    // jumping back toward any of the bad intermediate plateau values.
+    for (let i = 4; i <= 33; i++) {
+      expect(corrected[i].elevation).toBeLessThanOrEqual(corrected[i - 1].elevation);
+      expect(corrected[i].elevation).toBeGreaterThan(-24.6);
+      expect(corrected[i].elevation).toBeLessThan(-1.5);
+    }
+    expect(corrected[33].elevation).toBeGreaterThan(-3.9);
+
+    // Untouched boundary points are unchanged.
+    expect(corrected[3].elevation).toBe(-1.5);
+    expect(corrected[34].elevation).toBe(-3.9);
+  });
 });
