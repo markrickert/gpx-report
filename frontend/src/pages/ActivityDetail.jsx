@@ -96,6 +96,33 @@ function matchedRecords(activity, record) {
   return matches;
 }
 
+// Prev/Next links to the chronologically adjacent activity (by start_time,
+// same ordering as the Dashboard's newest-first list — "next" is the more
+// recent one). Each link is omitted at the ends of the activity list rather
+// than rendered disabled, and the whole row disappears when there's only one
+// activity total.
+function ActivityNav({ activity }) {
+  if (!activity.previousActivityId && !activity.nextActivityId) return null;
+  return (
+    <div className="activity-nav">
+      {activity.previousActivityId ? (
+        <Link to={`/activities/${activity.previousActivityId}`} className="title-edit-button">
+          ← Previous
+        </Link>
+      ) : (
+        <span />
+      )}
+      {activity.nextActivityId ? (
+        <Link to={`/activities/${activity.nextActivityId}`} className="title-edit-button">
+          Next →
+        </Link>
+      ) : (
+        <span />
+      )}
+    </div>
+  );
+}
+
 function ActivityHeader({ activity, record, editMode, onEditModeChange }) {
   const [updateTitle] = useMutation(UPDATE_ACTIVITY_TITLE);
   const [updateType] = useMutation(UPDATE_ACTIVITY_TYPE);
@@ -1227,6 +1254,8 @@ export default function ActivityDetail() {
 
   return (
     <div>
+      <ActivityNav activity={activity} />
+
       <ActivityHeader
         activity={activity}
         record={personalRecord}

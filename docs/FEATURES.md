@@ -40,6 +40,7 @@ This document details the features of gpx-report, and reflects what is actually 
 
 ## 3. Individual Activity Detail Page
 
+*   **Prev/Next Navigation:** A "← Previous"/"Next →" link pair above the title jumps directly to the chronologically adjacent activity (by `startTime`, matching the Dashboard's newest-first ordering — "Next" is the more recent activity) without returning to the Dashboard list. Whichever link would go out of range (oldest activity has no "Previous", newest has no "Next") is simply omitted.
 *   **Header Information:** Displays core details for the selected activity:
     *   Activity Type
     *   Date & Time

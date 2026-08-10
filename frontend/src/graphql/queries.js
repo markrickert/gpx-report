@@ -75,6 +75,8 @@ export const GET_ACTIVITY = gql`
         startTime
         distanceMeters
       }
+      previousActivityId
+      nextActivityId
     }
   }
 `;

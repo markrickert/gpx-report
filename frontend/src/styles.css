@@ -752,6 +752,16 @@ select {
   color: var(--text-muted);
 }
 
+.activity-nav {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.activity-nav a {
+  text-decoration: none;
+}
+
 .title-edit-button {
   font-size: 0.8rem;
   font-weight: 400;
