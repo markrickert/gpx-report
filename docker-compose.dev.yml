@@ -1,0 +1,36 @@
+# Dev-mode override — NOT applied by a plain `docker compose up`. Only takes
+# effect when explicitly layered on top of docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build backend frontend
+#
+# Swaps `backend`/`frontend` from their production build (compiled JS bundle,
+# no source bind mount — see "Getting code changes live" in CLAUDE.md) to a
+# hot-reload dev setup: source is bind-mounted in, and each runs its dev
+# server (`node --watch`, Vite dev server) instead of the production
+# command, so edits under backend/src or frontend/src take effect without a
+# rebuild. `db`/`syncthing`/`code-server` are untouched — dev containers talk
+# to the same live Postgres.
+#
+# The frontend dev server reads VITE_GRAPHQL_URL/VITE_CODE_SERVER_URL as real
+# process env vars at request time (Vite exposes any `VITE_`-prefixed env var
+# via `import.meta.env` when its dev server serves a request), not baked in
+# at build time via the build arg like the production image — see `.env`.
+#
+# To go back to production, rebuild without this override file:
+#   docker compose up -d --build backend frontend
+services:
+  backend:
+    command: node --watch src/index.js
+    volumes:
+      - ./backend/src:/app/src
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    command: npm run dev
+    environment:
+      VITE_GRAPHQL_URL: ${VITE_GRAPHQL_URL}
+      VITE_CODE_SERVER_URL: ${VITE_CODE_SERVER_URL}
+    volumes:
+      - ./frontend/src:/app/src

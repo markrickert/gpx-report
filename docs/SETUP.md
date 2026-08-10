@@ -59,6 +59,24 @@ The repo-root `docker-compose.yml` already defines the `db` service (`postgis/po
 *   **Locally:** `cd frontend && npm install && npm run dev` (Vite, binds `0.0.0.0`, default port 5173 unless configured otherwise). Set `VITE_GRAPHQL_URL` in the environment if not proxying to `localhost:4000/graphql`.
 *   `http://localhost:4000/graphql` only works when the browser and backend run on the same machine — for any real deployment `VITE_GRAPHQL_URL` needs to be a domain reachable from wherever the browser is (see §6 below for the reverse-proxy setup used in this project's actual deployment).
 
+### Hot-reload dev mode (in-Docker)
+
+For iterating on this live LXC host without a full rebuild each time (frontend production rebuilds take ~8-10 min), `docker-compose.dev.yml` is an override file that swaps `backend`/`frontend` for a bind-mounted, watch-mode setup:
+
+```
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build backend frontend
+```
+
+This bind-mounts `./backend/src` and `./frontend/src` into the running containers and replaces their production command with `node --watch src/index.js` (backend) and the Vite dev server via `npm run dev` (frontend, built from `frontend/Dockerfile.dev` — a lightweight image that skips the `vite build` production stage entirely). Edits under `backend/src`/`frontend/src` take effect immediately: the backend process restarts on save, the frontend gets Vite HMR/live reload.
+
+The frontend dev server reads `VITE_GRAPHQL_URL`/`VITE_CODE_SERVER_URL` as ordinary runtime environment variables (Vite exposes any `VITE_`-prefixed env var through `import.meta.env` when its dev server handles a request) rather than baking them into the bundle at build time the way the production image does — same values from `.env`, different mechanism, and no extra config needed.
+
+This only activates when you pass both `-f` flags. A plain `docker compose up`/`up --build` is untouched and keeps using the production Dockerfiles. To go back to the production containers, rebuild the normal way:
+
+```
+docker compose up -d --build backend frontend
+```
+
 ## 5. Data Ingestion Setup
 
 1.  **Configure GPX Directory:** `GPX_FILES_DIRECTORY` (backend env var) points at the directory to watch. In Docker Compose this is `/gpx-files` inside the container, bind-mounted from `./data/gpx` on the host.
