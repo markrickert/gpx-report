@@ -24,6 +24,8 @@ export const typeDefs = `#graphql
     route: Route!
     routeThumbnail: JSON
     similarActivities: [SimilarActivity!]!
+    previousActivityId: ID
+    nextActivityId: ID
   }
 
   type SimilarActivity {

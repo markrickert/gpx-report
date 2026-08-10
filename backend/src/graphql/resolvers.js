@@ -950,5 +950,24 @@ export const resolvers = {
         distanceMeters: Number(row.distance_meters),
       }));
     },
+
+    // "Previous"/"next" mean chronologically older/more recent by start_time,
+    // matching the Dashboard's newest-first ordering (next = closer to now).
+    // A plain neighbor lookup rather than fetching the whole activities list.
+    previousActivityId: async (parent) => {
+      const { rows } = await pool.query(
+        "SELECT id FROM activities WHERE start_time < $1 ORDER BY start_time DESC LIMIT 1",
+        [parent.startTime],
+      );
+      return rows[0]?.id ?? null;
+    },
+
+    nextActivityId: async (parent) => {
+      const { rows } = await pool.query(
+        "SELECT id FROM activities WHERE start_time > $1 ORDER BY start_time ASC LIMIT 1",
+        [parent.startTime],
+      );
+      return rows[0]?.id ?? null;
+    },
   },
 };
