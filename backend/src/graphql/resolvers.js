@@ -30,6 +30,7 @@ import { detectLiftSegments } from "../track/liftDetection.js";
 import { detectElevationSpikes, correctElevationSpikes } from "../track/elevationSpikes.js";
 import { haversineMeters, computeTrackStats } from "../track/geo.js";
 import { computeElevationGainLoss } from "../track/elevation.js";
+import { suggestActivityTypes } from "../track/suggestType.js";
 
 // A flagged point only actually matters if removing it noticeably moves the
 // track's total distance — some flagged jumps are implausible-speed but
@@ -903,6 +904,19 @@ export const resolvers = {
   },
 
   Activity: {
+    // Heuristic-ranked type suggestions, computed live from stats already on
+    // the row (no extra query) — see track/suggestType.js. Used by the
+    // frontend to prioritize suggestions in the type-editing dropdown for
+    // activities whose type fell back to "Unknown".
+    suggestedActivityTypes: (parent) =>
+      suggestActivityTypes({
+        avgSpeedMps: parent.avgSpeedMps,
+        maxSpeedMps: parent.maxSpeedMps,
+        totalElevationGain: parent.totalElevationGain,
+        totalElevationLoss: parent.totalElevationLoss,
+        distanceMeters: parent.distanceMeters,
+      }).map((r) => r.type),
+
     route: async (parent) => {
       const { rows } = await pool.query(
         "SELECT points_data, elevation_profile_data FROM activity_routes WHERE activity_id = $1",
