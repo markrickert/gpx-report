@@ -39,7 +39,7 @@ import {
 } from "../units.jsx";
 import { useTheme } from "../theme.jsx";
 import { ACTIVITY_TYPES } from "../activityTypes.js";
-import { activityTypeLabel } from "../activityTypeIcons.js";
+import { activityTypeIcon, activityTypeLabel } from "../activityTypeIcons.js";
 import { apiOrigin } from "../apolloClient.js";
 
 function formatDuration(seconds) {
@@ -1154,7 +1154,7 @@ export default function ActivityDetail() {
         {runCount > 0 && (
           <div className="metric-tile">
             <span className="metric-icon" aria-hidden="true">
-              🎿
+              {activityTypeIcon(activity.activityType) ?? "🚡"}
             </span>
             <span className="metric-body">
               <span className="metric-value">{runCount}</span>
