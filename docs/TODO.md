@@ -102,13 +102,13 @@ Audited 2026-08-08: pure-logic modules (`track/geo.js`, `track/outliers.js`, `tr
 - [x] **PWA installability** (2026-08-06) — `vite-plugin-pwa` generates the manifest + service worker; generated icon set (no prior logo existed). Scope deliberately stops at an installable app shell — no offline GraphQL/data caching, that's a materially bigger feature.
 - [x] **In-app GPS recording** (2026-08-06) — new `/record` page records via `navigator.geolocation.watchPosition()`, builds a GPX document client-side, and saves it through a new `saveRecordedActivity` mutation (server-generated filename only, no client-supplied path) into the existing file-watcher ingestion pipeline. Foreground-only by design — backgrounding/locking the screen pauses tracking, a real background-capture experience needs a native app.
 - [x] **Code editor white flash in dark mode fixed** (2026-08-06) — `.code-editor-frame` iframe had no background, so its blank default-white document showed through until code-server's own dark theme painted in; now `background: var(--bg-elevated)`, same pattern as the earlier map-tile flash fix.
+- [x] **Node upgraded to 22 (current LTS)** (2026-08-10) — `backend/Dockerfile` and `frontend/Dockerfile` base images bumped `node:20-alpine` → `node:22-alpine` (both build and runtime stages in the frontend multi-stage build). CLAUDE.md's ad-hoc test-running Docker command also updated to `node:22`.
 
 ## Known gaps
 
 - [ ] **No DB migration tooling.** `backend/db/init.sql` only runs against a fresh volume. Any schema change to an already-deployed instance needs a manual `psql`/`ALTER` step. Fine for now (single-user, low change rate) but worth a lightweight migration runner if schema churn picks up.
 - [ ] **No typecheck config anywhere in the repo.** ESLint/Prettier and backend parser unit tests now exist (see Done above); typechecking is still unaddressed, and frontend/GraphQL-layer test coverage remains thin.
 - [ ] **No auth on the API or frontend.** Acceptable for now since the intended deployment is Caddy + Tailscale (see `docs/SETUP.md` §6 reverse-proxy notes), but if the API/frontend domains are ever exposed outside Tailscale, this becomes a real gap, not just a v1 simplification.
-- [ ] **Node 18 is stale and breaks tooling.** Both the host/dev environment and the Docker base images are pinned to Node 18; Vitest's `rolldown` dependency needs `node:util`'s `styleText` export (Node ≥20), so `backend && npm test` currently fails to even start outside a Node 22 shell. Upgrade the Docker base images (`backend/Dockerfile`, `frontend/Dockerfile`) and any documented dev-environment Node version to a current LTS (22.x).
 
 ## Explicitly out of scope for v1 (not gaps, just noting so they don't get re-litigated)
 
