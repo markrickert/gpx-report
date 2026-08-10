@@ -13,6 +13,10 @@ const MAX_STOP_SECONDS = 180; // longest single stall still consistent with a li
 const MIN_SEGMENT_DURATION_SECONDS = 60;
 const MIN_ELEVATION_GAIN_METERS = 20; // filters out flat straight paths (roads, boardwalks)
 const MAX_SPEED_COEFFICIENT_OF_VARIATION = 0.4; // stddev/mean of moving-interval speed, lower = steadier
+const MIN_MOVING_FRACTION = 0.5; // fraction of segment duration actually moving; a mostly-stationary GPS
+// track with a few 1-2s jitter blips can pass the other checks (no single stall exceeds MAX_STOP_SECONDS
+// because sampling is dense) while never covering real ground — e.g. a hiker stopped for minutes with
+// slow elevation sensor drift, which reads as a monotonic climb
 const MIN_ELEVATION_MONOTONICITY = 0.7; // fraction of elevation steps matching the segment's net direction
 const ELEVATION_NOISE_METERS = 1; // deltas within this band don't count against monotonicity
 
@@ -103,6 +107,11 @@ export function detectLiftSegments(points) {
       ...segIntervals.filter((iv) => !iv.moving).map((iv) => iv.dtSeconds),
     );
     if (longestStop > MAX_STOP_SECONDS) continue;
+
+    const movingDtSeconds = segIntervals
+      .filter((iv) => iv.moving)
+      .reduce((sum, iv) => sum + iv.dtSeconds, 0);
+    if (movingDtSeconds / durationSeconds < MIN_MOVING_FRACTION) continue;
 
     const movingSpeeds = segIntervals.filter((iv) => iv.moving).map((iv) => iv.speedMps);
     if (movingSpeeds.length === 0) continue;
