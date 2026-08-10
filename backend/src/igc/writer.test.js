@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { removeIgcTrackPoints } from "./writer.js";
+import { removeIgcTrackPoints, fixIgcElevations } from "./writer.js";
 import { parseIgcFile } from "./parser.js";
 
 // B HHMMSS DDMMmmm N/S DDDMMmmm E/W A PPPPP GGGGG
@@ -63,5 +63,48 @@ describe("removeIgcTrackPoints", () => {
   it("throws when there are no B-records", async () => {
     const filePath = await writeIgc("no-records.igc", "HFDTE010124");
     await expect(removeIgcTrackPoints(filePath, [0])).rejects.toThrow(/No B-records found/);
+  });
+});
+
+describe("fixIgcElevations", () => {
+  let dir;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "igc-writer-fix-test-"));
+  });
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  async function writeIgc(filename, contents) {
+    const filePath = path.join(dir, filename);
+    await writeFile(filePath, contents, "utf-8");
+    return filePath;
+  }
+
+  it("rewrites the GNSS-altitude field of the given point, leaving lat/lon and other points untouched", async () => {
+    const filePath = await writeIgc("fix.igc", igcDoc(["100000", "100010", "100020", "100030"]));
+    await fixIgcElevations(filePath, new Map([[1, 250]]));
+
+    const result = await parseIgcFile(filePath);
+    expect(result.points).toHaveLength(4);
+    expect(result.points[1].elevation).toBe(250);
+    expect(result.points[0].elevation).toBe(100);
+    expect(result.points[2].elevation).toBe(100);
+  });
+
+  it("zero-pads and clamps to non-negative when writing the fixed-width field", async () => {
+    const filePath = await writeIgc("fix-pad.igc", igcDoc(["100000", "100010"]));
+    await fixIgcElevations(filePath, new Map([[0, 7]]));
+    const result = await parseIgcFile(filePath);
+    expect(result.points[0].elevation).toBe(7);
+  });
+
+  it("throws when there are no B-records", async () => {
+    const filePath = await writeIgc("fix-no-records.igc", "HFDTE010124");
+    await expect(fixIgcElevations(filePath, new Map([[0, 100]]))).rejects.toThrow(
+      /No B-records found/,
+    );
   });
 });

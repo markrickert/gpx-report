@@ -36,3 +36,47 @@ export async function removeIgcTrackPoints(filePath, indicesToRemove) {
   const updatedLines = lines.filter((_, i) => !removeLineIndices.has(i));
   await writeFile(filePath, updatedLines.join("\n"), "utf-8");
 }
+
+// Fixed-width offset of the GNSS-altitude field (GGGGG, the last group in
+// B_RECORD_RE) within a B-record line — the field parser.js reads as
+// `elevation` (not the pressure-altitude PPPPP field just before it).
+// 'B' + HHMMSS(6) + DDMMmmm(7) + [NS](1) + DDDMMmmm(8) + [EW](1) + [AV](1) +
+// PPPPP(5) = 30 characters in.
+const GNSS_ALT_START = 30;
+const GNSS_ALT_LENGTH = 5;
+
+// Rewrites the GNSS-altitude field of specific B-records in place, e.g. to
+// normalize elevation-spike glitches without touching lat/lon/time or any
+// other point. Same index contract as removeIgcTrackPoints above.
+// `corrections` is a Map<index, elevationMeters>.
+export async function fixIgcElevations(filePath, corrections) {
+  const text = await readFile(filePath, "utf-8");
+  const lines = text.split(/\r?\n/);
+
+  let dateSeen = false;
+  const pointLineIndices = [];
+  lines.forEach((line, i) => {
+    if (H_DATE_RE.test(line)) {
+      dateSeen = true;
+      return;
+    }
+    if (dateSeen && B_RECORD_RE.test(line)) pointLineIndices.push(i);
+  });
+
+  if (pointLineIndices.length === 0) {
+    throw new Error(`No B-records found in ${filePath}`);
+  }
+
+  const correctionsByLineIndex = new Map(
+    [...corrections].map(([pointIndex, elevation]) => [pointLineIndices[pointIndex], elevation]),
+  );
+
+  const updatedLines = lines.map((line, i) => {
+    if (!correctionsByLineIndex.has(i)) return line;
+    const elevation = Math.max(0, Math.round(correctionsByLineIndex.get(i)));
+    const padded = String(elevation).padStart(GNSS_ALT_LENGTH, "0").slice(-GNSS_ALT_LENGTH);
+    return line.slice(0, GNSS_ALT_START) + padded + line.slice(GNSS_ALT_START + GNSS_ALT_LENGTH);
+  });
+
+  await writeFile(filePath, updatedLines.join("\n"), "utf-8");
+}

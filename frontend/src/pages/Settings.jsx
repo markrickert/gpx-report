@@ -5,6 +5,7 @@ import {
   REANALYZE_ALL,
   REANALYZE_RANGE,
   GET_ACTIVITIES_WITH_OUTLIERS,
+  GET_ACTIVITIES_WITH_ELEVATION_SPIKES,
   GET_ACTIVITIES_WITH_LIFT_SEGMENTS,
 } from "../graphql/queries.js";
 import { useNotifications } from "../notifications.jsx";
@@ -39,6 +40,36 @@ function OutlierList() {
           <span className="chart-hint">
             {new Date(a.startTime).toLocaleDateString()} — {a.outlierPointCount} flagged point
             {a.outlierPointCount === 1 ? "" : "s"}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Lists activities flagged by the backend's elevation-spike detector (see
+// track/elevationSpikes.js) so the user can preview/normalize each one
+// individually on its Activity Detail page — nothing here mutates data.
+function ElevationSpikeList() {
+  const { data, loading, error } = useQuery(GET_ACTIVITIES_WITH_ELEVATION_SPIKES);
+
+  if (loading) return <p>Scanning activities for elevation spikes...</p>;
+  if (error) return <p>Error loading elevation spikes: {error.message}</p>;
+
+  const activities = data.activitiesWithElevationSpikes;
+  if (activities.length === 0) {
+    return <p>No elevation spikes detected across your activities.</p>;
+  }
+
+  return (
+    <ul className="outlier-activity-list">
+      {activities.map((a) => (
+        <li key={a.activityId}>
+          <Link to={`/activities/${a.activityId}`}>{a.title}</Link>{" "}
+          <span className="activity-type-badge">{activityTypeLabel(a.activityType)}</span>{" "}
+          <span className="chart-hint">
+            {new Date(a.startTime).toLocaleDateString()} — {a.spikeCount} flagged point
+            {a.spikeCount === 1 ? "" : "s"}, {Math.round(a.totalElevationDeltaMeters)} m affected
           </span>
         </li>
       ))}
@@ -123,6 +154,7 @@ function NotificationsToggle() {
 const TABS = [
   { id: "reanalysis", label: "Re-analysis" },
   { id: "outliers", label: "GPS Anomaly Cleanup" },
+  { id: "elevation-spikes", label: "Elevation Spikes" },
   { id: "lifts", label: "Suspected Lift Rides" },
 ];
 
@@ -200,6 +232,18 @@ export default function Settings() {
             points.
           </p>
           <OutlierList />
+        </>
+      )}
+
+      {activeTab === "elevation-spikes" && (
+        <>
+          <p className="chart-hint">
+            A single point (or short run of points) whose elevation jumps sharply off trend and then
+            returns — a bad altitude reading, not a GPS teleport or real terrain. Nothing is changed
+            automatically; open an activity below to preview the before/after fix and decide whether
+            to normalize and save it.
+          </p>
+          <ElevationSpikeList />
         </>
       )}
 

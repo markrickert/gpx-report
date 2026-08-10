@@ -8,6 +8,7 @@ import {
   updateGpxType,
   trimGpxTrack,
   removeGpxTrackPoints,
+  fixGpxElevations,
 } from "./writer.js";
 import { parseGpxFile } from "./parser.js";
 
@@ -136,6 +137,41 @@ describe("gpx writer", () => {
       const filePath = await writeGpx("remove-too-many.gpx", gpxDoc());
       await expect(removeGpxTrackPoints(filePath, [0, 1, 2])).rejects.toThrow(
         /fewer than 2 track points/,
+      );
+    });
+  });
+
+  describe("fixGpxElevations", () => {
+    it("replaces the <ele> of specific points, leaving lat/lon/time and other points untouched", async () => {
+      const filePath = await writeGpx("fix.gpx", gpxDoc());
+      await fixGpxElevations(filePath, new Map([[1, 1234.5]]));
+      const result = await parseGpxFile(filePath);
+      expect(result.points).toHaveLength(4);
+      expect(result.points[1].elevation).toBeCloseTo(1234.5);
+      expect(result.points[1].lat).toBeCloseTo(45.001);
+      expect(result.points[0].elevation).toBeCloseTo(1000);
+      expect(result.points[2].elevation).toBeCloseTo(1020);
+    });
+
+    it("inserts an <ele> when a trkpt has none", async () => {
+      const filePath = await writeGpx(
+        "fix-no-ele.gpx",
+        gpxDoc({
+          points: [
+            `<trkpt lat="45.0" lon="7.0"><time>2024-01-01T00:00:00Z</time></trkpt>`,
+            trkpt(45.001, 7.0, 1010, "2024-01-01T00:00:10Z"),
+          ],
+        }),
+      );
+      await fixGpxElevations(filePath, new Map([[0, 999]]));
+      const result = await parseGpxFile(filePath);
+      expect(result.points[0].elevation).toBeCloseTo(999);
+    });
+
+    it("throws when there are no trkpts", async () => {
+      const filePath = await writeGpx("fix-no-points.gpx", gpxDoc({ points: [] }));
+      await expect(fixGpxElevations(filePath, new Map([[0, 100]]))).rejects.toThrow(
+        /No <trkpt> elements/,
       );
     });
   });

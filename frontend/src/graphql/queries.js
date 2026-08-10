@@ -270,6 +270,48 @@ export const GET_ACTIVITY_OUTLIER_DIFF = gql`
   }
 `;
 
+export const GET_ACTIVITIES_WITH_ELEVATION_SPIKES = gql`
+  query GetActivitiesWithElevationSpikes {
+    activitiesWithElevationSpikes {
+      activityId
+      title
+      activityType
+      startTime
+      gpxFilename
+      spikeCount
+      totalElevationDeltaMeters
+    }
+  }
+`;
+
+export const GET_ACTIVITY_ELEVATION_FIX_DIFF = gql`
+  query GetActivityElevationFixDiff($id: ID!) {
+    activityElevationFixDiff(id: $id) {
+      activityId
+      spikePoints {
+        index
+        lat
+        lon
+        originalElevation
+        correctedElevation
+        timestamp
+      }
+      originalElevationGain
+      correctedElevationGain
+      originalElevationLoss
+      correctedElevationLoss
+    }
+  }
+`;
+
+export const FIX_ACTIVITY_ELEVATION_SPIKES = gql`
+  mutation FixActivityElevationSpikes($id: ID!) {
+    fixActivityElevationSpikes(id: $id) {
+      id
+    }
+  }
+`;
+
 export const GET_ACTIVITIES_WITH_LIFT_SEGMENTS = gql`
   query GetActivitiesWithLiftSegments {
     activitiesWithLiftSegments {

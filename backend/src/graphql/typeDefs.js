@@ -146,6 +146,34 @@ export const typeDefs = `#graphql
     cleanedDistanceMeters: Float!
   }
 
+  type ElevationSpikeSummary {
+    activityId: ID!
+    title: String!
+    activityType: String!
+    startTime: DateTime!
+    gpxFilename: String!
+    spikeCount: Int!
+    totalElevationDeltaMeters: Float!
+  }
+
+  type ElevationSpikePoint {
+    index: Int!
+    lat: Float!
+    lon: Float!
+    originalElevation: Float
+    correctedElevation: Float
+    timestamp: Float
+  }
+
+  type ActivityElevationFixDiff {
+    activityId: ID!
+    spikePoints: [ElevationSpikePoint!]!
+    originalElevationGain: Float
+    correctedElevationGain: Float
+    originalElevationLoss: Float
+    correctedElevationLoss: Float
+  }
+
   type Query {
     activity(id: ID!): Activity
     activities(
@@ -166,6 +194,8 @@ export const typeDefs = `#graphql
     recentActivityBounds(months: Int = 6): JSON
     activitiesWithOutliers: [OutlierSummary!]!
     activityOutlierDiff(id: ID!): ActivityOutlierDiff!
+    activitiesWithElevationSpikes: [ElevationSpikeSummary!]!
+    activityElevationFixDiff(id: ID!): ActivityElevationFixDiff!
     activitiesWithLiftSegments: [LiftActivitySummary!]!
     onThisDay: [Activity!]!
     activityStreak: ActivityStreak!
@@ -184,6 +214,7 @@ export const typeDefs = `#graphql
     saveRecordedActivity(gpxContent: String!): SaveRecordedActivityResult!
     setCodeServerTheme(theme: String!): Boolean!
     cleanActivityOutliers(id: ID!): Activity!
+    fixActivityElevationSpikes(id: ID!): Activity!
     deleteActivity(id: ID!): Boolean!
   }
 `;
