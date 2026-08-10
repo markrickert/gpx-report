@@ -88,19 +88,41 @@ export function detectElevationSpikes(points, options = {}) {
 // elevation is replaced by linear interpolation, by index position, between
 // the last good point immediately before the run and the first good point
 // immediately after it. Everything outside a flagged run is unchanged.
+//
+// Runs that touch end-to-end (one run's endIndex + 1 === the next run's
+// startIndex — the "two adjacent glitches sharing a boundary jump" case
+// detectElevationSpikes() intentionally reports as separate runs, e.g. a
+// beach-ride altimeter that drifts through several distinct bad-altitude
+// plateaus in a row) are interpolated together as one continuous chain
+// instead of independently. Correcting them independently would anchor each
+// run's interpolation on the point immediately outside it — which, for a
+// touching run, *is* the neighboring run's own boundary point, itself
+// flagged bad data — so the "corrected" result would just reproduce the same
+// bad plateau values instead of smoothing across the whole glitchy stretch.
 export function correctElevationSpikes(points, spikeRuns) {
   if (spikeRuns.length === 0) return points;
 
   const corrected = points.map((p) => ({ ...p }));
-  for (const { startIndex, endIndex } of spikeRuns) {
-    const before = points[startIndex - 1];
-    const after = points[endIndex + 1];
-    if (!before || !after || before.elevation == null || after.elevation == null) continue;
-    const span = endIndex + 1 - (startIndex - 1);
-    for (let i = startIndex; i <= endIndex; i++) {
-      const t = (i - (startIndex - 1)) / span;
-      corrected[i].elevation = before.elevation + (after.elevation - before.elevation) * t;
+  let i = 0;
+  while (i < spikeRuns.length) {
+    let j = i;
+    while (j + 1 < spikeRuns.length && spikeRuns[j].endIndex + 1 === spikeRuns[j + 1].startIndex) {
+      j++;
     }
+    const chainStart = spikeRuns[i].startIndex;
+    const chainEnd = spikeRuns[j].endIndex;
+
+    const before = points[chainStart - 1];
+    const after = points[chainEnd + 1];
+    if (before && after && before.elevation != null && after.elevation != null) {
+      const span = chainEnd + 1 - (chainStart - 1);
+      for (let k = chainStart; k <= chainEnd; k++) {
+        const t = (k - (chainStart - 1)) / span;
+        corrected[k].elevation = before.elevation + (after.elevation - before.elevation) * t;
+      }
+    }
+
+    i = j + 1;
   }
   return corrected;
 }
