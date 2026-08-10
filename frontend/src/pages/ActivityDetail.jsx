@@ -669,6 +669,12 @@ function ElevationFixTool({ activity }) {
     ),
   }));
   const spikeBands = groupConsecutiveIndices(diff.spikePoints.map((p) => p.index));
+  const correctedElevations = chartData.map((p) => p.corrected);
+  const elevationPadding = unit === "imperial" ? 30 : 10;
+  const spikeElevationDomain = [
+    Math.floor(Math.min(...correctedElevations) - elevationPadding),
+    Math.ceil(Math.max(...correctedElevations) + elevationPadding),
+  ];
 
   const save = async () => {
     if (
@@ -724,6 +730,7 @@ function ElevationFixTool({ activity }) {
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="idx" hide />
           <YAxis
+            domain={spikeElevationDomain}
             tickFormatter={(v) => Math.round(v)}
             label={{
               value: `Elevation (${elevationUnitLabel(unit)})`,
