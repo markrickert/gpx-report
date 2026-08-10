@@ -19,9 +19,7 @@ export function toCsv(rows, columns) {
   return lines.join("\r\n");
 }
 
-export function downloadCsv(filename, rows, columns) {
-  const csv = toCsv(rows, columns);
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+function triggerDownload(filename, blob) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -30,4 +28,17 @@ export function downloadCsv(filename, rows, columns) {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+export function downloadCsv(filename, rows, columns) {
+  const csv = toCsv(rows, columns);
+  triggerDownload(filename, new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+}
+
+// Pretty-printed JSON download — used for raw data exports where the
+// consumer (Python/Jupyter/etc.) wants the full object shape rather than a
+// flattened table.
+export function downloadJson(filename, data) {
+  const json = JSON.stringify(data, null, 2);
+  triggerDownload(filename, new Blob([json], { type: "application/json;charset=utf-8;" }));
 }
