@@ -13,7 +13,7 @@ This document details the features of gpx-report, and reflects what is actually 
     *   Duration
     *   Average & Maximum Speed/Pace
     *   Total Elevation Gain & Loss
-    *   Activity Type (from the GPX `<trk><type>` tag if present, else guessed from the filename, else "Unknown"; always "Paragliding" for IGC; from `Track.xml`'s `activity` attribute, defaulting to "Skiing", for `.skiz`)
+    *   Activity Type (from the GPX `<trk><type>` tag if present, else guessed from the filename, else suggested from the track's own speed/elevation profile via a band-fit heuristic, else "Unknown" if that heuristic also finds no usable signal; always "Paragliding" for IGC; from `Track.xml`'s `activity` attribute, defaulting to "Skiing", for `.skiz`)
     *   Title (from the track/metadata name in the GPX file, else the filename stem; always the filename stem for IGC; from `Track.xml`'s `name` attribute, else the filename stem, for `.skiz`)
 *   **Route Data Extraction:** Stores sequences of latitude, longitude, elevation, and timestamp for each activity.
 *   **Database Storage:** Processed data is stored in PostgreSQL, with route geometries managed by PostGIS.
