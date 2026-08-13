@@ -1,6 +1,10 @@
 node_modules/
 dist/
 .env
+
+# Playwright E2E run artifacts (frontend/playwright.config.ts)
+frontend/test-results/
+frontend/playwright-report/
 data/gpx/*
 !data/gpx/.gitkeep
 

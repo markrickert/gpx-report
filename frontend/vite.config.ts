@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { configDefaults } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
@@ -41,5 +42,9 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
+    // frontend/e2e/*.spec.ts are Playwright tests (own runner, own config —
+    // see playwright.config.ts / `npm run test:e2e`), not Vitest specs;
+    // Vitest's default include glob would otherwise also match them.
+    exclude: [...configDefaults.exclude, "e2e/**"],
   },
 });
