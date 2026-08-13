@@ -128,6 +128,7 @@ Audited 2026-08-08: pure-logic modules (`track/geo.js`, `track/outliers.js`, `tr
 
 - [ ] **No DB migration tooling.** `backend/db/init.sql` only runs against a fresh volume. Any schema change to an already-deployed instance needs a manual `psql`/`ALTER` step. Fine for now (single-user, low change rate) but worth a lightweight migration runner if schema churn picks up.
 - [ ] **No auth on the API or frontend.** Acceptable for now since the intended deployment is Caddy + Tailscale (see `docs/SETUP.md` §6 reverse-proxy notes), but if the API/frontend domains are ever exposed outside Tailscale, this becomes a real gap, not just a v1 simplification.
+- [ ] **Title+type save race can silently drop one edit.** `ActivityHeader.save()` in `ActivityDetail.tsx` fires `updateActivityTitle` and `updateActivityType` concurrently via `Promise.all` when both fields changed in the same Save click; both mutations independently read-modify-write the same GPX file through `processFile()`, so whichever `processFile()` call lands last can silently stomp the other's change back to its pre-edit value. Found and reproduced live while building the Playwright E2E suite (2026-08-13, see Done entry below); not fixed there (out of scope for that task, which sidestepped it by saving title/type as two separate round trips in the test itself). Needs a real fix next time this edit flow is touched — e.g. serializing the two `processFile()` calls, or a single combined mutation.
 
 ## Explicitly out of scope for v1 (not gaps, just noting so they don't get re-litigated)
 
