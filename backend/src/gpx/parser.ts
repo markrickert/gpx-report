@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import GpxParser from "gpxparser";
 import { computeElevationGainLoss } from "../track/elevation.js";
+import { suggestActivityTypes } from "../track/suggestType.js";
 
 // Points slower than this are considered "stopped" (traffic lights, breaks,
 // photo stops) when computing moving_avg_speed_mps. Matches
@@ -64,12 +65,22 @@ function guessActivityType(filename) {
   return match ? match[0].toUpperCase() + match.slice(1) : "Unknown";
 }
 
-function resolveActivityType(rawType, filename) {
+// When neither the GPX's own <trk><type> nor the filename word-list match
+// yields a type, fall back to the same band-fit heuristic used post-hoc for
+// already-"Unknown" activities (track/suggestType.js), scored against the
+// stats this parse just computed. Only accepted when the top candidate has
+// a positive score — an all-null/no-signal stats object scores every
+// candidate 0 (see suggestActivityTypes), and picking the first of an
+// arbitrary tie would be false precision, so "Unknown" is left as-is.
+function resolveActivityType(rawType, filename, stats) {
   if (rawType && rawType.trim()) {
     const key = rawType.trim().toLowerCase();
     return ACTIVITY_TYPE_LABELS[key] ?? formatUnknownType(rawType.trim());
   }
-  return guessActivityType(filename);
+  const guessed = guessActivityType(filename);
+  if (guessed !== "Unknown") return guessed;
+  const [topSuggestion] = suggestActivityTypes(stats);
+  return topSuggestion && topSuggestion.score > 0 ? topSuggestion.type : "Unknown";
 }
 
 function resolveTitle(track, metadata, filePath) {
@@ -107,7 +118,9 @@ export async function parseGpxFile(filePath) {
   const startTime = points[0].time ? new Date(points[0].time) : null;
   const endTime = points[points.length - 1].time ? new Date(points[points.length - 1].time) : null;
   const durationSeconds =
-    startTime && endTime ? Math.max(0, Math.round((endTime.getTime() - startTime.getTime()) / 1000)) : 0;
+    startTime && endTime
+      ? Math.max(0, Math.round((endTime.getTime() - startTime.getTime()) / 1000))
+      : 0;
 
   const avgSpeedMps = durationSeconds > 0 ? distanceMeters / durationSeconds : null;
   const maxSpeedMps = computeMaxSpeed(gpx.tracks);
@@ -139,7 +152,13 @@ export async function parseGpxFile(filePath) {
 
   return {
     title: resolveTitle(primaryTrack, gpx.metadata, filePath),
-    activityType: resolveActivityType(primaryTrack?.type, filePath),
+    activityType: resolveActivityType(primaryTrack?.type, filePath, {
+      avgSpeedMps,
+      maxSpeedMps,
+      totalElevationGain: elevationGain,
+      totalElevationLoss: elevationLoss,
+      distanceMeters,
+    }),
     startTime,
     endTime,
     durationSeconds,
