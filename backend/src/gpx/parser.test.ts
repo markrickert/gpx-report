@@ -6,11 +6,22 @@ import { parseGpxFile, activityTypeToRawType } from "./parser.js";
 
 function gpx({ name, type, trkpts }: { name?: string; type?: string; trkpts: string[] }) {
   const trk = `<trk>${name ? `<name>${name}</name>` : ""}${type ? `<type>${type}</type>` : ""}<trkseg>${trkpts.join("")}</trkseg></trk>`;
-  return `<?xml version="1.0"?><gpx version="1.1"><metadata></metadata>${trk}</gpx>`;
+  return `<?xml version="1.0"?><gpx version="1.1" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1"><metadata></metadata>${trk}</gpx>`;
 }
 
 function trkpt(lat, lon, ele, time) {
   return `<trkpt lat="${lat}" lon="${lon}">${ele != null ? `<ele>${ele}</ele>` : ""}${time ? `<time>${time}</time>` : ""}</trkpt>`;
+}
+
+function trkptWithExt(
+  lat,
+  lon,
+  ele,
+  time,
+  { hr, cad, atemp }: { hr?: number; cad?: number; atemp?: number } = {},
+) {
+  const ext = `<gpxtpx:TrackPointExtension>${hr != null ? `<gpxtpx:hr>${hr}</gpxtpx:hr>` : ""}${cad != null ? `<gpxtpx:cad>${cad}</gpxtpx:cad>` : ""}${atemp != null ? `<gpxtpx:atemp>${atemp}</gpxtpx:atemp>` : ""}</gpxtpx:TrackPointExtension>`;
+  return `<trkpt lat="${lat}" lon="${lon}">${ele != null ? `<ele>${ele}</ele>` : ""}${time ? `<time>${time}</time>` : ""}<extensions>${ext}</extensions></trkpt>`;
 }
 
 describe("parseGpxFile", () => {
@@ -161,6 +172,43 @@ describe("parseGpxFile", () => {
     const result = await parseGpxFile(filePath);
     expect(result.durationSeconds).toBe(0);
     expect(result.avgSpeedMps).toBeNull();
+  });
+
+  it("extracts hr/cad/atemp from gpxtpx:TrackPointExtension and computes avg/max hr", async () => {
+    const filePath = await writeGpx(
+      "hr-run.gpx",
+      gpx({
+        name: "HR Run",
+        trkpts: [
+          trkptWithExt(0, 0, 100, "2024-01-01T00:00:00Z", { hr: 140, cad: 80, atemp: 20 }),
+          trkptWithExt(0, 0.001, 100, "2024-01-01T00:01:00Z", { hr: 160, cad: 85, atemp: 21 }),
+        ],
+      }),
+    );
+
+    const result = await parseGpxFile(filePath);
+    expect(result.points[0]).toMatchObject({ hr: 140, cad: 80, atemp: 20 });
+    expect(result.points[1]).toMatchObject({ hr: 160, cad: 85, atemp: 21 });
+    expect(result.elevationProfile[0]).toMatchObject({ hr: 140, cad: 80, atemp: 20 });
+    expect(result.avgHr).toBe(150);
+    expect(result.maxHr).toBe(160);
+  });
+
+  it("returns null hr/cad/atemp and null avg/max hr when no extension data is present", async () => {
+    const filePath = await writeGpx(
+      "no-ext.gpx",
+      gpx({
+        trkpts: [
+          trkpt(0, 0, 100, "2024-01-01T00:00:00Z"),
+          trkpt(0, 0.001, 100, "2024-01-01T00:01:00Z"),
+        ],
+      }),
+    );
+
+    const result = await parseGpxFile(filePath);
+    expect(result.points[0]).toMatchObject({ hr: null, cad: null, atemp: null });
+    expect(result.avgHr).toBeNull();
+    expect(result.maxHr).toBeNull();
   });
 
   it("throws when the file has fewer than two track points", async () => {

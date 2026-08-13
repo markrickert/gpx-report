@@ -90,6 +90,34 @@ function resolveTitle(track, metadata, filePath) {
   return stem || "Untitled";
 }
 
+// gpxparser (via jsdom-global) parses the file into a full DOM but drops
+// Garmin's <gpxtpx:TrackPointExtension> (hr/cad/atemp) when building
+// track.points — it only reads lat/lon/ele/time. Pull those back out
+// ourselves from gpx.xmlSource, the underlying parsed document it retains.
+// querySelectorAll("trkpt") over the whole document visits every <trk>'s
+// points in the same depth-first order gpxparser used to build
+// track.points (each <trk>'s own trkpt.querySelectorAll("trkpt") call, one
+// track after another), so the flat list here lines up index-for-index
+// with points/elevationProfile below without needing to group by track.
+function extractPointExtensions(gpx) {
+  return [...gpx.xmlSource.querySelectorAll("trkpt")].map((trkpt) => ({
+    hr: getExtensionValue(trkpt, "gpxtpx:hr"),
+    cad: getExtensionValue(trkpt, "gpxtpx:cad"),
+    atemp: getExtensionValue(trkpt, "gpxtpx:atemp"),
+  }));
+}
+
+// jsdom parses "text/xml" without namespace resolution, so the prefixed
+// extension tags keep their literal "gpxtpx:hr" tag name rather than being
+// resolved to a namespace URI + local name — getElementsByTagName with the
+// prefixed name matches them directly.
+function getExtensionValue(trkpt, tagName) {
+  const el = trkpt.getElementsByTagName(tagName)[0];
+  if (!el || !el.textContent) return null;
+  const value = parseFloat(el.textContent);
+  return Number.isNaN(value) ? null : value;
+}
+
 /**
  * Parses a GPX file and returns the flattened point list plus computed
  * activity metrics. gpxparser handles per-track distance/elevation math;
@@ -104,6 +132,11 @@ export async function parseGpxFile(filePath) {
   if (points.length < 2) {
     throw new Error(`GPX file ${filePath} does not contain enough track points`);
   }
+
+  const extensions = extractPointExtensions(gpx);
+  const hrValues = extensions.map((e) => e.hr).filter((v) => v != null);
+  const avgHr = hrValues.length > 0 ? hrValues.reduce((a, b) => a + b, 0) / hrValues.length : null;
+  const maxHr = hrValues.length > 0 ? Math.max(...hrValues) : null;
 
   const distanceMeters = gpx.tracks.reduce((sum, t) => sum + t.distance.total, 0);
   // gpxparser's own t.elevation.pos/neg sum every raw point-to-point delta,
@@ -127,6 +160,7 @@ export async function parseGpxFile(filePath) {
   const movingAvgSpeedMps = computeMovingAvgSpeed(gpx.tracks);
 
   let cumulativeDistance = 0;
+  let pointIndex = 0;
   const elevationProfile = [];
   gpx.tracks.forEach((track) => {
     track.points.forEach((p, i) => {
@@ -140,11 +174,16 @@ export async function parseGpxFile(filePath) {
           if (dtSeconds > 0) speedMps = segmentDistance / dtSeconds;
         }
       }
+      const ext = extensions[pointIndex] ?? { hr: null, cad: null, atemp: null };
       elevationProfile.push({
         distanceMeters: cumulativeDistance,
         elevation: p.ele ?? null,
         speedMps,
+        hr: ext.hr,
+        cad: ext.cad,
+        atemp: ext.atemp,
       });
+      pointIndex++;
     });
   });
 
@@ -168,12 +207,20 @@ export async function parseGpxFile(filePath) {
     movingAvgSpeedMps,
     totalElevationGain: elevationGain,
     totalElevationLoss: elevationLoss,
-    points: points.map((p) => ({
-      lat: p.lat,
-      lon: p.lon,
-      elevation: p.ele ?? null,
-      timestamp: p.time ? new Date(p.time).getTime() : null,
-    })),
+    avgHr,
+    maxHr,
+    points: points.map((p, i) => {
+      const ext = extensions[i] ?? { hr: null, cad: null, atemp: null };
+      return {
+        lat: p.lat,
+        lon: p.lon,
+        elevation: p.ele ?? null,
+        timestamp: p.time ? new Date(p.time).getTime() : null,
+        hr: ext.hr,
+        cad: ext.cad,
+        atemp: ext.atemp,
+      };
+    }),
     elevationProfile,
   };
 }

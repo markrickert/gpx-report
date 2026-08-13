@@ -1178,7 +1178,12 @@ export default function ActivityDetail() {
     dist: distanceValue(p.distanceMeters, unit).toFixed(2),
     elevation: elevationValue(p.elevation, unit),
     speedMps: p.speedMps,
+    hr: p.hr ?? null,
   }));
+  // Most of the 500+ existing activities are GPS-only tracks with no paired
+  // HR strap, so the HR chart/tiles only render when this particular
+  // activity's GPX actually carried <gpxtpx:hr> data (IGC/.skiz never do).
+  const hasHrData = activity.avgHr != null;
   const elevations = elevationData.map((p) => p.elevation);
   const elevationPadding = unit === "imperial" ? 30 : 10;
   const elevationDomain =
@@ -1329,6 +1334,28 @@ export default function ActivityDetail() {
             <span className="metric-label">Max Speed</span>
           </span>
         </div>
+        {hasHrData && (
+          <div className="metric-tile">
+            <span className="metric-icon" aria-hidden="true">
+              ❤️
+            </span>
+            <span className="metric-body">
+              <span className="metric-value">{Math.round(activity.avgHr)} bpm</span>
+              <span className="metric-label">Avg Heart Rate</span>
+            </span>
+          </div>
+        )}
+        {hasHrData && (
+          <div className="metric-tile">
+            <span className="metric-icon" aria-hidden="true">
+              💓
+            </span>
+            <span className="metric-body">
+              <span className="metric-value">{Math.round(activity.maxHr)} bpm</span>
+              <span className="metric-label">Max Heart Rate</span>
+            </span>
+          </div>
+        )}
         {gradeAdjustedSpeedMps != null && (
           <div className="metric-tile">
             <span className="metric-icon" aria-hidden="true">
@@ -1616,6 +1643,73 @@ export default function ActivityDetail() {
             exitEditMode();
           }}
         />
+      )}
+
+      {hasHrData && (
+        <>
+          <h2>Heart Rate</h2>
+          <ResponsiveContainer width="100%" height={200} className="elevation-chart">
+            <LineChart
+              data={elevationData}
+              onMouseMove={handleChartDrag}
+              onMouseUp={endDrag}
+              onMouseLeave={() => {
+                endDrag();
+                clearHover();
+              }}
+              onTouchMove={handleChartDrag}
+              onTouchEnd={endDrag}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="dist"
+                label={{
+                  value: `Distance (${distanceUnitLabel(unit)})`,
+                  position: "insideBottom",
+                  offset: -5,
+                }}
+              />
+              <XAxis dataKey="idx" xAxisId="idx" hide allowDuplicatedCategory={false} />
+              <YAxis
+                domain={["dataMin - 10", "dataMax + 10"]}
+                tickFormatter={(value) => Math.round(value)}
+                label={{ value: "Heart Rate (bpm)", angle: -90, position: "insideLeft" }}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "rgba(17, 24, 39, 0.92)",
+                  border: "none",
+                  borderRadius: 6,
+                }}
+                labelStyle={{ color: "#e5e7eb" }}
+                itemStyle={{ color: "#e5e7eb" }}
+              />
+              <Line
+                type="monotone"
+                dataKey="hr"
+                name="Heart Rate"
+                stroke="#ef4444"
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+                connectNulls
+              />
+              {hoverIndex != null && !dragging && elevationData[hoverIndex]?.hr != null && (
+                <ReferenceDot
+                  xAxisId="idx"
+                  x={hoverIndex}
+                  y={elevationData[hoverIndex].hr}
+                  r={5}
+                  fill="#ef4444"
+                  stroke="#fff"
+                  strokeWidth={2}
+                  isFront
+                  ifOverflow="visible"
+                />
+              )}
+            </LineChart>
+          </ResponsiveContainer>
+        </>
       )}
 
       <OutlierCleanup activity={activity} />
