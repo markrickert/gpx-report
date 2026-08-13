@@ -29,6 +29,8 @@ Stores the primary information for each recorded activity, one row per source fi
 | `best_1km_seconds` | `NUMERIC`         | `NULLABLE`                                      | Fastest time in seconds to cover 1km anywhere in the track (sliding-window scan, see below); `NULL` if the activity never covers 1km. |
 | `best_5km_seconds` | `NUMERIC`         | `NULLABLE`                                      | Same as above, for 5km.                                      |
 | `best_10km_seconds` | `NUMERIC`        | `NULLABLE`                                      | Same as above, for 10km.                                     |
+| `avg_hr`           | `NUMERIC`         | `NULLABLE`                                      | Average heart rate in bpm, from GPX `<gpxtpx:TrackPointExtension><gpxtpx:hr>` values; `NULL` when the source has no HR data (most activities — GPS-only, no paired HR strap) or isn't GPX. |
+| `max_hr`           | `NUMERIC`         | `NULLABLE`                                      | Maximum heart rate in bpm, same source as `avg_hr`.           |
 | `created_at`       | `TIMESTAMPTZ`     | `NOT NULL DEFAULT NOW()`                        | When the record was first created.                          |
 | `updated_at`       | `TIMESTAMPTZ`     | `NOT NULL DEFAULT NOW()`                        | When the record was last (re-)processed.                    |
 
@@ -46,8 +48,8 @@ Stores the geospatial path of each activity, one row per activity.
 | :------------ | :------------- | :----------------------------------------------- | :--------------------------------------------------------------- |
 | `activity_id` | `INTEGER`      | `PRIMARY KEY`, `FOREIGN KEY REFERENCES activities(id) ON DELETE CASCADE` | Links to the `activities` table.                                 |
 | `route_geom`  | `GEOMETRY(LineString, 4326)` | `NOT NULL`                        | The route as a PostGIS LineString (SRID 4326 / WGS84), GiST-indexed. Queried geospatially by `Activity.similarActivities` (`ST_HausdorffDistance` between `ST_Simplify`'d routes) to find past activities on the same route. |
-| `elevation_profile_data` | `JSONB` | `NULLABLE`                              | JSON array for the elevation chart: `[{"distanceMeters": 0, "elevation": 10, "speedMps": null}, ...]`. `speedMps` is the point-to-point speed arriving at that point (`null` for the first point or when either point lacks a timestamp). |
-| `points_data` | `JSONB`        | `NULLABLE`                                      | Full point list used directly by the frontend map: `[{"lat", "lon", "elevation", "timestamp"}, ...]`. Kept redundant with `route_geom` because GeoJSON round-tripping loses per-point elevation/timestamp. |
+| `elevation_profile_data` | `JSONB` | `NULLABLE`                              | JSON array for the elevation chart: `[{"distanceMeters": 0, "elevation": 10, "speedMps": null, "hr": null, "cad": null, "atemp": null}, ...]`. `speedMps` is the point-to-point speed arriving at that point (`null` for the first point or when either point lacks a timestamp). `hr`/`cad`/`atemp` (heart rate bpm, cadence rpm, ambient temperature °C) come from GPX's `<gpxtpx:TrackPointExtension>` and are `null` for the vast majority of activities (GPS-only, no paired sensor) and always `null` for IGC/`.skiz`. |
+| `points_data` | `JSONB`        | `NULLABLE`                                      | Full point list used directly by the frontend map: `[{"lat", "lon", "elevation", "timestamp", "hr", "cad", "atemp"}, ...]`. Kept redundant with `route_geom` because GeoJSON round-tripping loses per-point elevation/timestamp. `hr`/`cad`/`atemp` are the same GPX extension fields as `elevation_profile_data` above, index-aligned with it. |
 
 There is no `activity_summary` or `aggregated_stats_by_type` table. Both are computed live by the GraphQL resolvers with `SUM`/`AVG`/`GROUP BY` queries against `activities` — see `activitySummary` and `aggregatedStatsByType` below.
 
@@ -80,6 +82,8 @@ type Activity {
   maxSpeedMps: Float
   totalElevationGain: Float
   totalElevationLoss: Float
+  avgHr: Float # bpm, from GPX heart-rate extension data; null when the source has none
+  maxHr: Float # bpm, same source as avgHr
   locationName: String
   route: Route!
   suggestedActivityTypes: [String!]! # heuristic-ranked candidate types, computed live from avg/max speed + elevation gain/loss per km — see track/suggestType.js

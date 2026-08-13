@@ -16,6 +16,8 @@ export const typeDefs = `#graphql
     maxSpeedMps: Float
     totalElevationGain: Float
     totalElevationLoss: Float
+    avgHr: Float
+    maxHr: Float
     notes: String
     locationName: String
     best1kmSeconds: Float

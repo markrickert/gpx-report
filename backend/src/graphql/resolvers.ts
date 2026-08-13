@@ -61,6 +61,8 @@ function mapActivityRow(row) {
     maxSpeedMps: row.max_speed_mps !== null ? Number(row.max_speed_mps) : null,
     totalElevationGain: row.total_elevation_gain !== null ? Number(row.total_elevation_gain) : null,
     totalElevationLoss: row.total_elevation_loss !== null ? Number(row.total_elevation_loss) : null,
+    avgHr: row.avg_hr !== null ? Number(row.avg_hr) : null,
+    maxHr: row.max_hr !== null ? Number(row.max_hr) : null,
     notes: row.notes,
     locationName: row.location_name,
     best1kmSeconds: row.best_1km_seconds !== null ? Number(row.best_1km_seconds) : null,

@@ -22,7 +22,12 @@ export function parseActivityFile(filePath) {
 
 export async function processFile(filePath, { skipGeocode = false } = {}) {
   const filename = path.basename(filePath);
-  const parsed = await parseActivityFile(filePath);
+  // avgHr/maxHr are only produced by the GPX parser (IGC/.skiz carry no
+  // heart-rate data); typed loosely here since parseActivityFile's return is
+  // a union across the three format-specific parsers, only one of which has
+  // these fields.
+  const parsed: { avgHr?: number | null; maxHr?: number | null; [key: string]: any } =
+    await parseActivityFile(filePath);
 
   // Fastest-segment personal records: elevationProfile and points are built
   // index-aligned by every parser (gpx/igc/skiz), so pairing distanceMeters
@@ -76,8 +81,8 @@ export async function processFile(filePath, { skipGeocode = false } = {}) {
       `INSERT INTO activities (
          gpx_filename, title, activity_type, start_time, end_time, duration_seconds,
          distance_meters, avg_speed_mps, moving_avg_speed_mps, max_speed_mps, total_elevation_gain, total_elevation_loss, elevation_gain_excluding_lift_meters, location_name,
-         best_1km_seconds, best_5km_seconds, best_10km_seconds, updated_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, NOW())
+         best_1km_seconds, best_5km_seconds, best_10km_seconds, avg_hr, max_hr, updated_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19, NOW())
        ON CONFLICT (gpx_filename) DO UPDATE SET
          title = EXCLUDED.title,
          activity_type = EXCLUDED.activity_type,
@@ -95,6 +100,8 @@ export async function processFile(filePath, { skipGeocode = false } = {}) {
          best_1km_seconds = EXCLUDED.best_1km_seconds,
          best_5km_seconds = EXCLUDED.best_5km_seconds,
          best_10km_seconds = EXCLUDED.best_10km_seconds,
+         avg_hr = EXCLUDED.avg_hr,
+         max_hr = EXCLUDED.max_hr,
          updated_at = NOW()
        RETURNING id`,
       [
@@ -115,6 +122,8 @@ export async function processFile(filePath, { skipGeocode = false } = {}) {
         bestEfforts[1000],
         bestEfforts[5000],
         bestEfforts[10000],
+        parsed.avgHr ?? null,
+        parsed.maxHr ?? null,
       ],
     );
     const activityId = activityResult.rows[0].id;

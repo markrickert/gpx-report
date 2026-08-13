@@ -52,6 +52,8 @@ export const GET_ACTIVITY = gql`
       maxSpeedMps
       totalElevationGain
       totalElevationLoss
+      avgHr
+      maxHr
       notes
       locationName
       best1kmSeconds
@@ -389,6 +391,8 @@ export const GET_ACTIVITIES_FOR_EXPORT = gql`
       maxSpeedMps
       totalElevationGain
       totalElevationLoss
+      avgHr
+      maxHr
       notes
       locationName
       best1kmSeconds
