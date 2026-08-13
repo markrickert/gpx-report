@@ -18,6 +18,9 @@ export function watchGpxDirectory(directory) {
   const watcher = chokidar.watch(directory, {
     ignoreInitial: false,
     awaitWriteFinish: { stabilityThreshold: 1000, pollInterval: 100 },
+    // gpx/writer.js backs up originals into _backups/ before every in-place
+    // edit; those copies aren't new activities and shouldn't be re-ingested.
+    ignored: /(^|[/\\])_backups([/\\]|$)/,
   });
 
   // chokidar's initial 'add' burst (every pre-existing file, on every backend

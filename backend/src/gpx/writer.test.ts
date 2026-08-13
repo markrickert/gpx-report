@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -177,6 +177,26 @@ describe("gpx writer", () => {
       await expect(fixGpxElevations(filePath, new Map([[0, 100]]))).rejects.toThrow(
         /No <trkpt> elements/,
       );
+    });
+  });
+
+  describe("backups", () => {
+    it("copies the original into a sibling _backups dir before each edit", async () => {
+      const original = gpxDoc({ name: "Before" });
+      const filePath = await writeGpx("backup-me.gpx", original);
+      await updateGpxTitle(filePath, "After");
+
+      const backupsDir = path.join(dir, "_backups");
+      const backupsOf = async () =>
+        (await readdir(backupsDir)).filter((f) => f.startsWith("backup-me.gpx."));
+
+      const backups = await backupsOf();
+      expect(backups).toHaveLength(1);
+      expect(backups[0]).toMatch(/^backup-me\.gpx\..+\.bak$/);
+      expect(await readFile(path.join(backupsDir, backups[0]), "utf-8")).toBe(original);
+
+      await updateGpxType(filePath, "running");
+      expect(await backupsOf()).toHaveLength(2);
     });
   });
 });

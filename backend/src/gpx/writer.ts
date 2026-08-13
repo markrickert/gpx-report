@@ -1,4 +1,16 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir, copyFile } from "node:fs/promises";
+import path from "node:path";
+
+// Backs up the original file before any in-place edit, so a bad trim/fix can
+// be recovered by hand. Lives alongside the GPX files (not GPX_FILES_DIRECTORY
+// directly, since writer.js doesn't know the ingest root) in a sibling
+// _backups/ dir, which watcher.js excludes from ingestion.
+async function backupGpxFile(filePath) {
+  const backupsDir = path.join(path.dirname(filePath), "_backups");
+  await mkdir(backupsDir, { recursive: true });
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  await copyFile(filePath, path.join(backupsDir, `${path.basename(filePath)}.${timestamp}.bak`));
+}
 
 // Exported for reuse by skiz/writer.js, which needs the same XML-attribute
 // escaping for Track.xml.
@@ -22,6 +34,7 @@ export async function updateGpxTitle(filePath, title) {
     throw new Error(`No <trk> element found in ${filePath}`);
   }
   const updated = xml.replace(TRK_NAME_RE, `$1<name>${escapeXml(title)}</name>\n  `);
+  await backupGpxFile(filePath);
   await writeFile(filePath, updated, "utf-8");
 }
 
@@ -36,6 +49,7 @@ export async function updateGpxType(filePath, type) {
     throw new Error(`No <trk> element found in ${filePath}`);
   }
   const updated = xml.replace(TRK_TYPE_RE, `$1<type>${escapeXml(type)}</type>\n  `);
+  await backupGpxFile(filePath);
   await writeFile(filePath, updated, "utf-8");
 }
 
@@ -68,6 +82,7 @@ export async function trimGpxTrack(filePath, startIndex, endIndex) {
     cursor = match.index + match[0].length;
   });
   result += xml.slice(cursor);
+  await backupGpxFile(filePath);
   await writeFile(filePath, result, "utf-8");
 }
 
@@ -96,6 +111,7 @@ export async function removeGpxTrackPoints(filePath, indicesToRemove: number[]) 
     cursor = match.index + match[0].length;
   });
   result += xml.slice(cursor);
+  await backupGpxFile(filePath);
   await writeFile(filePath, result, "utf-8");
 }
 
@@ -127,5 +143,6 @@ export async function fixGpxElevations(filePath, corrections) {
     cursor = match.index + match[0].length;
   });
   result += xml.slice(cursor);
+  await backupGpxFile(filePath);
   await writeFile(filePath, result, "utf-8");
 }
