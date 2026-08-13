@@ -8,6 +8,7 @@
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint": "eslint .",
     "format": "prettier --check . --ignore-path ../.prettierignore"
   },
@@ -33,6 +34,7 @@
     "eslint-config-prettier": "^9.1.0",
     "globals": "^15.9.0",
     "prettier": "^3.3.3",
+    "testcontainers": "^10.13.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.1",
