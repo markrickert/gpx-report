@@ -2,7 +2,6 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import GpxParser from "gpxparser";
 import { computeElevationGainLoss } from "../track/elevation.js";
-import { suggestActivityTypes } from "../track/suggestType.js";
 
 // Points slower than this are considered "stopped" (traffic lights, breaks,
 // photo stops) when computing moving_avg_speed_mps. Matches
@@ -66,21 +65,15 @@ function guessActivityType(filename) {
 }
 
 // When neither the GPX's own <trk><type> nor the filename word-list match
-// yields a type, fall back to the same band-fit heuristic used post-hoc for
-// already-"Unknown" activities (track/suggestType.js), scored against the
-// stats this parse just computed. Only accepted when the top candidate has
-// a positive score — an all-null/no-signal stats object scores every
-// candidate 0 (see suggestActivityTypes), and picking the first of an
-// arbitrary tie would be false precision, so "Unknown" is left as-is.
-function resolveActivityType(rawType, filename, stats) {
+// yields a type, the activity is left "Unknown" rather than auto-assigned —
+// ActivityDetail.jsx's chip picker (track/suggestType.js's band-fit ranking,
+// same heuristic) offers the same candidates for the user to confirm instead.
+function resolveActivityType(rawType, filename) {
   if (rawType && rawType.trim()) {
     const key = rawType.trim().toLowerCase();
     return ACTIVITY_TYPE_LABELS[key] ?? formatUnknownType(rawType.trim());
   }
-  const guessed = guessActivityType(filename);
-  if (guessed !== "Unknown") return guessed;
-  const [topSuggestion] = suggestActivityTypes(stats);
-  return topSuggestion && topSuggestion.score > 0 ? topSuggestion.type : "Unknown";
+  return guessActivityType(filename);
 }
 
 function resolveTitle(track, metadata, filePath) {
@@ -191,13 +184,7 @@ export async function parseGpxFile(filePath) {
 
   return {
     title: resolveTitle(primaryTrack, gpx.metadata, filePath),
-    activityType: resolveActivityType(primaryTrack?.type, filePath, {
-      avgSpeedMps,
-      maxSpeedMps,
-      totalElevationGain: elevationGain,
-      totalElevationLoss: elevationLoss,
-      distanceMeters,
-    }),
+    activityType: resolveActivityType(primaryTrack?.type, filePath),
     startTime,
     endTime,
     durationSeconds,
