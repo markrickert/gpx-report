@@ -5,6 +5,7 @@ Tracks work that is planned/wanted but not yet implemented, plus gaps found when
 ## Planned features
 
 - [ ] **Heart rate / cadence / power support.** `gpx/parser.js` only reads lat/lon/elevation/timestamp — it ignores Garmin's `gpxtpx:TrackPointExtension` (`hr`, `cad`, `atemp`) even when present in the source file. Scope: full support from the start — new `points_data` fields, new `activities` summary columns (avg/max HR), and a synced chart on `ActivityDetail.jsx` alongside the elevation profile, not just summary numbers. IGC/`.skiz` don't carry this data at all, so it'd be GPX-only.
+- [ ] **Suggest activity type when unset.** `gpx/parser.js`'s `activityType` guess falls back to "Unknown" when the filename doesn't match its word list. Add a heuristic that looks at the parsed track data itself (speed profile, elevation gain/loss, distance, duration) to suggest a likely type for activities stuck at "Unknown", instead of relying on filename alone.
 - [ ] **Convert the frontend to TypeScript.** `frontend/src` (Vite + React) is still bare JS/JSX with no typechecking. Backend half done — see Done below; mirror that approach: `.js`/`.jsx` → `.ts`/`.tsx` throughout, `tsconfig.json`, ESLint swapped to `@typescript-eslint` (plus `eslint-plugin-react`), no new bare `.js`/`.jsx` files unless there's a specific reason. Thin test coverage (only `csv.js`/`units.jsx`/`matchedRecords` have Vitest tests) means little regression safety net during the move.
 
 ### Test coverage gaps
