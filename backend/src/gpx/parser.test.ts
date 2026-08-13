@@ -96,27 +96,10 @@ describe("parseGpxFile", () => {
     expect(result.activityType).toBe("Hiking");
   });
 
-  it("falls back to Unknown activity type when nothing matches and the track has no usable stats", async () => {
-    // No timestamps, no elevation, and no movement between the two points
-    // means avgSpeedMps/maxSpeedMps are null and elevation-gain/loss-per-km
-    // can't be computed (zero distance), so the track-data heuristic (see
-    // next test) has nothing to score and every candidate type ties at 0 —
-    // Unknown is left as-is rather than picking an arbitrary tie-break.
-    const filePath = await writeGpx(
-      "track123.gpx",
-      gpx({
-        trkpts: [trkpt(0, 0, null, null), trkpt(0, 0, null, null)],
-      }),
-    );
-
-    const result = await parseGpxFile(filePath);
-    expect(result.activityType).toBe("Unknown");
-  });
-
-  it("suggests a likely activity type from track stats when the filename doesn't match either", async () => {
-    // ~2.7 m/s over flat ground with no filename keyword match — squarely a
-    // Running-shaped speed/elevation profile per track/suggestType.js's band
-    // fit, so the parser should assign it instead of leaving it "Unknown".
+  it("falls back to Unknown activity type when neither <type> nor the filename match, regardless of track data", async () => {
+    // Left "Unknown" rather than auto-assigned from track stats — the user
+    // picks from ActivityDetail.jsx's suggested-type chips instead, which
+    // reuse the same track/suggestType.js heuristic post-hoc for display.
     const filePath = await writeGpx(
       "track456.gpx",
       gpx({
@@ -128,7 +111,7 @@ describe("parseGpxFile", () => {
     );
 
     const result = await parseGpxFile(filePath);
-    expect(result.activityType).toBe("Running");
+    expect(result.activityType).toBe("Unknown");
   });
 
   it("maps a known raw <type> to its display label", async () => {
