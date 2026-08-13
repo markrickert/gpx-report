@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, gql } from "@apollo/client";
-import { useTheme } from "../theme.jsx";
+import { useTheme } from "../theme";
 
 const SET_CODE_SERVER_THEME = gql`
   mutation SetCodeServerTheme($theme: String!) {

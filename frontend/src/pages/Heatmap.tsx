@@ -3,8 +3,8 @@ import { useQuery } from "@apollo/client";
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet.heat";
-import { GET_HEATMAP_POINTS, GET_RECENT_ACTIVITY_BOUNDS } from "../graphql/queries.js";
-import { useTheme } from "../theme.jsx";
+import { GET_HEATMAP_POINTS, GET_RECENT_ACTIVITY_BOUNDS } from "../graphql/queries";
+import { useTheme } from "../theme";
 
 // Low -> high elevation.
 const ELEVATION_BAND_COLORS = ["#2563eb", "#22c55e", "#f59e0b", "#ef4444"];
@@ -16,7 +16,7 @@ const DEFAULT_GRADIENT = { 0.3: "#2563eb", 0.55: "#22c55e", 0.8: "#f59e0b", 1: "
 // leaflet.heat is a plain Leaflet plugin (not React-aware), so it's wired
 // into react-leaflet's MapContainer imperatively via useMap() instead of
 // being rendered as JSX.
-function HeatLayer({ points, gradient = DEFAULT_GRADIENT }) {
+function HeatLayer({ points, gradient = DEFAULT_GRADIENT as Record<number, string> }) {
   const map = useMap();
 
   useEffect(() => {

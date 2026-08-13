@@ -28,7 +28,7 @@ import {
   SEARCH_ACTIVITIES_FOR_COMPARE,
   DELETE_ACTIVITY,
   GET_PERSONAL_RECORDS,
-} from "../graphql/queries.js";
+} from "../graphql/queries";
 import {
   useUnits,
   formatDistance,
@@ -38,11 +38,11 @@ import {
   elevationValue,
   distanceUnitLabel,
   elevationUnitLabel,
-} from "../units.jsx";
-import { useTheme } from "../theme.jsx";
-import { ACTIVITY_TYPES } from "../activityTypes.js";
-import { activityTypeIcon, activityTypeLabel } from "../activityTypeIcons.js";
-import { apiOrigin } from "../apolloClient.js";
+} from "../units";
+import { useTheme } from "../theme";
+import { ACTIVITY_TYPES } from "../activityTypes";
+import { activityTypeIcon, activityTypeLabel } from "../activityTypeIcons";
+import { apiOrigin } from "../apolloClient";
 
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -774,7 +774,7 @@ function ElevationFixTool({ activity }) {
           <XAxis dataKey="idx" hide />
           <YAxis
             domain={spikeElevationDomain}
-            tickFormatter={(v) => Math.round(v)}
+            tickFormatter={(v) => String(Math.round(v))}
             label={{
               value: `Elevation (${elevationUnitLabel(unit)})`,
               angle: -90,
@@ -901,7 +901,7 @@ function ActivityPicker({ excludeId, onSelect, onClose }) {
 // Delta cell for the compare stats table: signs the difference and formats
 // it with the same formatter used for the raw value (formatDuration takes
 // no unit arg, so the extra `unit` argument is simply ignored there).
-function diffLabel(primary, compare, formatFn, unit) {
+function diffLabel(primary, compare, formatFn, unit = undefined) {
   if (primary == null || compare == null) return "—";
   const delta = compare - primary;
   const sign = delta > 0 ? "+" : delta < 0 ? "−" : "±";
@@ -962,7 +962,7 @@ function ComparisonSection({ activity }) {
   }));
   const combinedElevations = [...primarySeries, ...compareSeries].map((p) => p.elevation);
   const comparePadding = unit === "imperial" ? 30 : 10;
-  const compareElevationDomain =
+  const compareElevationDomain: (number | string)[] =
     combinedElevations.length > 0
       ? [
           Math.floor(Math.min(...combinedElevations) - comparePadding),
@@ -1043,8 +1043,8 @@ function ComparisonSection({ activity }) {
             label={{ value: "Distance covered (%)", position: "insideBottom", offset: -5 }}
           />
           <YAxis
-            domain={compareElevationDomain}
-            tickFormatter={(v) => Math.round(v)}
+            domain={compareElevationDomain as [number, number]}
+            tickFormatter={(v) => String(Math.round(v))}
             label={{
               value: `Elevation (${elevationUnitLabel(unit)})`,
               angle: -90,
@@ -1052,7 +1052,7 @@ function ComparisonSection({ activity }) {
             }}
           />
           <Tooltip
-            formatter={(v) => `${Math.round(v)} ${elevationUnitLabel(unit)}`}
+            formatter={(v) => `${Math.round(Number(v))} ${elevationUnitLabel(unit)}`}
             labelFormatter={(v) => `${Math.round(v)}%`}
             contentStyle={{ background: "rgba(17, 24, 39, 0.92)", border: "none", borderRadius: 6 }}
             labelStyle={{ color: "#e5e7eb" }}
@@ -1186,14 +1186,15 @@ export default function ActivityDetail() {
   const hasHrData = activity.avgHr != null;
   const elevations = elevationData.map((p) => p.elevation);
   const elevationPadding = unit === "imperial" ? 30 : 10;
-  const elevationDomain =
+  const elevationDomain: (number | string)[] =
     elevations.length > 0
       ? [
           Math.floor(Math.min(...elevations) - elevationPadding),
           Math.ceil(Math.max(...elevations) + elevationPadding),
         ]
       : [0, "auto"];
-  const elevationMid = elevations.length > 0 ? (elevationDomain[0] + elevationDomain[1]) / 2 : 0;
+  const elevationMid =
+    elevations.length > 0 ? (Number(elevationDomain[0]) + Number(elevationDomain[1])) / 2 : 0;
   const speedGradientStops = buildSpeedGradientStops(elevationData, activity.maxSpeedMps);
   const restBands = buildRestBands(elevationData);
   const gradeAdjustedSpeedMps = computeGradeAdjustedSpeedMps(activity.route.elevationProfile);
@@ -1472,8 +1473,7 @@ export default function ActivityDetail() {
             endDrag();
             clearHover();
           }}
-          onTouchMove={handleChartDrag}
-          onTouchEnd={endDrag}
+          {...({ onTouchMove: handleChartDrag, onTouchEnd: endDrag } as any)}
         >
           <defs>
             <linearGradient id="speedGradient" x1="0" y1="0" x2="1" y2="0">
@@ -1498,8 +1498,8 @@ export default function ActivityDetail() {
               unique, so Reference* components below target this axis instead. */}
           <XAxis dataKey="idx" xAxisId="idx" hide allowDuplicatedCategory={false} />
           <YAxis
-            domain={elevationDomain}
-            tickFormatter={(value) => Math.round(value)}
+            domain={elevationDomain as [number, number]}
+            tickFormatter={(value) => String(Math.round(value))}
             label={{
               value: `Elevation (${elevationUnitLabel(unit)})`,
               angle: -90,
@@ -1657,8 +1657,7 @@ export default function ActivityDetail() {
                 endDrag();
                 clearHover();
               }}
-              onTouchMove={handleChartDrag}
-              onTouchEnd={endDrag}
+              {...({ onTouchMove: handleChartDrag, onTouchEnd: endDrag } as any)}
             >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
@@ -1672,7 +1671,7 @@ export default function ActivityDetail() {
               <XAxis dataKey="idx" xAxisId="idx" hide allowDuplicatedCategory={false} />
               <YAxis
                 domain={["dataMin - 10", "dataMax + 10"]}
-                tickFormatter={(value) => Math.round(value)}
+                tickFormatter={(value) => String(Math.round(value))}
                 label={{ value: "Heart Rate (bpm)", angle: -90, position: "insideLeft" }}
               />
               <Tooltip

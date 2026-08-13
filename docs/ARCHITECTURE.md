@@ -5,6 +5,7 @@ This document outlines the architecture of gpx-report, a self-hosted platform fo
 ## 1. Frontend (React)
 
 *   **Purpose:** Provides the user interface for viewing, analyzing, and managing activity data.
+*   **Technology:** TypeScript on Vite + React 18 (loose `tsconfig`, `strict: false` — a mechanical conversion pass, not a fully-annotated codebase).
 *   **Key Components:**
     *   **Dashboard:** Displays aggregate statistics and a chronological list of activities, filterable by activity type.
     *   **Activity Detail Page:** Shows detailed metrics, map visualization, and elevation profile for a single activity.

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { toCsv, downloadCsv, downloadJson } from "./csv.js";
+import { toCsv, downloadCsv, downloadJson } from "./csv";
 
 const columns = [
   { header: "Name", accessor: (row) => row.name },

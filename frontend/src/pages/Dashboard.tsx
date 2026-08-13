@@ -6,7 +6,7 @@ import {
   GET_ON_THIS_DAY,
   UPDATE_ACTIVITY_TYPE,
   DELETE_ACTIVITY,
-} from "../graphql/queries.js";
+} from "../graphql/queries";
 import {
   useUnits,
   formatDistance,
@@ -16,10 +16,10 @@ import {
   distanceUnitLabel,
   elevationValue,
   elevationUnitLabel,
-} from "../units.jsx";
-import { ACTIVITY_TYPES } from "../activityTypes.js";
-import { activityTypeLabel } from "../activityTypeIcons.js";
-import { downloadCsv } from "../csv.js";
+} from "../units";
+import { ACTIVITY_TYPES } from "../activityTypes";
+import { activityTypeLabel } from "../activityTypeIcons";
+import { downloadCsv } from "../csv";
 
 const PAGE_SIZE = 50;
 
@@ -218,7 +218,7 @@ export default function Dashboard() {
           const next = new Map(prev);
           let staggerIndex = 0;
           newlyVisible.forEach((entry) => {
-            const id = entry.target.dataset.activityId;
+            const id = (entry.target as HTMLElement).dataset.activityId;
             if (!next.has(id)) {
               next.set(id, Math.min(staggerIndex, 8) * 60);
               staggerIndex += 1;

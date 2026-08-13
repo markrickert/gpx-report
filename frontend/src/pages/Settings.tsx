@@ -8,11 +8,11 @@ import {
   GET_ACTIVITIES_WITH_ELEVATION_SPIKES,
   GET_ACTIVITIES_WITH_LIFT_SEGMENTS,
   GET_ACTIVITIES_FOR_EXPORT,
-} from "../graphql/queries.js";
-import { useNotifications } from "../notifications.jsx";
-import { activityTypeLabel } from "../activityTypeIcons.js";
-import { downloadCsv, downloadJson } from "../csv.js";
-import { apiOrigin } from "../apolloClient.js";
+} from "../graphql/queries";
+import { useNotifications } from "../notifications";
+import { activityTypeLabel } from "../activityTypeIcons";
+import { downloadCsv, downloadJson } from "../csv";
+import { apiOrigin } from "../apolloClient";
 
 const RANGE_OPTIONS = [
   { label: "Last Week", days: 7 },
@@ -114,7 +114,7 @@ function LiftList() {
 }
 
 // Opt-in toggle for foreground browser Notifications when the watcher
-// finishes ingesting a new activity (see notifications.jsx) — gated behind
+// finishes ingesting a new activity (see notifications.tsx) — gated behind
 // this explicit toggle rather than prompting for permission on page load,
 // per standard Notification API UX norms.
 function NotificationsToggle() {

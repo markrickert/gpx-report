@@ -63,10 +63,10 @@ The backend has a Vitest suite covering the GPX/IGC/`.skiz` parsers (`backend/sr
 
 There's no separate `route`/`elevation` resolver table join beyond `Activity.route`, which reads straight from `activity_routes`.
 
-**Frontend** (`frontend/src`, Vite + React 18, no state management library beyond Apollo cache):
-- `apolloClient.js` — plain `HttpLink` pointed at `VITE_GRAPHQL_URL` (see build-arg note above).
-- `App.jsx` — top-level routes: `/` (Dashboard), `/activities/:id` (ActivityDetail), `/settings` (Settings). Single global nav, no auth.
-- `pages/Dashboard.jsx`, `ActivityDetail.jsx`, `Settings.jsx` — one file per route, no shared component library yet.
+**Frontend** (`frontend/src`, TypeScript on Vite + React 18, no state management library beyond Apollo cache):
+- `apolloClient.ts` — plain `HttpLink` pointed at `VITE_GRAPHQL_URL` (see build-arg note above).
+- `App.tsx` — top-level routes: `/` (Dashboard), `/activities/:id` (ActivityDetail), `/settings` (Settings). Single global nav, no auth.
+- `pages/Dashboard.tsx`, `ActivityDetail.tsx`, `Settings.tsx` — one file per route, no shared component library yet.
 - Map rendering via `react-leaflet`/`leaflet`; elevation chart via `recharts`.
 - Every page must be usable on both a desktop browser and a mobile phone — this is a hard requirement (the dashboard is regularly checked from a phone), not a nice-to-have.
 
