@@ -36,5 +36,16 @@ export default tseslint.config(
       react: { version: "detect" },
     },
   },
+  // Playwright E2E suite (frontend/e2e/, frontend/playwright.config.ts) runs
+  // under Node, not the browser — separate globals from the rest of the
+  // frontend (which is bundled/runs client-side).
+  {
+    files: ["e2e/**/*.ts", "playwright.config.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
   prettierConfig,
 );
