@@ -1,14 +1,13 @@
-import js from "@eslint/js";
+import tseslint from "typescript-eslint";
 import globals from "globals";
 import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import prettierConfig from "eslint-config-prettier";
 
-export default [
+export default tseslint.config(
   { ignores: ["dist/**"] },
-  js.configs.recommended,
+  tseslint.configs.recommended,
   {
-    files: ["**/*.{js,jsx}"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
@@ -28,10 +27,14 @@ export default [
       ...reactHooks.configs.recommended.rules,
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
+      // Frontend TS migration is intentionally loose (tsconfig strict:false)
+      // for now — `any` shows up at library/DOM boundaries. Revisit once
+      // the codebase is tightened incrementally.
+      "@typescript-eslint/no-explicit-any": "off",
     },
     settings: {
       react: { version: "detect" },
     },
   },
   prettierConfig,
-];
+);

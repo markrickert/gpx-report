@@ -18,7 +18,7 @@ import {
   GET_YEAR_OVER_YEAR_COMPARISON,
   GET_TRAINING_LOAD,
   GET_PERSONAL_RECORDS,
-} from "../graphql/queries.js";
+} from "../graphql/queries";
 import {
   useUnits,
   formatDistance,
@@ -27,9 +27,9 @@ import {
   distanceUnitLabel,
   elevationValue,
   elevationUnitLabel,
-} from "../units.jsx";
-import { downloadCsv } from "../csv.js";
-import { activityTypeLabel } from "../activityTypeIcons.js";
+} from "../units";
+import { downloadCsv } from "../csv";
+import { activityTypeLabel } from "../activityTypeIcons";
 
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -137,7 +137,7 @@ function levelFor(count) {
   return 4;
 }
 
-function ActivityHeatmap({ activities }) {
+function ActivityHeatmap({ activities }: { activities: any[] }) {
   const years = useMemo(() => {
     const set = new Set(activities.map((a) => new Date(a.startTime).getFullYear()));
     return [...set].sort((a, b) => b - a);
@@ -251,7 +251,7 @@ function monthKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function TrainingVolumeChart({ activities, unit }) {
+function TrainingVolumeChart({ activities, unit }: { activities: any[]; unit: string }) {
   const types = useMemo(() => {
     const set = new Set(activities.map((a) => a.activityType));
     return [...set].sort();
@@ -301,7 +301,7 @@ function TrainingVolumeChart({ activities, unit }) {
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="label" />
           <YAxis
-            tickFormatter={(value) => Math.round(value)}
+            tickFormatter={(value) => String(Math.round(value))}
             label={{
               value: `Distance (${distanceUnitLabel(unit)})`,
               angle: -90,
@@ -312,7 +312,10 @@ function TrainingVolumeChart({ activities, unit }) {
             contentStyle={{ background: "rgba(17, 24, 39, 0.92)", border: "none", borderRadius: 6 }}
             labelStyle={{ color: "#e5e7eb" }}
             itemStyle={{ color: "#e5e7eb" }}
-            formatter={(value) => [`${value.toFixed(1)} ${distanceUnitLabel(unit)}`, "Distance"]}
+            formatter={(value) => [
+              `${Number(value).toFixed(1)} ${distanceUnitLabel(unit)}`,
+              "Distance",
+            ]}
           />
           <Bar dataKey="distance" fill="var(--accent)" radius={[4, 4, 0, 0]} />
         </BarChart>
@@ -357,7 +360,7 @@ function scatterFields(unit) {
   };
 }
 
-function ScatterPlotBuilder({ activities, unit }) {
+function ScatterPlotBuilder({ activities, unit }: { activities: any[]; unit: string }) {
   const fields = useMemo(() => scatterFields(unit), [unit]);
   const fieldKeys = Object.keys(fields);
 
@@ -440,7 +443,9 @@ function ScatterPlotBuilder({ activities, unit }) {
               labelStyle={{ color: "#e5e7eb" }}
               itemStyle={{ color: "#e5e7eb" }}
               formatter={(value, name) => [
-                name === fields.dayOfWeek?.label ? DAY_NAMES[value] : Number(value).toFixed(2),
+                name === fields.dayOfWeek?.label
+                  ? DAY_NAMES[Number(value)]
+                  : Number(value).toFixed(2),
                 name,
               ]}
             />

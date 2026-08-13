@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchedRecords } from "./ActivityDetail.jsx";
+import { matchedRecords } from "./ActivityDetail";
 
 function activity(overrides = {}) {
   return {

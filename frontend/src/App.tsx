@@ -1,13 +1,13 @@
 import { Routes, Route, NavLink, useLocation } from "react-router-dom";
-import Dashboard from "./pages/Dashboard.jsx";
-import ActivityDetail from "./pages/ActivityDetail.jsx";
-import Heatmap from "./pages/Heatmap.jsx";
-import Record from "./pages/Record.jsx";
-import Stats from "./pages/Stats.jsx";
-import Settings from "./pages/Settings.jsx";
-import CodeEditor from "./pages/CodeEditor.jsx";
-import { useUnits } from "./units.jsx";
-import { useTheme } from "./theme.jsx";
+import Dashboard from "./pages/Dashboard";
+import ActivityDetail from "./pages/ActivityDetail";
+import Heatmap from "./pages/Heatmap";
+import Record from "./pages/Record";
+import Stats from "./pages/Stats";
+import Settings from "./pages/Settings";
+import CodeEditor from "./pages/CodeEditor";
+import { useUnits } from "./units";
+import { useTheme } from "./theme";
 
 export default function App() {
   const { pathname } = useLocation();

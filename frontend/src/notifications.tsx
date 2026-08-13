@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { apolloClient } from "./apolloClient.js";
-import { GET_LATEST_ACTIVITY_FOR_NOTIFY } from "./graphql/queries.js";
+import { apolloClient } from "./apolloClient";
+import { GET_LATEST_ACTIVITY_FOR_NOTIFY } from "./graphql/queries";
 
 const ENABLED_KEY = "gpx-report-notify-ingest-enabled";
 const LAST_SEEN_KEY = "gpx-report-notify-ingest-last-seen-id";
@@ -13,9 +13,9 @@ const supported = typeof window !== "undefined" && "Notification" in window;
 // Polls for the most recently ingested activity (foreground-only — see
 // docs/TODO.md) and fires a browser Notification when a new one shows up
 // since the last poll. Runs as a top-level provider (mounted once in
-// main.jsx) rather than inside Dashboard so it keeps working no matter which
+// main.tsx) rather than inside Dashboard so it keeps working no matter which
 // page is open, matching the theme/units provider pattern in this file's
-// siblings (theme.jsx, units.jsx).
+// siblings (theme.tsx, units.tsx).
 export function NotificationsProvider({ children }) {
   const [enabled, setEnabled] = useState(
     () => supported && localStorage.getItem(ENABLED_KEY) === "true",

@@ -3,11 +3,11 @@ import ReactDOM from "react-dom/client";
 import { ApolloProvider } from "@apollo/client";
 import { BrowserRouter } from "react-router-dom";
 import "leaflet/dist/leaflet.css";
-import { apolloClient } from "./apolloClient.js";
-import { UnitsProvider } from "./units.jsx";
-import { ThemeProvider } from "./theme.jsx";
-import { NotificationsProvider } from "./notifications.jsx";
-import App from "./App.jsx";
+import { apolloClient } from "./apolloClient";
+import { UnitsProvider } from "./units";
+import { ThemeProvider } from "./theme";
+import { NotificationsProvider } from "./notifications";
+import App from "./App";
 import "./styles.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(

@@ -7,7 +7,7 @@ import {
   formatElevation,
   elevationUnitLabel,
   formatSpeed,
-} from "./units.jsx";
+} from "./units";
 
 describe("distance", () => {
   it("converts meters to miles for imperial", () => {

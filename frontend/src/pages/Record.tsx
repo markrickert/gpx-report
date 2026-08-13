@@ -6,11 +6,11 @@ import {
   SAVE_RECORDED_ACTIVITY,
   GET_RECENT_ACTIVITIES_FOR_POLL,
   UPDATE_ACTIVITY_TYPE,
-} from "../graphql/queries.js";
-import { apolloClient } from "../apolloClient.js";
-import { useTheme } from "../theme.jsx";
-import { useUnits, formatDistance, formatElevation } from "../units.jsx";
-import { ACTIVITY_TYPES } from "../activityTypes.js";
+} from "../graphql/queries";
+import { apolloClient } from "../apolloClient";
+import { useTheme } from "../theme";
+import { useUnits, formatDistance, formatElevation } from "../units";
+import { ACTIVITY_TYPES } from "../activityTypes";
 
 const EARTH_RADIUS_M = 6371000;
 
@@ -80,7 +80,7 @@ function geolocationErrorMessage(err) {
 
 // Recenters the map on the latest point while a recording is in progress.
 // Wired in imperatively via useMap() since MapContainer only fits `bounds`
-// on mount, matching the pattern Heatmap.jsx's HeatLayer already uses for
+// on mount, matching the pattern Heatmap.tsx's HeatLayer already uses for
 // non-declarative Leaflet updates.
 function FollowMarker({ point, follow }) {
   const map = useMap();
@@ -297,7 +297,7 @@ export default function Record() {
           {isRecording ? "Waiting for a GPS fix..." : "Start recording to see your live track."}
         </p>
       ) : (
-        <MapContainer center={positions[0]} zoom={17} className="record-map">
+        <MapContainer center={positions[0] as [number, number]} zoom={17} className="record-map">
           {theme === "dark" ? (
             <TileLayer
               attribution='&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
