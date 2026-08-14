@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import AdmZip from "adm-zip";
@@ -12,7 +12,11 @@ import {
 } from "./writer.js";
 import { parseSkizFile } from "./parser.js";
 
-function writeSkiz(dir, filename, { trackXml, nodesCsv }: { trackXml?: string; nodesCsv?: string }) {
+function writeSkiz(
+  dir,
+  filename,
+  { trackXml, nodesCsv }: { trackXml?: string; nodesCsv?: string },
+) {
   const zip = new AdmZip();
   if (trackXml != null) zip.addFile("Track.xml", Buffer.from(trackXml, "utf-8"));
   if (nodesCsv != null) zip.addFile("Nodes.csv", Buffer.from(nodesCsv, "utf-8"));
@@ -173,6 +177,29 @@ describe("skiz writer", () => {
       await expect(fixSkizElevations(filePath, new Map([[0, 100]]))).rejects.toThrow(
         /No Nodes.csv found/,
       );
+    });
+  });
+
+  describe("backups", () => {
+    it("copies the original into a sibling _backups dir before each edit", async () => {
+      const filePath = writeSkiz(dir, "backup-me.skiz", {
+        trackXml: `<track name="Before" activity="skiing"></track>`,
+        nodesCsv: NODES_CSV,
+      });
+      await updateSkizTitle(filePath, "After");
+
+      const backupsDir = path.join(dir, "_backups");
+      const backupsOf = async () =>
+        (await readdir(backupsDir)).filter((f) => f.startsWith("backup-me.skiz."));
+
+      const backups = await backupsOf();
+      expect(backups).toHaveLength(1);
+      const backedUp = new AdmZip(path.join(backupsDir, backups[0]));
+      const trackXml = backedUp.getEntry("Track.xml")?.getData().toString("utf-8");
+      expect(trackXml).toContain('name="Before"');
+
+      await updateSkizType(filePath, "downhill skiing");
+      expect(await backupsOf()).toHaveLength(2);
     });
   });
 });
