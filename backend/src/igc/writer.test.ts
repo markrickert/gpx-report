@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { removeIgcTrackPoints, fixIgcElevations } from "./writer.js";
@@ -106,5 +106,35 @@ describe("fixIgcElevations", () => {
     await expect(fixIgcElevations(filePath, new Map([[0, 100]]))).rejects.toThrow(
       /No B-records found/,
     );
+  });
+});
+
+describe("backups", () => {
+  let dir;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "igc-writer-backup-test-"));
+  });
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("copies the original into a sibling _backups dir before each edit", async () => {
+    const original = igcDoc(["100000", "100010", "100020"]);
+    const filePath = path.join(dir, "backup-me.igc");
+    await writeFile(filePath, original, "utf-8");
+    await removeIgcTrackPoints(filePath, [1]);
+
+    const backupsDir = path.join(dir, "_backups");
+    const backupsOf = async () =>
+      (await readdir(backupsDir)).filter((f) => f.startsWith("backup-me.igc."));
+
+    const backups = await backupsOf();
+    expect(backups).toHaveLength(1);
+    expect(await readFile(path.join(backupsDir, backups[0]), "utf-8")).toBe(original);
+
+    await fixIgcElevations(filePath, new Map([[0, 200]]));
+    expect(await backupsOf()).toHaveLength(2);
   });
 });

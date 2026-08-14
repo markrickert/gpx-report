@@ -1,5 +1,6 @@
 import AdmZip from "adm-zip";
 import { escapeXml } from "../gpx/writer.js";
+import { backupFile } from "../backup.js";
 
 // Matches the opening <track ...> tag in Track.xml, across its (multi-line)
 // attribute list, up to the first '>'.
@@ -13,7 +14,7 @@ function setAttribute(tag, name, value) {
   return tag.replace(/>$/, ` ${name}="${escapeXml(value)}">`);
 }
 
-function updateTrackAttribute(filePath, name, value) {
+async function updateTrackAttribute(filePath, name, value) {
   const zip = new AdmZip(filePath);
   const entry = zip.getEntry("Track.xml");
   if (!entry) {
@@ -27,15 +28,16 @@ function updateTrackAttribute(filePath, name, value) {
   const updatedTag = setAttribute(match[0], name, value);
   const updated = xml.slice(0, match.index) + updatedTag + xml.slice(match.index + match[0].length);
   zip.updateFile("Track.xml", Buffer.from(updated, "utf-8"));
+  await backupFile(filePath);
   zip.writeZip(filePath);
 }
 
 export async function updateSkizTitle(filePath, title) {
-  updateTrackAttribute(filePath, "name", title);
+  await updateTrackAttribute(filePath, "name", title);
 }
 
 export async function updateSkizType(filePath, type) {
-  updateTrackAttribute(filePath, "activity", type);
+  await updateTrackAttribute(filePath, "activity", type);
 }
 
 // Drops Nodes.csv lines outside [startIndex, endIndex] (inclusive). Indices
@@ -71,6 +73,7 @@ export async function trimSkizTrack(filePath, startIndex, endIndex) {
   const keepLineIndices = new Set(validLineIndices.slice(startIndex, endIndex + 1));
   const updatedLines = lines.filter((_, i) => keepLineIndices.has(i));
   zip.updateFile("Nodes.csv", Buffer.from(updatedLines.join("\n") + "\n", "utf-8"));
+  await backupFile(filePath);
   zip.writeZip(filePath);
 }
 
@@ -107,6 +110,7 @@ export async function removeSkizTrackPoints(filePath, indicesToRemove: number[])
   );
   const updatedLines = lines.filter((_, i) => !removeLineIndices.has(i));
   zip.updateFile("Nodes.csv", Buffer.from(updatedLines.join("\n") + "\n", "utf-8"));
+  await backupFile(filePath);
   zip.writeZip(filePath);
 }
 
@@ -146,5 +150,6 @@ export async function fixSkizElevations(filePath, corrections) {
   });
 
   zip.updateFile("Nodes.csv", Buffer.from(updatedLines.join("\n") + "\n", "utf-8"));
+  await backupFile(filePath);
   zip.writeZip(filePath);
 }

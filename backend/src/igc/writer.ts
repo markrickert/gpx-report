@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { B_RECORD_RE, H_DATE_RE } from "./parser.js";
+import { backupFile } from "../backup.js";
 
 // Drops specific B-record lines by point index. Indices match the order
 // parser.js's points array is built in: it walks lines in order, tracking
@@ -34,6 +35,7 @@ export async function removeIgcTrackPoints(filePath, indicesToRemove: number[]) 
     [...removeSet].map((pointIndex) => pointLineIndices[pointIndex]),
   );
   const updatedLines = lines.filter((_, i) => !removeLineIndices.has(i));
+  await backupFile(filePath);
   await writeFile(filePath, updatedLines.join("\n"), "utf-8");
 }
 
@@ -78,5 +80,6 @@ export async function fixIgcElevations(filePath, corrections) {
     return line.slice(0, GNSS_ALT_START) + padded + line.slice(GNSS_ALT_START + GNSS_ALT_LENGTH);
   });
 
+  await backupFile(filePath);
   await writeFile(filePath, updatedLines.join("\n"), "utf-8");
 }
