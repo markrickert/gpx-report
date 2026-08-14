@@ -183,14 +183,12 @@ function ActivityHeader({ activity, record, editMode, onEditModeChange }) {
     setError(null);
     try {
       const title = titleDraft.trim();
-      const updates = [];
       if (title && title !== activity.title) {
-        updates.push(updateTitle({ variables: { id: activity.id, title } }));
+        await updateTitle({ variables: { id: activity.id, title } });
       }
       if (typeDraft !== activity.activityType) {
-        updates.push(updateType({ variables: { id: activity.id, activityType: typeDraft } }));
+        await updateType({ variables: { id: activity.id, activityType: typeDraft } });
       }
-      await Promise.all(updates);
       onEditModeChange(false);
     } catch (e) {
       setError(e.message);
