@@ -29,6 +29,28 @@ export const typeDefs = `#graphql
     previousActivityId: ID
     nextActivityId: ID
     suggestedActivityTypes: [String!]!
+    mediaCount: Int!
+    media: [ActivityMedia!]!
+  }
+
+  type ActivityMedia {
+    id: ID!
+    immichAssetId: String!
+    assetType: String!
+    takenAt: DateTime!
+    lat: Float
+    lon: Float
+    durationSeconds: Float
+  }
+
+  type ImmichSettings {
+    immichBaseUrl: String
+    configured: Boolean!
+  }
+
+  type ImmichScanResult {
+    scannedActivities: Int!
+    matchedAssets: Int!
   }
 
   type SimilarActivity {
@@ -207,6 +229,7 @@ export const typeDefs = `#graphql
     yearOverYearComparison: YearOverYearComparison!
     trainingLoad: TrainingLoad!
     personalRecordsByType: [PersonalRecord!]!
+    immichSettings: ImmichSettings!
   }
 
   type Mutation {
@@ -221,5 +244,7 @@ export const typeDefs = `#graphql
     cleanActivityOutliers(id: ID!): Activity!
     fixActivityElevationSpikes(id: ID!): Activity!
     deleteActivity(id: ID!): Boolean!
+    updateImmichSettings(immichBaseUrl: String!, immichApiKey: String): Boolean!
+    scanActivityMedia(activityIds: [ID!]): ImmichScanResult!
   }
 `;

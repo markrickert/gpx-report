@@ -53,6 +53,33 @@ Stores the geospatial path of each activity, one row per activity.
 
 There is no `activity_summary` or `aggregated_stats_by_type` table. Both are computed live by the GraphQL resolvers with `SUM`/`AVG`/`GROUP BY` queries against `activities` — see `activitySummary` and `aggregatedStatsByType` below.
 
+### `immich_settings` Table
+
+Single-row table (`id` always `1`) holding the optional Immich media integration's connection info. See `backend/src/immich/`.
+
+| Column Name       | Data Type | Constraints                        | Description                                                          |
+| :---------------- | :-------- | :---------------------------------- | :--------------------------------------------------------------------- |
+| `id`               | `INTEGER` | `PRIMARY KEY DEFAULT 1 CHECK (id = 1)` | Always `1` — enforces a single row.                                  |
+| `immich_base_url`  | `TEXT`    | `NULLABLE`                          | Base URL of the user's private Immich instance.                       |
+| `immich_api_key`   | `TEXT`    | `NULLABLE`                          | Immich API key. Never returned over GraphQL — `immichSettings` only exposes whether it's set (`configured: Boolean!`), not the value. |
+
+### `activity_media` Table
+
+One row per Immich photo/video matched to an activity's time window by `backend/src/immich/scan.ts`.
+
+| Column Name        | Data Type       | Constraints                                                      | Description                                                        |
+| :------------------ | :-------------- | :----------------------------------------------------------------- | :--------------------------------------------------------------------- |
+| `id`                | `SERIAL`        | `PRIMARY KEY`                                                     | Unique identifier for the match.                                    |
+| `activity_id`       | `INTEGER`       | `NOT NULL`, `FOREIGN KEY REFERENCES activities(id) ON DELETE CASCADE` | Links to the matched activity.                                      |
+| `immich_asset_id`   | `TEXT`          | `NOT NULL`                                                        | The asset's id in Immich.                                           |
+| `asset_type`        | `VARCHAR(10)`   | `NOT NULL`                                                        | `"IMAGE"` or `"VIDEO"`.                                              |
+| `taken_at`          | `TIMESTAMPTZ`   | `NOT NULL`                                                        | The asset's capture timestamp, from Immich's metadata.               |
+| `lat`/`lon`         | `NUMERIC`       | `NULLABLE`                                                        | The asset's own EXIF GPS, when present.                             |
+| `duration_seconds`  | `NUMERIC`       | `NULLABLE`                                                        | Video length, when Immich reports one; always `NULL` for images.     |
+| `created_at`        | `TIMESTAMPTZ`   | `NOT NULL DEFAULT NOW()`                                          | When the match was recorded.                                        |
+
+Unique on `(activity_id, immich_asset_id)`; indexed on `activity_id`. Matching logic (time-window overlap + geo tiebreak for same-day overlapping activities) is pure and unit-tested in `backend/src/immich/match.ts`.
+
 ---
 
 ## GraphQL Schema
@@ -145,6 +172,32 @@ type Query {
                                 # for an all-time view.
 }
 ```
+
+### Immich media gallery types
+
+```graphql
+type ActivityMedia {
+  id: ID!
+  immichAssetId: String!
+  assetType: String! # "IMAGE" or "VIDEO"
+  takenAt: DateTime!
+  lat: Float
+  lon: Float
+  durationSeconds: Float
+}
+
+type ImmichSettings {
+  immichBaseUrl: String
+  configured: Boolean! # true once a base URL + API key are both set; the key itself is never returned
+}
+
+type ImmichScanResult {
+  scannedActivities: Int!
+  matchedAssets: Int!
+}
+```
+
+`Activity.mediaCount: Int!` and `Activity.media: [ActivityMedia!]!` expose the matched media per activity. `Query.immichSettings: ImmichSettings!`, `Mutation.updateImmichSettings(immichBaseUrl: String!, immichApiKey: String): Boolean!` (write-only key — omit to keep the existing one), and `Mutation.scanActivityMedia(activityIds: [ID!]): ImmichScanResult!` (omit `activityIds` to scan every activity) round out the integration. See `backend/src/immich/`.
 
 ### Mutations
 

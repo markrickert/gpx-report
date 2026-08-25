@@ -31,6 +31,11 @@ import { detectElevationSpikes, correctElevationSpikes } from "../track/elevatio
 import { haversineMeters, computeTrackStats } from "../track/geo.js";
 import { computeElevationGainLoss } from "../track/elevation.js";
 import { suggestActivityTypes } from "../track/suggestType.js";
+import {
+  getImmichBaseUrl,
+  updateImmichSettings as saveImmichSettings,
+} from "../immich/settings.js";
+import { scanActivityMedia } from "../immich/scan.js";
 
 // A flagged point only actually matters if removing it noticeably moves the
 // track's total distance — some flagged jumps are implausible-speed but
@@ -69,6 +74,7 @@ function mapActivityRow(row) {
     best5kmSeconds: row.best_5km_seconds !== null ? Number(row.best_5km_seconds) : null,
     best10kmSeconds: row.best_10km_seconds !== null ? Number(row.best_10km_seconds) : null,
     routeThumbnail: row.route_thumbnail ?? null,
+    mediaCount: row.media_count !== undefined ? Number(row.media_count) : null,
   };
 }
 
@@ -205,7 +211,7 @@ export const resolvers = {
       // (hundreds to thousands each) just to throw most of them away, which
       // dominated the dashboard's load time.
       const { rows } = await pool.query(
-        `SELECT a.*, thumb.points AS route_thumbnail
+        `SELECT a.*, thumb.points AS route_thumbnail, COALESCE(media.count, 0) AS media_count
          FROM activities a
          LEFT JOIN LATERAL (
            SELECT jsonb_agg(
@@ -222,6 +228,9 @@ export const resolvers = {
            ) AS i
            WHERE r.activity_id = a.id
          ) thumb ON true
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*) AS count FROM activity_media m WHERE m.activity_id = a.id
+         ) media ON true
          ${whereClause}
          ORDER BY a.start_time DESC
          LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -734,6 +743,11 @@ export const resolvers = {
         .filter((r) => r.liftSegmentCount > 0)
         .sort((a, b) => b.totalLiftElevationGainMeters - a.totalLiftElevationGainMeters);
     },
+
+    immichSettings: async () => {
+      const baseUrl = await getImmichBaseUrl();
+      return { immichBaseUrl: baseUrl, configured: baseUrl != null };
+    },
   },
 
   Mutation: {
@@ -888,6 +902,15 @@ export const resolvers = {
       return true;
     },
 
+    updateImmichSettings: async (_parent, { immichBaseUrl, immichApiKey }) => {
+      await saveImmichSettings(immichBaseUrl, immichApiKey);
+      return true;
+    },
+
+    scanActivityMedia: async (_parent, { activityIds }) => {
+      return scanActivityMedia(activityIds ? activityIds.map((id) => Number(id)) : undefined);
+    },
+
     setCodeServerTheme: async (_parent, { theme }) => {
       const colorTheme = CODE_SERVER_COLOR_THEMES[theme];
       if (!colorTheme) throw new Error(`Unknown theme: ${theme}`);
@@ -984,6 +1007,36 @@ export const resolvers = {
         [parent.startTime],
       );
       return rows[0]?.id ?? null;
+    },
+
+    // The activities() list query already joins a media count in (see
+    // MAX_THUMBNAIL_POINTS_PER_ROUTE's neighboring LEFT JOIN LATERAL above),
+    // avoiding an N+1 per dashboard row; activity(id) doesn't, so fall back
+    // to a direct count for that single-activity case.
+    mediaCount: async (parent) => {
+      if (parent.mediaCount !== null && parent.mediaCount !== undefined) return parent.mediaCount;
+      const { rows } = await pool.query(
+        "SELECT COUNT(*) AS count FROM activity_media WHERE activity_id = $1",
+        [parent.id],
+      );
+      return Number(rows[0].count);
+    },
+
+    media: async (parent) => {
+      const { rows } = await pool.query(
+        `SELECT id, immich_asset_id, asset_type, taken_at, lat, lon, duration_seconds
+         FROM activity_media WHERE activity_id = $1 ORDER BY taken_at ASC`,
+        [parent.id],
+      );
+      return rows.map((row) => ({
+        id: row.id,
+        immichAssetId: row.immich_asset_id,
+        assetType: row.asset_type,
+        takenAt: row.taken_at,
+        lat: row.lat !== null ? Number(row.lat) : null,
+        lon: row.lon !== null ? Number(row.lon) : null,
+        durationSeconds: row.duration_seconds !== null ? Number(row.duration_seconds) : null,
+      }));
     },
   },
 };

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client";
-import { MapContainer, TileLayer, Polyline, CircleMarker, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, useMap } from "react-leaflet";
 import {
   LineChart,
   Line,
@@ -328,6 +328,153 @@ function TrimHandleShape({ cx, cy, ...rest }) {
       stroke="#fff"
       strokeWidth={2}
     />
+  );
+}
+
+// Immich media map/chart helpers (see docs/TODO.md's "Immich media
+// gallery" entry). Kept free of component state so they're plain,
+// testable-in-principle transforms over activity.media.
+
+// Finds the track point whose timestamp is closest to a photo/video's
+// taken_at, so it can be placed at the matching spot on the map/elevation
+// chart. Linear scan is fine here — tracks top out at a few thousand
+// points, and this only runs once per media item, not per render frame.
+function nearestPointIndexForTimestamp(pointTimestamps, targetMs) {
+  let bestIdx = 0;
+  let bestDiff = Infinity;
+  for (let i = 0; i < pointTimestamps.length; i++) {
+    const t = pointTimestamps[i];
+    if (t == null) continue;
+    const diff = Math.abs(new Date(t).getTime() - targetMs);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
+// Grid-snaps geotagged media into clusters so a burst of near-duplicate
+// shots doesn't render one overlapping CircleMarker per photo — no
+// react-leaflet-cluster dependency needed for this small a marker count.
+// ~0.0004 degrees is roughly 40m at this deployment's latitude.
+const MEDIA_CLUSTER_GRID_DEGREES = 0.0004;
+
+function clusterGeoTaggedMedia(media) {
+  const groups = new Map();
+  for (const m of media) {
+    if (m.lat == null || m.lon == null) continue;
+    const key = `${Math.round(m.lat / MEDIA_CLUSTER_GRID_DEGREES)}:${Math.round(m.lon / MEDIA_CLUSTER_GRID_DEGREES)}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(m);
+  }
+  return [...groups.values()].map((items) => ({
+    lat: items.reduce((sum, m) => sum + m.lat, 0) / items.length,
+    lon: items.reduce((sum, m) => sum + m.lon, 0) / items.length,
+    items,
+  }));
+}
+
+// Small "taller pill" marker matching TrimHandleShape's existing visual
+// language, reused here for a photo/video's position on the elevation
+// chart rather than inventing a new marker style.
+function MediaPillShape({ cx, cy, isVideo }) {
+  return (
+    <g style={{ cursor: "pointer" }}>
+      <rect
+        x={cx - 7}
+        y={cy - 18}
+        width={14}
+        height={36}
+        rx={7}
+        fill={isVideo ? "#f97316" : "#22c55e"}
+        stroke="#fff"
+        strokeWidth={2}
+      />
+      <text x={cx} y={cy + 4} textAnchor="middle" fontSize={11}>
+        {isVideo ? "\u{1F3AC}" : "\u{1F4F7}"}
+      </text>
+    </g>
+  );
+}
+
+function MediaThumbnail({ activityId, assetId, alt = "" }) {
+  return (
+    <img
+      src={`${apiOrigin}/activities/${activityId}/media/${assetId}/thumbnail`}
+      alt={alt || ""}
+      loading="lazy"
+    />
+  );
+}
+
+// Thumbnail grid + click-to-expand lightbox (image or video playback) for
+// every matched Immich asset, regardless of whether it carries GPS.
+function MediaGallery({ activity }) {
+  const [lightboxIndex, setLightboxIndex] = useState(null);
+  const media = activity.media;
+
+  if (!media || media.length === 0) return null;
+
+  const close = () => setLightboxIndex(null);
+  const current = lightboxIndex != null ? media[lightboxIndex] : null;
+
+  return (
+    <>
+      <h2>Photos &amp; Videos</h2>
+      <div className="media-gallery-grid">
+        {media.map((m, i) => (
+          <button
+            key={m.id}
+            type="button"
+            className="media-gallery-thumb"
+            onClick={() => setLightboxIndex(i)}
+          >
+            <MediaThumbnail activityId={activity.id} assetId={m.immichAssetId} />
+            {m.assetType === "VIDEO" && <span className="media-gallery-video-badge">▶</span>}
+          </button>
+        ))}
+      </div>
+      {current && (
+        <div className="media-lightbox-backdrop" onClick={close}>
+          <div className="media-lightbox-content" onClick={(e) => e.stopPropagation()}>
+            {current.assetType === "VIDEO" ? (
+              <video
+                src={`${apiOrigin}/activities/${activity.id}/media/${current.immichAssetId}`}
+                controls
+                autoPlay
+              />
+            ) : (
+              <img
+                src={`${apiOrigin}/activities/${activity.id}/media/${current.immichAssetId}`}
+                alt=""
+              />
+            )}
+            <button type="button" className="media-lightbox-close" onClick={close}>
+              ✕
+            </button>
+            {lightboxIndex > 0 && (
+              <button
+                type="button"
+                className="media-lightbox-nav media-lightbox-prev"
+                onClick={() => setLightboxIndex(lightboxIndex - 1)}
+              >
+                ‹
+              </button>
+            )}
+            {lightboxIndex < media.length - 1 && (
+              <button
+                type="button"
+                className="media-lightbox-nav media-lightbox-next"
+                onClick={() => setLightboxIndex(lightboxIndex + 1)}
+              >
+                ›
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1171,6 +1318,7 @@ export default function ActivityDetail() {
     (r) => r.activityType === activity.activityType,
   );
   const positions = activity.route.coordinates.map((p) => [p.lat, p.lon]);
+  const pointTimestamps = activity.route.coordinates.map((p) => p.timestamp ?? null);
   const elevationData = activity.route.elevationProfile.map((p, i) => ({
     idx: i,
     dist: distanceValue(p.distanceMeters, unit).toFixed(2),
@@ -1178,6 +1326,20 @@ export default function ActivityDetail() {
     speedMps: p.speedMps,
     hr: p.hr ?? null,
   }));
+  // Places each matched photo/video at the track index whose timestamp is
+  // closest to its taken_at; a video also gets an end index from
+  // durationSeconds so it renders as a short highlighted span rather than a
+  // single point.
+  const mediaChartMarkers = (activity.media ?? []).map((m) => {
+    const takenAtMs = new Date(m.takenAt).getTime();
+    const startIdx = nearestPointIndexForTimestamp(pointTimestamps, takenAtMs);
+    const endIdx =
+      m.assetType === "VIDEO" && m.durationSeconds
+        ? nearestPointIndexForTimestamp(pointTimestamps, takenAtMs + m.durationSeconds * 1000)
+        : startIdx;
+    return { media: m, startIdx, endIdx: Math.max(startIdx, endIdx) };
+  });
+  const geoTaggedMediaClusters = clusterGeoTaggedMedia(activity.media ?? []);
   // Most of the 500+ existing activities are GPS-only tracks with no paired
   // HR strap, so the HR chart/tiles only render when this particular
   // activity's GPX actually carried <gpxtpx:hr> data (IGC/.skiz never do).
@@ -1447,6 +1609,33 @@ export default function ActivityDetail() {
                 interactive={false}
               />
             )}
+          {geoTaggedMediaClusters.map((cluster, i) => (
+            <CircleMarker
+              key={i}
+              center={[cluster.lat, cluster.lon]}
+              radius={9}
+              pathOptions={{
+                color: "#fff",
+                weight: 2,
+                fillColor: cluster.items.some((m) => m.assetType === "VIDEO")
+                  ? "#f97316"
+                  : "#22c55e",
+                fillOpacity: 0.9,
+              }}
+            >
+              <Popup>
+                <div className="media-map-popup">
+                  <MediaThumbnail
+                    activityId={activity.id}
+                    assetId={cluster.items[0].immichAssetId}
+                  />
+                  {cluster.items.length > 1 && (
+                    <div className="media-map-popup-count">+{cluster.items.length - 1} more</div>
+                  )}
+                </div>
+              </Popup>
+            </CircleMarker>
+          ))}
         </MapContainer>
       )}
       {speedMapSegments.length > 0 && (
@@ -1704,10 +1893,37 @@ export default function ActivityDetail() {
                   ifOverflow="visible"
                 />
               )}
+              {mediaChartMarkers.map(({ media, startIdx, endIdx }) =>
+                endIdx > startIdx ? (
+                  <ReferenceArea
+                    key={media.id}
+                    xAxisId="idx"
+                    x1={startIdx}
+                    x2={endIdx}
+                    fill="#f97316"
+                    fillOpacity={0.25}
+                    strokeOpacity={0}
+                  />
+                ) : null,
+              )}
+              {mediaChartMarkers.map(({ media, startIdx }) => (
+                <ReferenceDot
+                  key={media.id}
+                  xAxisId="idx"
+                  x={startIdx}
+                  y={elevationMid}
+                  shape={(props) => (
+                    <MediaPillShape {...props} isVideo={media.assetType === "VIDEO"} />
+                  )}
+                  isFront
+                />
+              ))}
             </LineChart>
           </ResponsiveContainer>
         </>
       )}
+
+      <MediaGallery activity={activity} />
 
       <OutlierCleanup activity={activity} />
 

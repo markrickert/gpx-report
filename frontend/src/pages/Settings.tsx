@@ -8,6 +8,9 @@ import {
   GET_ACTIVITIES_WITH_ELEVATION_SPIKES,
   GET_ACTIVITIES_WITH_LIFT_SEGMENTS,
   GET_ACTIVITIES_FOR_EXPORT,
+  GET_IMMICH_SETTINGS,
+  UPDATE_IMMICH_SETTINGS,
+  SCAN_ACTIVITY_MEDIA,
 } from "../graphql/queries";
 import { useNotifications } from "../notifications";
 import { activityTypeLabel } from "../activityTypeIcons";
@@ -159,8 +162,87 @@ const TABS = [
   { id: "outliers", label: "GPS Anomaly Cleanup" },
   { id: "elevation-spikes", label: "Elevation Spikes" },
   { id: "lifts", label: "Suspected Lift Rides" },
+  { id: "immich", label: "Immich" },
   { id: "export", label: "Export Data" },
 ];
+
+// Configures the optional Immich integration (see docs/TODO.md's "Immich
+// media gallery" entry) — a private Immich server's base URL + API key,
+// stored server-side only. The API key is write-only from here: it's never
+// queried back (see graphql/resolvers.ts's immichSettings resolver), so
+// this form always shows the key field blank, only sending a new value up
+// when the user actually types one.
+function ImmichTab() {
+  const { data, loading, error, refetch } = useQuery(GET_IMMICH_SETTINGS);
+  const [updateSettings, { loading: saving }] = useMutation(UPDATE_IMMICH_SETTINGS);
+  const [scanMedia, { loading: scanning }] = useMutation(SCAN_ACTIVITY_MEDIA);
+  const [baseUrl, setBaseUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [status, setStatus] = useState(null);
+
+  if (loading) return <p>Loading Immich settings...</p>;
+  if (error) return <p>Error loading Immich settings: {error.message}</p>;
+
+  const effectiveBaseUrl = baseUrl || data.immichSettings.immichBaseUrl || "";
+
+  async function handleSave() {
+    setStatus("Saving...");
+    await updateSettings({
+      variables: { immichBaseUrl: effectiveBaseUrl, immichApiKey: apiKey || null },
+    });
+    setApiKey("");
+    await refetch();
+    setStatus("Saved.");
+  }
+
+  async function handleScan() {
+    setStatus("Scanning Immich for matching photos/videos...");
+    const { data: scanData } = await scanMedia({ variables: { activityIds: null } });
+    setStatus(
+      `Scanned ${scanData.scanActivityMedia.scannedActivities} activities, matched ${scanData.scanActivityMedia.matchedAssets} photo/video${scanData.scanActivityMedia.matchedAssets === 1 ? "" : "s"}.`,
+    );
+  }
+
+  return (
+    <>
+      <p className="chart-hint">
+        Point this at a private Immich instance to pull in photos/videos taken during each
+        activity&apos;s time window, shown as a gallery on the activity page, map pins, and
+        elevation-chart markers. The API key is never sent back to this page once saved — leave it
+        blank to keep the existing key.
+      </p>
+      <div className="settings-section">
+        <label>
+          Immich base URL
+          <input
+            type="text"
+            placeholder="https://photos.example.com"
+            value={effectiveBaseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+          />
+        </label>
+        <label>
+          API key {data.immichSettings.configured && "(leave blank to keep existing key)"}
+          <input
+            type="password"
+            placeholder={data.immichSettings.configured ? "••••••••" : ""}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+          />
+        </label>
+        <div className="button-row">
+          <button disabled={saving || !effectiveBaseUrl} onClick={handleSave}>
+            Save
+          </button>
+          <button disabled={scanning || !data.immichSettings.configured} onClick={handleScan}>
+            Rescan All Activities
+          </button>
+        </div>
+        {status && <p>{status}</p>}
+      </div>
+    </>
+  );
+}
 
 // Raw SI-unit columns for the CSV export — deliberately not unit-converted
 // or display-formatted (unlike Dashboard's CSV export) since this is meant
@@ -349,6 +431,8 @@ export default function Settings() {
           <LiftList />
         </>
       )}
+
+      {activeTab === "immich" && <ImmichTab />}
 
       {activeTab === "export" && <ExportTab />}
     </div>

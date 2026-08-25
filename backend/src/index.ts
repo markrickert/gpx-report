@@ -11,6 +11,8 @@ import { typeDefs } from "./graphql/typeDefs.js";
 import { resolvers } from "./graphql/resolvers.js";
 import { watchGpxDirectory } from "./gpx/watcher.js";
 import { pool } from "./db.js";
+import { getImmichSettings } from "./immich/settings.js";
+import { fetchImmichAssetStream } from "./immich/client.js";
 
 const PORT = Number(process.env.GRAPHQL_PORT) || 4000;
 const GPX_FILES_DIRECTORY = process.env.GPX_FILES_DIRECTORY;
@@ -43,6 +45,51 @@ app.get("/activities/:id/download", async (req, res) => {
   const gpxFilename = rows[0].gpx_filename;
   res.download(path.join(GPX_FILES_DIRECTORY, gpxFilename), gpxFilename);
 });
+
+// Streams an Immich photo/video (or its thumbnail) through the backend
+// rather than the frontend, so the Immich API key never reaches the
+// browser and the Immich server itself doesn't need to be exposed outside
+// Tailscale. Only ever proxies an asset id already recorded in
+// activity_media for this activity — never an arbitrary client-supplied id.
+async function proxyImmichAsset(req, res, variant: "original" | "thumbnail") {
+  const { id, assetId } = req.params;
+  const { rows } = await pool.query(
+    "SELECT 1 FROM activity_media WHERE activity_id = $1 AND immich_asset_id = $2",
+    [id, assetId],
+  );
+  if (!rows[0]) {
+    res.status(404).send("Media not found for this activity");
+    return;
+  }
+
+  const settings = await getImmichSettings();
+  if (!settings) {
+    res.status(503).send("Immich is not configured");
+    return;
+  }
+
+  const upstream = await fetchImmichAssetStream(settings, assetId, variant);
+  if (!upstream.ok || !upstream.body) {
+    res.status(upstream.status).send("Failed to fetch media from Immich");
+    return;
+  }
+
+  const contentType = upstream.headers.get("content-type");
+  const etag = upstream.headers.get("etag");
+  if (contentType) res.setHeader("Content-Type", contentType);
+  if (etag) res.setHeader("ETag", etag);
+  // Assets are immutable by id in Immich; cache aggressively so scrolling
+  // the gallery doesn't re-stream the same large file through this proxy
+  // every time.
+  res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+
+  Readable.fromWeb(upstream.body as any).pipe(res);
+}
+
+app.get("/activities/:id/media/:assetId", (req, res) => proxyImmichAsset(req, res, "original"));
+app.get("/activities/:id/media/:assetId/thumbnail", (req, res) =>
+  proxyImmichAsset(req, res, "thumbnail"),
+);
 
 // Full disaster-recovery/migration export: every raw source file under
 // GPX_FILES_DIRECTORY as-is, plus a JSON dump of every activities/

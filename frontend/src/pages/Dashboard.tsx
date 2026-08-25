@@ -437,6 +437,13 @@ export default function Dashboard() {
                         — <span className="activity-list-location">{activity.locationName}</span>
                       </>
                     )}
+                    {activity.mediaCount > 0 && (
+                      <>
+                        {" "}
+                        —{" "}
+                        <span className="activity-list-media-count">📷 {activity.mediaCount}</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </Link>

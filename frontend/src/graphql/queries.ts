@@ -20,6 +20,7 @@ export const GET_DASHBOARD = gql`
       totalElevationGain
       locationName
       routeThumbnail
+      mediaCount
     }
   }
 `;
@@ -80,6 +81,39 @@ export const GET_ACTIVITY = gql`
       }
       previousActivityId
       nextActivityId
+      media {
+        id
+        immichAssetId
+        assetType
+        takenAt
+        lat
+        lon
+        durationSeconds
+      }
+    }
+  }
+`;
+
+export const GET_IMMICH_SETTINGS = gql`
+  query GetImmichSettings {
+    immichSettings {
+      immichBaseUrl
+      configured
+    }
+  }
+`;
+
+export const UPDATE_IMMICH_SETTINGS = gql`
+  mutation UpdateImmichSettings($immichBaseUrl: String!, $immichApiKey: String) {
+    updateImmichSettings(immichBaseUrl: $immichBaseUrl, immichApiKey: $immichApiKey)
+  }
+`;
+
+export const SCAN_ACTIVITY_MEDIA = gql`
+  mutation ScanActivityMedia($activityIds: [ID!]) {
+    scanActivityMedia(activityIds: $activityIds) {
+      scannedActivities
+      matchedAssets
     }
   }
 `;
