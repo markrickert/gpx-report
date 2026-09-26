@@ -14,7 +14,7 @@
 // for that reason.
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
-import { readFile, mkdtemp, writeFile, rm } from "node:fs/promises";
+import { readFile, mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -391,5 +391,29 @@ describe("processAll (via reanalyzeAll)", () => {
     expect(rows[0].count).toBe(fileCount);
 
     await rm(bulkDir, { recursive: true, force: true });
+  });
+});
+
+describe("per-person folders", () => {
+  it("derives owner from the person subfolder and reanalyzeAll recurses into it, skipping _backups", async () => {
+    const baseDir = await mkdtemp(path.join(tmpdir(), "processor-people-test-"));
+    await mkdir(path.join(baseDir, "kristin", "_backups"), { recursive: true });
+    const content = pointsToGpx(hikerPoints({}));
+    await writeFile(path.join(baseDir, "top.gpx"), content, "utf-8");
+    await writeFile(path.join(baseDir, "kristin", "hike.gpx"), content, "utf-8");
+    await writeFile(path.join(baseDir, "kristin", "_backups", "old.gpx"), content, "utf-8");
+
+    const result = await reanalyzeAll(baseDir);
+
+    expect(result.success).toBe(true);
+    const { rows } = await pool.query(
+      "SELECT gpx_filename, owner FROM activities ORDER BY gpx_filename",
+    );
+    expect(rows).toEqual([
+      { gpx_filename: "kristin/hike.gpx", owner: "kristin" },
+      { gpx_filename: "top.gpx", owner: "mark" },
+    ]);
+
+    await rm(baseDir, { recursive: true, force: true });
   });
 });

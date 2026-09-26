@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-vi.mock("../db.js", () => ({ pool: { query: vi.fn() } }));
+vi.mock("../db.js", () => ({ pool: { query: vi.fn(), connect: vi.fn() } }));
 vi.mock("../track/outliers.js", () => ({ detectOutliers: vi.fn() }));
 vi.mock("../track/liftDetection.js", () => ({ detectLiftSegments: vi.fn() }));
 vi.mock("../track/geo.js", async (importOriginal) => {
@@ -21,6 +21,9 @@ const { resolvers } = await import("./resolvers.js");
 const { activityStreak, yearOverYearComparison, trainingLoad, personalRecordsByType } =
   resolvers.Query;
 const { activitiesWithOutliers, activitiesWithLiftSegments } = resolvers.Query;
+
+const mark = { person: "mark" };
+const kristin = { person: "kristin" };
 
 describe("activityStreak", () => {
   afterEach(() => {
@@ -40,7 +43,7 @@ describe("activityStreak", () => {
     });
     vi.setSystemTime(new Date("2026-06-01T00:00:00Z"));
 
-    const result = await activityStreak();
+    const result = await activityStreak(null, {}, mark);
     expect(result.longestStreakDays).toBe(3);
   });
 
@@ -50,7 +53,7 @@ describe("activityStreak", () => {
     });
     vi.setSystemTime(new Date("2026-08-10T15:00:00Z"));
 
-    const result = await activityStreak();
+    const result = await activityStreak(null, {}, mark);
     expect(result.currentStreakDays).toBe(3);
     expect(result.longestStreakDays).toBe(3);
   });
@@ -61,7 +64,7 @@ describe("activityStreak", () => {
     });
     vi.setSystemTime(new Date("2026-08-10T15:00:00Z"));
 
-    const result = await activityStreak();
+    const result = await activityStreak(null, {}, mark);
     expect(result.currentStreakDays).toBe(2);
   });
 
@@ -71,7 +74,7 @@ describe("activityStreak", () => {
     });
     vi.setSystemTime(new Date("2026-08-10T15:00:00Z"));
 
-    const result = await activityStreak();
+    const result = await activityStreak(null, {}, mark);
     expect(result.currentStreakDays).toBe(0);
     expect(result.longestStreakDays).toBe(2);
   });
@@ -80,7 +83,7 @@ describe("activityStreak", () => {
     pool.query.mockResolvedValue({ rows: [] });
     vi.setSystemTime(new Date("2026-08-10T15:00:00Z"));
 
-    const result = await activityStreak();
+    const result = await activityStreak(null, {}, mark);
     expect(result).toEqual({ currentStreakDays: 0, longestStreakDays: 0 });
   });
 });
@@ -102,7 +105,7 @@ describe("yearOverYearComparison", () => {
       ],
     });
 
-    const result = await yearOverYearComparison();
+    const result = await yearOverYearComparison(null, {}, mark);
 
     expect(result).toEqual({
       currentYear: {
@@ -128,7 +131,7 @@ describe("trainingLoad", () => {
       rows: [{ acute_distance_meters: "1200", chronic_28day_distance_meters: "2800" }],
     });
 
-    const result = await trainingLoad();
+    const result = await trainingLoad(null, {}, mark);
     expect(result.ratio).toBeCloseTo(1200 / 700, 5);
     expect(result.label).toBe("ramping up");
   });
@@ -139,7 +142,7 @@ describe("trainingLoad", () => {
       rows: [{ acute_distance_meters: "100", chronic_28day_distance_meters: "2800" }],
     });
 
-    const result = await trainingLoad();
+    const result = await trainingLoad(null, {}, mark);
     expect(result.ratio).toBeCloseTo(100 / 700, 5);
     expect(result.label).toBe("detraining");
   });
@@ -150,7 +153,7 @@ describe("trainingLoad", () => {
       rows: [{ acute_distance_meters: "700", chronic_28day_distance_meters: "2800" }],
     });
 
-    const result = await trainingLoad();
+    const result = await trainingLoad(null, {}, mark);
     expect(result.ratio).toBe(1);
     expect(result.label).toBe("steady");
   });
@@ -160,7 +163,7 @@ describe("trainingLoad", () => {
       rows: [{ acute_distance_meters: "0", chronic_28day_distance_meters: "0" }],
     });
 
-    const result = await trainingLoad();
+    const result = await trainingLoad(null, {}, mark);
     expect(result.ratio).toBeNull();
     expect(result.label).toBe("steady");
   });
@@ -181,7 +184,7 @@ describe("personalRecordsByType", () => {
       ],
     });
 
-    const result = await personalRecordsByType();
+    const result = await personalRecordsByType(null, {}, mark);
     expect(result).toEqual([
       {
         activityType: "Running",
@@ -214,7 +217,7 @@ describe("personalRecordsByType", () => {
       ],
     });
 
-    const result = await personalRecordsByType();
+    const result = await personalRecordsByType(null, {}, mark);
     expect(result).toEqual([
       {
         activityType: "Skiing",
@@ -246,7 +249,7 @@ describe("activitiesWithLiftSegments", () => {
       .mockReturnValueOnce([{ elevationGainMeters: 100 }]) // activity 2
       .mockReturnValueOnce([{ elevationGainMeters: 300 }, { elevationGainMeters: 50 }]); // activity 3
 
-    const result = await activitiesWithLiftSegments();
+    const result = await activitiesWithLiftSegments(null, {}, mark);
 
     expect(result.map((r) => r.activityId)).toEqual([3, 2]);
     expect(result[0].liftSegmentCount).toBe(2);
@@ -263,7 +266,7 @@ describe("activitiesWithLiftSegments", () => {
       { elevationGainMeters: -40 },
     ]);
 
-    const result = await activitiesWithLiftSegments();
+    const result = await activitiesWithLiftSegments(null, {}, mark);
     expect(result[0].totalLiftElevationGainMeters).toBe(100);
   });
 });
@@ -304,7 +307,7 @@ describe("activitiesWithOutliers", () => {
       .mockReturnValueOnce({ distanceMeters: 2500 })
       .mockReturnValueOnce({ distanceMeters: 2000 });
 
-    const result = await activitiesWithOutliers();
+    const result = await activitiesWithOutliers(null, {}, mark);
 
     expect(result.map((r) => r.activityId)).toEqual([2]);
     expect(result[0].distanceDeltaMeters).toBe(500);
@@ -325,7 +328,7 @@ describe("activitiesWithOutliers", () => {
     });
     detectOutliers.mockReturnValueOnce([]);
 
-    const result = await activitiesWithOutliers();
+    const result = await activitiesWithOutliers(null, {}, mark);
 
     expect(result).toEqual([]);
     expect(computeTrackStats).not.toHaveBeenCalled();
@@ -359,7 +362,7 @@ describe("activitiesWithOutliers", () => {
       .mockReturnValueOnce({ distanceMeters: 3000 })
       .mockReturnValueOnce({ distanceMeters: 1000 });
 
-    const result = await activitiesWithOutliers();
+    const result = await activitiesWithOutliers(null, {}, mark);
 
     expect(result.map((r) => r.activityId)).toEqual([2, 1]);
   });
@@ -370,12 +373,12 @@ describe("saveRecordedActivity", () => {
   const gpx = (name: string) =>
     `<gpx><trk><name>${name}</name><trkseg><trkpt lat="1" lon="2"></trkpt></trkseg></trk></gpx>`;
 
-  it("writes a clientId upload to a stable filename and ignores retries", async () => {
+  it("writes a clientId upload into the recorder's folder under a stable filename and ignores retries", async () => {
     const clientId = "0b6f3c2e-9a1d-4c7e-8f00-123456789abc";
-    const first = await saveRecordedActivity(null, { gpxContent: gpx("first"), clientId });
-    const retry = await saveRecordedActivity(null, { gpxContent: gpx("retry"), clientId });
+    const first = await saveRecordedActivity(null, { gpxContent: gpx("first"), clientId }, kristin);
+    const retry = await saveRecordedActivity(null, { gpxContent: gpx("retry"), clientId }, kristin);
 
-    expect(first.filename).toBe(`recorded-${clientId}.gpx`);
+    expect(first.filename).toBe(`kristin/recorded-${clientId}.gpx`);
     expect(retry.filename).toBe(first.filename);
     const written = readFileSync(
       path.join(process.env.GPX_FILES_DIRECTORY, first.filename),
@@ -385,17 +388,119 @@ describe("saveRecordedActivity", () => {
   });
 
   it("generates a unique filename per call without a clientId", async () => {
-    const a = await saveRecordedActivity(null, { gpxContent: gpx("a") });
-    const b = await saveRecordedActivity(null, { gpxContent: gpx("b") });
+    const a = await saveRecordedActivity(null, { gpxContent: gpx("a"), clientId: null }, mark);
+    const b = await saveRecordedActivity(null, { gpxContent: gpx("b"), clientId: null }, mark);
     expect(a.filename).not.toBe(b.filename);
-    expect(readdirSync(process.env.GPX_FILES_DIRECTORY)).toEqual(
-      expect.arrayContaining([a.filename, b.filename]),
+    expect(readdirSync(path.join(process.env.GPX_FILES_DIRECTORY, "mark"))).toEqual(
+      expect.arrayContaining([path.basename(a.filename), path.basename(b.filename)]),
     );
   });
 
   it("rejects a clientId that could escape the filename", async () => {
     await expect(
-      saveRecordedActivity(null, { gpxContent: gpx("x"), clientId: "../../etc/passwd" }),
+      saveRecordedActivity(null, { gpxContent: gpx("x"), clientId: "../../etc/passwd" }, mark),
     ).rejects.toThrow(/clientId/);
+  });
+});
+
+describe("visibility", () => {
+  beforeEach(() => {
+    pool.query.mockReset();
+  });
+
+  it("scopes queries to the requesting person", async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+    await resolvers.Query.activities(null, {} as any, kristin);
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(
+      /a\.owner = \$1 OR a\.gpx_filename IN \(SELECT gpx_filename FROM activity_shares/,
+    );
+    expect(params[0]).toBe("kristin");
+  });
+
+  it("returns null for an activity the person can't see", async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+    expect(await resolvers.Query.activity(null, { id: "1" }, kristin)).toBeNull();
+    expect(pool.query.mock.calls[0][1]).toEqual(["1", "kristin"]);
+  });
+});
+
+describe("ownership", () => {
+  const { updateActivityNotes, deleteActivity, setActivitySharedWith } = resolvers.Mutation;
+
+  beforeEach(() => {
+    pool.query.mockReset();
+    pool.connect.mockReset();
+  });
+
+  it("rejects edits from anyone but the owner", async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ gpx_filename: "ride.gpx", owner: "mark" }] });
+    await expect(updateActivityNotes(null, { id: "1", notes: "hi" }, kristin)).rejects.toThrow(
+      "Only mark can edit this activity",
+    );
+    expect(pool.query).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets a share recipient delete only their share, leaving the file and row", async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ gpx_filename: "ride.gpx", owner: "mark" }] })
+      .mockResolvedValueOnce({ rowCount: 1 });
+
+    expect(await deleteActivity(null, { id: "1" }, kristin)).toBe(true);
+    expect(pool.query).toHaveBeenCalledTimes(2);
+    expect(pool.query.mock.calls[1]).toEqual([
+      "DELETE FROM activity_shares WHERE gpx_filename = $1 AND person = $2",
+      ["ride.gpx", "kristin"],
+    ]);
+  });
+
+  it("rejects a delete from someone it isn't shared with", async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ gpx_filename: "ride.gpx", owner: "mark" }] })
+      .mockResolvedValueOnce({ rowCount: 0 });
+    await expect(deleteActivity(null, { id: "1" }, kristin)).rejects.toThrow(/Only mark/);
+  });
+
+  describe("setActivitySharedWith", () => {
+    let client;
+
+    beforeEach(async () => {
+      mkdirSync(path.join(process.env.GPX_FILES_DIRECTORY, "kristin"), { recursive: true });
+      client = { query: vi.fn().mockResolvedValue({}), release: vi.fn() };
+      pool.connect.mockResolvedValue(client);
+    });
+
+    it("replaces the share set for known people", async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ gpx_filename: "ride.gpx", owner: "mark" }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, gpx_filename: "ride.gpx", owner: "mark" }] });
+
+      const result = await setActivitySharedWith(null, { id: "1", people: ["Kristin"] }, mark);
+
+      expect(result.owner).toBe("mark");
+      expect(client.query).toHaveBeenCalledWith(
+        "INSERT INTO activity_shares (gpx_filename, person) VALUES ($1, $2)",
+        ["ride.gpx", "kristin"],
+      );
+      expect(client.query).toHaveBeenLastCalledWith("COMMIT");
+    });
+
+    it("rejects unknown people and the owner themselves", async () => {
+      pool.query.mockResolvedValue({ rows: [{ gpx_filename: "ride.gpx", owner: "mark" }] });
+      await expect(
+        setActivitySharedWith(null, { id: "1", people: ["nobody"] }, mark),
+      ).rejects.toThrow(/Unknown person/);
+      await expect(
+        setActivitySharedWith(null, { id: "1", people: ["mark"] }, mark),
+      ).rejects.toThrow(/owner/);
+      expect(pool.connect).not.toHaveBeenCalled();
+    });
+
+    it("rejects a non-owner", async () => {
+      pool.query.mockResolvedValue({ rows: [{ gpx_filename: "ride.gpx", owner: "mark" }] });
+      await expect(
+        setActivitySharedWith(null, { id: "1", people: ["mark"] }, kristin),
+      ).rejects.toThrow(/Only mark/);
+    });
   });
 });

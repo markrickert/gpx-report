@@ -1,16 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/apollo", () => ({
-  apolloClient: { mutate: vi.fn(), refetchQueries: vi.fn(() => Promise.resolve()) },
-}));
+vi.mock("@/lib/apollo", () => {
+  const clients = new Map();
+  return {
+    clientFor: vi.fn((person: string) => {
+      if (!clients.has(person))
+        clients.set(person, { mutate: vi.fn(), refetchQueries: vi.fn(() => Promise.resolve()) });
+      return clients.get(person);
+    }),
+  };
+});
 vi.mock("expo-crypto", () => ({ randomUUID: () => "unused" }));
 
-const { apolloClient } = (await import("@/lib/apollo")) as any;
+const { clientFor } = (await import("@/lib/apollo")) as any;
+const apolloClient = clientFor("kristin");
 const store = await import("./store");
 const { drainUploadQueue, retryDelayMs } = await import("./upload-queue");
 
-function pendingRecording(id: string) {
-  store.createRecording(id, 1_000);
+function pendingRecording(id: string, person = "kristin") {
+  store.createRecording(id, 1_000, person);
   store.appendPoints(id, [
     { lat: 40, lon: -105, elevation: 1600, timestamp: 1_000, segment: 0 },
     { lat: 40.001, lon: -105, elevation: 1601, timestamp: 3_000, segment: 0 },
@@ -62,6 +70,26 @@ describe("drainUploadQueue", () => {
     });
     await drainUploadQueue(10_000 + retryDelayMs(1));
     expect(store.getRecording("rec-2")?.status).toBe("uploaded");
+  });
+});
+
+describe("drainUploadQueue per person", () => {
+  it("uploads each recording through its recorder's client", async () => {
+    for (const r of store.listRecordings(["pending", "failed", "uploaded"]))
+      store.deleteRecording(r.id);
+    const markClient = clientFor("mark");
+    apolloClient.mutate.mockReset();
+    apolloClient.mutate.mockResolvedValue({
+      data: { saveRecordedActivity: { filename: "k.gpx" } },
+    });
+    markClient.mutate.mockResolvedValue({ data: { saveRecordedActivity: { filename: "m.gpx" } } });
+    pendingRecording("rec-k", "kristin");
+    pendingRecording("rec-m", "mark");
+
+    await drainUploadQueue(10_000);
+
+    expect(apolloClient.mutate.mock.calls[0][0].variables.clientId).toBe("rec-k");
+    expect(markClient.mutate.mock.calls[0][0].variables.clientId).toBe("rec-m");
   });
 });
 

@@ -13,7 +13,8 @@ Stores the primary information for each recorded activity, one row per source fi
 | Column Name        | Data Type         | Constraints                                     | Description                                                 |
 | :----------------- | :---------------- | :----------------------------------------------- | :---------------------------------------------------------- |
 | `id`               | `SERIAL`          | `PRIMARY KEY`                                   | Unique identifier for the activity.                         |
-| `gpx_filename`     | `VARCHAR(255)`    | `NOT NULL`, `UNIQUE`                            | Original filename of the source file (`.gpx`, `.igc`, or `.skiz`, despite the column name). Upsert key for re-analysis. |
+| `gpx_filename`     | `VARCHAR(255)`    | `NOT NULL`, `UNIQUE`                            | Path of the source file (`.gpx`, `.igc`, or `.skiz`, despite the column name) relative to `GPX_FILES_DIRECTORY` — a bare filename for top-level files, `<person>/<file>` for a person's folder. Upsert key for re-analysis. |
+| `owner`            | `VARCHAR(64)`     | `NOT NULL DEFAULT 'mark'`                       | Person who recorded it: the first folder segment of `gpx_filename`, or `DEFAULT_PERSON` for top-level files. Derived on every ingest. |
 | `title`            | `VARCHAR(255)`    | `NOT NULL`                                      | Track/metadata name from the GPX file, falling back to the filename stem; always the filename stem for IGC. For `.skiz`, from `Track.xml`'s `name` attribute, else the filename stem. |
 | `activity_type`    | `VARCHAR(50)`     | `NOT NULL`                                      | From the GPX `<trk><type>` tag (mapped to a display label) or guessed from the filename; `'Unknown'` if neither yields a match. Fixed to `'Paragliding'` for IGC files. For `.skiz`, from `Track.xml`'s `activity` attribute, defaulting to `'Skiing'`. |
 | `start_time`       | `TIMESTAMPTZ`     | `NOT NULL`                                      | Timestamp of the first track point.                         |
@@ -34,7 +35,7 @@ Stores the primary information for each recorded activity, one row per source fi
 | `created_at`       | `TIMESTAMPTZ`     | `NOT NULL DEFAULT NOW()`                        | When the record was first created.                          |
 | `updated_at`       | `TIMESTAMPTZ`     | `NOT NULL DEFAULT NOW()`                        | When the record was last (re-)processed.                    |
 
-Indexed on `start_time DESC` and `activity_type`.
+Indexed on `start_time DESC`, `activity_type`, and `owner`.
 
 `total_elevation_gain`/`total_elevation_loss` are derived by `backend/src/track/elevation.ts`'s `computeElevationGainLoss()`: a centered 5-point moving average smooths the per-point elevation series (falling back to raw deltas when a track has 5 points or fewer, since the window would otherwise flatten the whole thing), then positive/negative deltas between consecutive smoothed values are summed. This only affects the two summary columns — `points_data`/`elevation_profile_data` (below) always store raw, unsmoothed elevation.
 
@@ -52,6 +53,15 @@ Stores the geospatial path of each activity, one row per activity.
 | `points_data` | `JSONB`        | `NULLABLE`                                      | Full point list used directly by the frontend map: `[{"lat", "lon", "elevation", "timestamp", "hr", "cad", "atemp"}, ...]`. Kept redundant with `route_geom` because GeoJSON round-tripping loses per-point elevation/timestamp. `hr`/`cad`/`atemp` are the same GPX extension fields as `elevation_profile_data` above, index-aligned with it. |
 
 There is no `activity_summary` or `aggregated_stats_by_type` table. Both are computed live by the GraphQL resolvers with `SUM`/`AVG`/`GROUP BY` queries against `activities` — see `activitySummary` and `aggregatedStatsByType` below.
+
+### `activity_shares` Table
+
+Opt-in "did this with…" sharing. A shared activity counts for `person` exactly like their own (lists, totals, PRs, streaks, heatmap). Keyed by `gpx_filename` rather than activity id so it survives re-analysis. **Not derived data** — it can't be regenerated from the files, so it's included in `GET /export/full` (`activity-shares.json`) and a volume wipe loses it.
+
+| Column Name    | Data Type      | Constraints                          | Description                                    |
+| :------------- | :------------- | :----------------------------------- | :--------------------------------------------- |
+| `gpx_filename` | `VARCHAR(255)` | `NOT NULL`, part of `PRIMARY KEY`    | The shared activity's `activities.gpx_filename`. |
+| `person`       | `VARCHAR(64)`  | `NOT NULL`, part of `PRIMARY KEY`    | Who it's shared with. Indexed.                  |
 
 ### `immich_settings` Table
 
@@ -98,6 +108,8 @@ This mirrors `backend/src/graphql/typeDefs.ts`.
 type Activity {
   id: ID!
   gpxFilename: String!
+  owner: String!
+  sharedWith: [String!]! # people this activity is shared with (activity_shares)
   title: String!
   activityType: String!
   startTime: DateTime!
@@ -147,9 +159,13 @@ type ReanalysisStatus {
 
 ### Queries
 
+Every query that reads activities is scoped to the requesting person (the `X-GPX-Person` header): their own activities plus ones shared with them. `activity(id)` returns null for one they can't see.
+
 ```graphql
 type Query {
   activity(id: ID!): Activity
+
+  people: [String!]! # DEFAULT_PERSON plus every GPX_FILES_DIRECTORY subfolder
 
   activities(
     limit: Int = 20
@@ -234,6 +250,13 @@ type Mutation {
   # file is tolerated, not an error), then deletes the activities row.
   # activity_routes cascades via its activity_id FK's ON DELETE CASCADE.
   # Permanent — the source file is gone, so the watcher can't re-ingest it.
+  # Owner only; from a share recipient it removes just their share instead.
   deleteActivity(id: ID!): Boolean!
+
+  # Owner only. Replaces the full set of people the activity is shared with;
+  # each must be in `people` and can't be the owner.
+  setActivitySharedWith(id: ID!, people: [String!]!): Activity!
 }
+
+All edit mutations (title, notes, type, trim, outlier clean, elevation fix) require the requesting person to be the activity's owner.
 ```

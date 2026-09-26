@@ -5,6 +5,8 @@ export const typeDefs = `#graphql
   type Activity {
     id: ID!
     gpxFilename: String!
+    owner: String!
+    sharedWith: [String!]!
     title: String!
     activityType: String!
     startTime: DateTime!
@@ -230,6 +232,7 @@ export const typeDefs = `#graphql
     trainingLoad: TrainingLoad!
     personalRecordsByType: [PersonalRecord!]!
     immichSettings: ImmichSettings!
+    people: [String!]!
   }
 
   type Mutation {
@@ -244,6 +247,7 @@ export const typeDefs = `#graphql
     cleanActivityOutliers(id: ID!): Activity!
     fixActivityElevationSpikes(id: ID!): Activity!
     deleteActivity(id: ID!): Boolean!
+    setActivitySharedWith(id: ID!, people: [String!]!): Activity!
     updateImmichSettings(immichBaseUrl: String!, immichApiKey: String): Boolean!
     scanActivityMedia(activityIds: [ID!]): ImmichScanResult!
   }

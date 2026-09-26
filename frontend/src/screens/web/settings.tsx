@@ -16,6 +16,7 @@ import { useNotifications } from "@/utils/notifications";
 import { activityTypeLabel } from "@/utils/activity-type-icons";
 import { downloadCsv, downloadJson } from "@/utils/csv";
 import { apiOrigin } from "@/lib/apollo";
+import { usePersonHref } from "@/lib/person";
 
 const RANGE_OPTIONS = [
   { label: "Last Week", days: 7 },
@@ -27,6 +28,7 @@ const RANGE_OPTIONS = [
 // track/outliers.js) so the user can review/clean each one individually on
 // its Activity Detail page — nothing here mutates data itself.
 function OutlierList() {
+  const href = usePersonHref();
   const { data, loading, error } = useQuery(GET_ACTIVITIES_WITH_OUTLIERS);
 
   if (loading) return <p>Scanning activities for GPS anomalies...</p>;
@@ -41,7 +43,7 @@ function OutlierList() {
     <ul className="outlier-activity-list">
       {activities.map((a) => (
         <li key={a.activityId}>
-          <Link to={`/activities/${a.activityId}`}>{a.title}</Link>{" "}
+          <Link to={href(`/activities/${a.activityId}`)}>{a.title}</Link>{" "}
           <span className="activity-type-badge">{activityTypeLabel(a.activityType)}</span>{" "}
           <span className="chart-hint">
             {new Date(a.startTime).toLocaleDateString()} — {a.outlierPointCount} flagged point
@@ -57,6 +59,7 @@ function OutlierList() {
 // track/elevationSpikes.js) so the user can preview/normalize each one
 // individually on its Activity Detail page — nothing here mutates data.
 function ElevationSpikeList() {
+  const href = usePersonHref();
   const { data, loading, error } = useQuery(GET_ACTIVITIES_WITH_ELEVATION_SPIKES);
 
   if (loading) return <p>Scanning activities for elevation spikes...</p>;
@@ -71,7 +74,7 @@ function ElevationSpikeList() {
     <ul className="outlier-activity-list">
       {activities.map((a) => (
         <li key={a.activityId}>
-          <Link to={`/activities/${a.activityId}`}>{a.title}</Link>{" "}
+          <Link to={href(`/activities/${a.activityId}`)}>{a.title}</Link>{" "}
           <span className="activity-type-badge">{activityTypeLabel(a.activityType)}</span>{" "}
           <span className="chart-hint">
             {new Date(a.startTime).toLocaleDateString()} — {a.spikeCount} flagged point
@@ -89,6 +92,7 @@ function ElevationSpikeList() {
 // nothing here mutates data. Open the activity to see the flagged range on
 // its elevation chart.
 function LiftList() {
+  const href = usePersonHref();
   const { data, loading, error } = useQuery(GET_ACTIVITIES_WITH_LIFT_SEGMENTS);
 
   if (loading) return <p>Scanning activities for lift segments...</p>;
@@ -103,7 +107,7 @@ function LiftList() {
     <ul className="outlier-activity-list">
       {activities.map((a) => (
         <li key={a.activityId}>
-          <Link to={`/activities/${a.activityId}`}>{a.title}</Link>{" "}
+          <Link to={href(`/activities/${a.activityId}`)}>{a.title}</Link>{" "}
           <span className="activity-type-badge">{activityTypeLabel(a.activityType)}</span>{" "}
           <span className="chart-hint">
             {new Date(a.startTime).toLocaleDateString()} — {a.liftSegmentCount} segment

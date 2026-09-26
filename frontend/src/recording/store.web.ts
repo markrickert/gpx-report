@@ -7,9 +7,10 @@ const recordings = new Map<string, Recording>();
 const points: (TrackPoint & { id: number; recordingId: string })[] = [];
 let nextPointId = 1;
 
-export function createRecording(id: string, now: number) {
+export function createRecording(id: string, now: number, person: string) {
   recordings.set(id, {
     id,
+    person,
     status: "recording",
     title: null,
     activityType: "Unknown",

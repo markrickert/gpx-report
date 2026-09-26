@@ -105,6 +105,11 @@ select {
   padding-bottom: 0.2rem;
 }
 
+.nav a.nav-person {
+  text-transform: capitalize;
+  color: white;
+}
+
 .units-toggle {
   margin-left: auto;
   background: transparent;
@@ -863,6 +868,30 @@ select {
 
 .notes-section {
   margin-bottom: 1rem;
+}
+
+.activity-shared-by {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.sharing-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.people-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  font-size: 1.25rem;
+  text-transform: capitalize;
 }
 
 .delete-activity-section {

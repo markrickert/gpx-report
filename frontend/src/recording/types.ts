@@ -13,6 +13,9 @@ export type RecordingStatus =
 
 export type Recording = {
   id: string;
+  // Who recorded it, captured at Start so a later name change in Settings
+  // doesn't reassign an in-flight recording; sent as X-GPX-Person on upload.
+  person: string;
   status: RecordingStatus;
   title: string | null;
   activityType: string;

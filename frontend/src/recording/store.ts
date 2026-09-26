@@ -9,6 +9,7 @@ db.execSync(`
   PRAGMA journal_mode = WAL;
   CREATE TABLE IF NOT EXISTS recordings (
     id TEXT PRIMARY KEY NOT NULL,
+    person TEXT NOT NULL,
     status TEXT NOT NULL,
     title TEXT,
     activity_type TEXT NOT NULL DEFAULT 'Unknown',
@@ -34,6 +35,7 @@ db.execSync(`
 `);
 
 const COLUMNS: Record<keyof Omit<Recording, "id">, string> = {
+  person: "person",
   status: "status",
   title: "title",
   activityType: "activity_type",
@@ -50,6 +52,7 @@ const COLUMNS: Record<keyof Omit<Recording, "id">, string> = {
 function toRecording(row: any): Recording {
   return {
     id: row.id,
+    person: row.person,
     status: row.status,
     title: row.title,
     activityType: row.activity_type,
@@ -64,10 +67,11 @@ function toRecording(row: any): Recording {
   };
 }
 
-export function createRecording(id: string, now: number) {
+export function createRecording(id: string, now: number, person: string) {
   db.runSync(
-    "INSERT INTO recordings (id, status, started_at, segment_started_at) VALUES (?, 'recording', ?, ?)",
+    "INSERT INTO recordings (id, person, status, started_at, segment_started_at) VALUES (?, ?, 'recording', ?, ?)",
     id,
+    person,
     now,
     now,
   );

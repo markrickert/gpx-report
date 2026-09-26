@@ -36,6 +36,7 @@ import {
   updateImmichSettings as saveImmichSettings,
 } from "../immich/settings.js";
 import { scanActivityMedia } from "../immich/scan.js";
+import { DEFAULT_PERSON, slugifyPerson, listPeople } from "../people.js";
 
 // A flagged point only actually matters if removing it noticeably moves the
 // track's total distance — some flagged jumps are implausible-speed but
@@ -55,6 +56,7 @@ function mapActivityRow(row) {
   return {
     id: row.id,
     gpxFilename: row.gpx_filename,
+    owner: row.owner,
     title: row.title,
     activityType: row.activity_type,
     startTime: row.start_time,
@@ -79,6 +81,32 @@ function mapActivityRow(row) {
 }
 
 const GPX_FILES_DIRECTORY = process.env.GPX_FILES_DIRECTORY;
+
+// The requesting person, from index.ts's X-GPX-Person context. Resolvers
+// called without a context (unit tests) act as DEFAULT_PERSON.
+function personOf(context) {
+  return context?.person ?? DEFAULT_PERSON;
+}
+
+// WHERE fragment limiting `alias` (an activities row) to the ones the
+// person bound as $n owns or has had shared with them — shared activities
+// count for the recipient exactly like their own.
+function visibleTo(alias, n) {
+  return `(${alias}.owner = $${n} OR ${alias}.gpx_filename IN (SELECT gpx_filename FROM activity_shares WHERE person = $${n}))`;
+}
+
+// Only the owner edits/trims/deletes the source file; a share recipient
+// gets read-only access.
+async function requireOwnedActivity(id, context) {
+  const { rows } = await pool.query("SELECT gpx_filename, owner FROM activities WHERE id = $1", [
+    id,
+  ]);
+  if (!rows[0]) throw new Error(`Activity ${id} not found`);
+  if (rows[0].owner !== personOf(context)) {
+    throw new Error(`Only ${rows[0].owner} can edit this activity`);
+  }
+  return rows[0];
+}
 
 // code-server's home volume is bind-mounted read-write here so the
 // dashboard's theme toggle can flip its VS Code Web color theme to match.
@@ -113,9 +141,10 @@ const MAX_THUMBNAIL_POINTS_PER_ROUTE = 60;
 // activities to sample it down) and rarely changes between requests, so
 // cache the result for a few minutes instead of recomputing on every page
 // load. Staleness up to HEATMAP_CACHE_TTL_MS after a new activity is
-// ingested is acceptable for this personal, single-user app.
+// ingested is acceptable for this small personal app. Cached per person,
+// since each person's heatmap covers a different set of activities.
 const HEATMAP_CACHE_TTL_MS = 5 * 60 * 1000;
-let heatmapCache = null;
+const heatmapCache = new Map();
 
 // similarActivities: ST_HausdorffDistance measures how far apart the two
 // most-divergent points of two line shapes are, which is a good proxy for
@@ -169,17 +198,21 @@ export const resolvers = {
   JSON: JSONScalar,
 
   Query: {
-    activity: async (_parent, { id }) => {
-      const { rows } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
+    activity: async (_parent, { id }, context) => {
+      const { rows } = await pool.query(
+        `SELECT a.* FROM activities a WHERE a.id = $1 AND ${visibleTo("a", 2)}`,
+        [id, personOf(context)],
+      );
       return rows[0] ? mapActivityRow(rows[0]) : null;
     },
 
     activities: async (
       _parent,
       { limit = 20, offset = 0, activityType, startDate, endDate, search },
+      context,
     ) => {
-      const conditions = [];
-      const params = [];
+      const params = [personOf(context)];
+      const conditions = [visibleTo("a", 1)];
 
       if (activityType) {
         params.push(activityType);
@@ -198,7 +231,7 @@ export const resolvers = {
         conditions.push(`title ILIKE $${params.length}`);
       }
 
-      const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+      const whereClause = `WHERE ${conditions.join(" AND ")}`;
       params.push(MAX_THUMBNAIL_POINTS_PER_ROUTE, limit, offset);
 
       // Thumbnails are sampled down to a handful of [lat, lon] pairs in SQL
@@ -239,23 +272,31 @@ export const resolvers = {
       return rows.map(mapActivityRow);
     },
 
-    onThisDay: async () => {
-      const { rows } = await pool.query(`
-        SELECT * FROM activities
-        WHERE EXTRACT(MONTH FROM start_time) = EXTRACT(MONTH FROM CURRENT_DATE)
+    onThisDay: async (_parent, _args, context) => {
+      const { rows } = await pool.query(
+        `
+        SELECT a.* FROM activities a
+        WHERE ${visibleTo("a", 1)}
+          AND EXTRACT(MONTH FROM start_time) = EXTRACT(MONTH FROM CURRENT_DATE)
           AND EXTRACT(DAY FROM start_time) = EXTRACT(DAY FROM CURRENT_DATE)
           AND EXTRACT(YEAR FROM start_time) <> EXTRACT(YEAR FROM CURRENT_DATE)
         ORDER BY start_time DESC
-      `);
+      `,
+        [personOf(context)],
+      );
       return rows.map(mapActivityRow);
     },
 
-    activityStreak: async () => {
-      const { rows } = await pool.query(`
+    activityStreak: async (_parent, _args, context) => {
+      const { rows } = await pool.query(
+        `
         SELECT DISTINCT DATE(start_time) AS day
-        FROM activities
+        FROM activities a
+        WHERE ${visibleTo("a", 1)}
         ORDER BY day
-      `);
+      `,
+        [personOf(context)],
+      );
 
       const days = rows.map((row) => new Date(row.day));
       const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -296,8 +337,9 @@ export const resolvers = {
       return { currentStreakDays, longestStreakDays };
     },
 
-    yearOverYearComparison: async () => {
-      const { rows } = await pool.query(`
+    yearOverYearComparison: async (_parent, _args, context) => {
+      const { rows } = await pool.query(
+        `
         SELECT
           EXTRACT(YEAR FROM CURRENT_DATE)::int AS current_year,
           EXTRACT(YEAR FROM CURRENT_DATE)::int - 1 AS previous_year,
@@ -325,8 +367,11 @@ export const resolvers = {
             WHERE start_time >= date_trunc('year', CURRENT_DATE) - INTERVAL '1 year'
               AND start_time <= CURRENT_DATE - INTERVAL '1 year'
           ), 0) AS previous_elevation_gain_meters
-        FROM activities
-      `);
+        FROM activities a
+        WHERE ${visibleTo("a", 1)}
+      `,
+        [personOf(context)],
+      );
       const row = rows[0];
       return {
         currentYear: {
@@ -344,8 +389,9 @@ export const resolvers = {
       };
     },
 
-    trainingLoad: async () => {
-      const { rows } = await pool.query(`
+    trainingLoad: async (_parent, _args, context) => {
+      const { rows } = await pool.query(
+        `
         SELECT
           COALESCE(SUM(distance_meters) FILTER (
             WHERE start_time >= CURRENT_DATE - INTERVAL '6 days'
@@ -353,8 +399,11 @@ export const resolvers = {
           COALESCE(SUM(distance_meters) FILTER (
             WHERE start_time >= CURRENT_DATE - INTERVAL '27 days'
           ), 0) AS chronic_28day_distance_meters
-        FROM activities
-      `);
+        FROM activities a
+        WHERE ${visibleTo("a", 1)}
+      `,
+        [personOf(context)],
+      );
       const row = rows[0];
       const acuteDistanceMeters = Number(row.acute_distance_meters);
       const chronicWeeklyAvgDistanceMeters = Number(row.chronic_28day_distance_meters) / 4;
@@ -378,8 +427,9 @@ export const resolvers = {
     // Stats-page load would be far too expensive. MIN()/MAX() ignore NULLs,
     // so activity types with no activity long enough for a given target
     // distance correctly come back null for that field instead of erroring.
-    personalRecordsByType: async () => {
-      const { rows } = await pool.query(`
+    personalRecordsByType: async (_parent, _args, context) => {
+      const { rows } = await pool.query(
+        `
         SELECT
           activity_type,
           MAX(distance_meters) AS longest_distance_meters,
@@ -388,10 +438,13 @@ export const resolvers = {
           MIN(best_1km_seconds) AS best_1km_seconds,
           MIN(best_5km_seconds) AS best_5km_seconds,
           MIN(best_10km_seconds) AS best_10km_seconds
-        FROM activities
+        FROM activities a
+        WHERE ${visibleTo("a", 1)}
         GROUP BY activity_type
         ORDER BY activity_type
-      `);
+      `,
+        [personOf(context)],
+      );
       return rows.map((row) => ({
         activityType: row.activity_type,
         longestDistanceMeters: Number(row.longest_distance_meters),
@@ -405,16 +458,20 @@ export const resolvers = {
       }));
     },
 
-    activitySummary: async () => {
-      const { rows } = await pool.query(`
+    activitySummary: async (_parent, _args, context) => {
+      const { rows } = await pool.query(
+        `
         SELECT
           COUNT(*)::int AS total_activities,
           COALESCE(SUM(distance_meters), 0) AS total_distance_meters,
           COALESCE(SUM(duration_seconds), 0)::bigint AS total_duration_seconds,
           COALESCE(SUM(total_elevation_gain), 0) AS total_elevation_gain_meters,
           MAX(updated_at) AS last_reanalysis
-        FROM activities
-      `);
+        FROM activities a
+        WHERE ${visibleTo("a", 1)}
+      `,
+        [personOf(context)],
+      );
       const row = rows[0];
       return {
         totalActivities: row.total_activities,
@@ -425,9 +482,9 @@ export const resolvers = {
       };
     },
 
-    aggregatedStatsByType: async (_parent, { activityType, startDate, endDate }) => {
-      const conditions = [];
-      const params = [];
+    aggregatedStatsByType: async (_parent, { activityType, startDate, endDate }, context) => {
+      const params = [personOf(context)];
+      const conditions = [visibleTo("a", 1)];
 
       if (activityType) {
         params.push(activityType);
@@ -441,7 +498,7 @@ export const resolvers = {
         params.push(endDate);
         conditions.push(`start_time <= $${params.length}`);
       }
-      const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+      const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
       const { rows } = await pool.query(
         `
@@ -453,7 +510,7 @@ export const resolvers = {
           AVG(distance_meters) AS average_distance_meters,
           AVG(duration_seconds)::bigint AS average_duration_seconds,
           AVG(total_elevation_gain) AS average_elevation_gain_meters
-        FROM activities
+        FROM activities a
         ${whereClause}
         GROUP BY activity_type
         ORDER BY activity_type
@@ -479,9 +536,11 @@ export const resolvers = {
     // and sampling in JS: the latter pulled every stored point (hundreds of
     // MB of JSON text across all activities) over the wire just to keep 300
     // of them per route, which is what made this query slow.
-    heatmapPoints: async () => {
-      if (heatmapCache && Date.now() - heatmapCache.computedAt < HEATMAP_CACHE_TTL_MS) {
-        return heatmapCache.points;
+    heatmapPoints: async (_parent, _args, context) => {
+      const person = personOf(context);
+      const cached = heatmapCache.get(person);
+      if (cached && Date.now() - cached.computedAt < HEATMAP_CACHE_TTL_MS) {
+        return cached.points;
       }
       const { rows } = await pool.query(
         `
@@ -496,14 +555,16 @@ export const resolvers = {
           )
         ) AS sampled
         FROM activity_routes r
+        JOIN activities a ON a.id = r.activity_id
         JOIN lens l ON l.activity_id = r.activity_id,
         LATERAL jsonb_array_elements(r.points_data) WITH ORDINALITY AS e(elem, ord)
         WHERE (ord - 1) % GREATEST(1, l.len / $1) = 0
+          AND ${visibleTo("a", 2)}
         `,
-        [MAX_HEATMAP_POINTS_PER_ROUTE],
+        [MAX_HEATMAP_POINTS_PER_ROUTE, person],
       );
       const points = rows[0]?.sampled ?? [];
-      heatmapCache = { points, computedAt: Date.now() };
+      heatmapCache.set(person, { points, computedAt: Date.now() });
       return points;
     },
 
@@ -516,7 +577,7 @@ export const resolvers = {
     // that result carries no per-point timestamp to filter by. Returns null
     // if there's no activity in the window (e.g. fresh install, or a stale
     // deployment), so the caller can fall back to its existing default.
-    recentActivityBounds: async (_parent, { months = 6 }) => {
+    recentActivityBounds: async (_parent, { months = 6 }, context) => {
       const { rows } = await pool.query(
         `
         SELECT
@@ -527,8 +588,9 @@ export const resolvers = {
         FROM activity_routes r
         JOIN activities a ON a.id = r.activity_id
         WHERE a.start_time >= NOW() - ($1 || ' months')::interval
+          AND ${visibleTo("a", 2)}
         `,
-        [months],
+        [months, personOf(context)],
       );
       const row = rows[0];
       if (!row || row.min_lat == null) return null;
@@ -538,12 +600,18 @@ export const resolvers = {
       ];
     },
 
-    activitiesWithOutliers: async () => {
-      const { rows } = await pool.query(`
+    // Owner-only rather than visibleTo: these lists exist to fix the
+    // source file, which only the owner can do.
+    activitiesWithOutliers: async (_parent, _args, context) => {
+      const { rows } = await pool.query(
+        `
         SELECT a.id, a.title, a.activity_type, a.start_time, a.gpx_filename, r.points_data
         FROM activities a
         JOIN activity_routes r ON r.activity_id = a.id
-      `);
+        WHERE a.owner = $1
+      `,
+        [personOf(context)],
+      );
       return rows
         .map((row) => {
           const points = row.points_data || [];
@@ -644,12 +712,16 @@ export const resolvers = {
       };
     },
 
-    activitiesWithElevationSpikes: async () => {
-      const { rows } = await pool.query(`
+    activitiesWithElevationSpikes: async (_parent, _args, context) => {
+      const { rows } = await pool.query(
+        `
         SELECT a.id, a.title, a.activity_type, a.start_time, a.gpx_filename, r.points_data
         FROM activities a
         JOIN activity_routes r ON r.activity_id = a.id
-      `);
+        WHERE a.owner = $1
+      `,
+        [personOf(context)],
+      );
       return rows
         .map((row) => {
           const points = row.points_data || [];
@@ -719,12 +791,16 @@ export const resolvers = {
       };
     },
 
-    activitiesWithLiftSegments: async () => {
-      const { rows } = await pool.query(`
+    activitiesWithLiftSegments: async (_parent, _args, context) => {
+      const { rows } = await pool.query(
+        `
         SELECT a.id, a.title, a.activity_type, a.start_time, r.points_data
         FROM activities a
         JOIN activity_routes r ON r.activity_id = a.id
-      `);
+        WHERE ${visibleTo("a", 1)}
+      `,
+        [personOf(context)],
+      );
       return rows
         .map((row) => {
           const segments = detectLiftSegments(row.points_data || []);
@@ -748,6 +824,8 @@ export const resolvers = {
       const baseUrl = await getImmichBaseUrl();
       return { immichBaseUrl: baseUrl, configured: baseUrl != null };
     },
+
+    people: async () => listPeople(GPX_FILES_DIRECTORY),
   },
 
   Mutation: {
@@ -755,15 +833,14 @@ export const resolvers = {
     reanalyzeActivitiesByDateRange: async (_parent, { startDate, endDate }) =>
       reanalyzeByDateRange(GPX_FILES_DIRECTORY, startDate, endDate),
 
-    updateActivityTitle: async (_parent, { id, title }) => {
-      const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
-      if (!rows[0]) throw new Error(`Activity ${id} not found`);
-      const filename = rows[0].gpx_filename.toLowerCase();
+    updateActivityTitle: async (_parent, { id, title }, context) => {
+      const activity = await requireOwnedActivity(id, context);
+      const filename = activity.gpx_filename.toLowerCase();
       if (!filename.endsWith(".gpx") && !filename.endsWith(".skiz")) {
         throw new Error("Editing is only supported for .gpx and .skiz files");
       }
 
-      const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
+      const filePath = path.join(GPX_FILES_DIRECTORY, activity.gpx_filename);
       await (filename.endsWith(".skiz") ? updateSkizTitle : updateGpxTitle)(filePath, title);
       await processFile(filePath);
 
@@ -771,7 +848,8 @@ export const resolvers = {
       return mapActivityRow(updated[0]);
     },
 
-    updateActivityNotes: async (_parent, { id, notes }) => {
+    updateActivityNotes: async (_parent, { id, notes }, context) => {
+      await requireOwnedActivity(id, context);
       const { rows } = await pool.query(
         "UPDATE activities SET notes = $1, updated_at = NOW() WHERE id = $2 RETURNING *",
         [notes, id],
@@ -780,15 +858,14 @@ export const resolvers = {
       return mapActivityRow(rows[0]);
     },
 
-    updateActivityType: async (_parent, { id, activityType }) => {
-      const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
-      if (!rows[0]) throw new Error(`Activity ${id} not found`);
-      const filename = rows[0].gpx_filename.toLowerCase();
+    updateActivityType: async (_parent, { id, activityType }, context) => {
+      const activity = await requireOwnedActivity(id, context);
+      const filename = activity.gpx_filename.toLowerCase();
       if (!filename.endsWith(".gpx") && !filename.endsWith(".skiz")) {
         throw new Error("Editing is only supported for .gpx and .skiz files");
       }
 
-      const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
+      const filePath = path.join(GPX_FILES_DIRECTORY, activity.gpx_filename);
       if (filename.endsWith(".skiz")) {
         await updateSkizType(filePath, activityType);
       } else {
@@ -800,15 +877,14 @@ export const resolvers = {
       return mapActivityRow(updated[0]);
     },
 
-    trimActivity: async (_parent, { id, startIndex, endIndex }) => {
-      const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
-      if (!rows[0]) throw new Error(`Activity ${id} not found`);
-      const filename = rows[0].gpx_filename.toLowerCase();
+    trimActivity: async (_parent, { id, startIndex, endIndex }, context) => {
+      const activity = await requireOwnedActivity(id, context);
+      const filename = activity.gpx_filename.toLowerCase();
       if (!filename.endsWith(".gpx") && !filename.endsWith(".skiz")) {
         throw new Error("Editing is only supported for .gpx and .skiz files");
       }
 
-      const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
+      const filePath = path.join(GPX_FILES_DIRECTORY, activity.gpx_filename);
       await (filename.endsWith(".skiz") ? trimSkizTrack : trimGpxTrack)(
         filePath,
         startIndex,
@@ -820,7 +896,7 @@ export const resolvers = {
       return mapActivityRow(updated[0]);
     },
 
-    saveRecordedActivity: async (_parent, { gpxContent, clientId }) => {
+    saveRecordedActivity: async (_parent, { gpxContent, clientId }, context) => {
       if (typeof gpxContent !== "string" || gpxContent.trim().length === 0) {
         throw new Error("gpxContent must be a non-empty string");
       }
@@ -837,10 +913,14 @@ export const resolvers = {
 
       // A clientId (the mobile app's per-recording UUID) makes retries
       // idempotent: an upload whose response was lost gets re-sent with the
-      // same id, and the "wx" flag refuses to write a second copy.
-      const filename = clientId
+      // same id, and the "wx" flag refuses to write a second copy. Written
+      // into the recorder's own folder, which is what makes them its owner.
+      const person = personOf(context);
+      const basename = clientId
         ? `recorded-${clientId}.gpx`
         : `recorded-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomBytes(3).toString("hex")}.gpx`;
+      const filename = `${person}/${basename}`;
+      await mkdir(path.join(GPX_FILES_DIRECTORY, person), { recursive: true });
       try {
         await writeFile(path.join(GPX_FILES_DIRECTORY, filename), gpxContent, {
           encoding: "utf-8",
@@ -856,10 +936,9 @@ export const resolvers = {
       return { filename };
     },
 
-    cleanActivityOutliers: async (_parent, { id }) => {
-      const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
-      if (!rows[0]) throw new Error(`Activity ${id} not found`);
-      const filename = rows[0].gpx_filename.toLowerCase();
+    cleanActivityOutliers: async (_parent, { id }, context) => {
+      const activity = await requireOwnedActivity(id, context);
+      const filename = activity.gpx_filename.toLowerCase();
 
       const { rows: routeRows } = await pool.query(
         "SELECT points_data FROM activity_routes WHERE activity_id = $1",
@@ -868,7 +947,7 @@ export const resolvers = {
       const removedIndices = detectOutliers(routeRows[0]?.points_data || []);
 
       if (removedIndices.length > 0) {
-        const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
+        const filePath = path.join(GPX_FILES_DIRECTORY, activity.gpx_filename);
         await removeTrackPointsByFormat(filePath, filename, removedIndices);
         await processFile(filePath);
       }
@@ -877,10 +956,9 @@ export const resolvers = {
       return mapActivityRow(updated[0]);
     },
 
-    fixActivityElevationSpikes: async (_parent, { id }) => {
-      const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
-      if (!rows[0]) throw new Error(`Activity ${id} not found`);
-      const filename = rows[0].gpx_filename.toLowerCase();
+    fixActivityElevationSpikes: async (_parent, { id }, context) => {
+      const activity = await requireOwnedActivity(id, context);
+      const filename = activity.gpx_filename.toLowerCase();
 
       const { rows: routeRows } = await pool.query(
         "SELECT points_data FROM activity_routes WHERE activity_id = $1",
@@ -892,7 +970,7 @@ export const resolvers = {
       if (spikeRuns.length > 0) {
         const correctedPoints = correctElevationSpikes(points, spikeRuns);
         const corrections = correctionsFromSpikeRuns(spikeRuns, correctedPoints);
-        const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
+        const filePath = path.join(GPX_FILES_DIRECTORY, activity.gpx_filename);
         await fixTrackElevationsByFormat(filePath, filename, corrections);
         await processFile(filePath);
       }
@@ -902,10 +980,24 @@ export const resolvers = {
     },
 
     // activity_routes.activity_id has ON DELETE CASCADE (see db/init.sql), so
-    // deleting the activities row alone removes the route too.
-    deleteActivity: async (_parent, { id }) => {
-      const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [id]);
+    // deleting the activities row alone removes the route too. A share
+    // recipient "deleting" only removes themselves from the share; the file
+    // and row stay for the owner.
+    deleteActivity: async (_parent, { id }, context) => {
+      const person = personOf(context);
+      const { rows } = await pool.query(
+        "SELECT gpx_filename, owner FROM activities WHERE id = $1",
+        [id],
+      );
       if (!rows[0]) throw new Error(`Activity ${id} not found`);
+      if (rows[0].owner !== person) {
+        const { rowCount } = await pool.query(
+          "DELETE FROM activity_shares WHERE gpx_filename = $1 AND person = $2",
+          [rows[0].gpx_filename, person],
+        );
+        if (!rowCount) throw new Error(`Only ${rows[0].owner} can delete this activity`);
+        return true;
+      }
 
       const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
       try {
@@ -914,8 +1006,49 @@ export const resolvers = {
         if (err.code !== "ENOENT") throw err;
       }
 
+      await pool.query("DELETE FROM activity_shares WHERE gpx_filename = $1", [
+        rows[0].gpx_filename,
+      ]);
       await pool.query("DELETE FROM activities WHERE id = $1", [id]);
       return true;
+    },
+
+    // "Did this with...": replaces the full set of people this activity is
+    // shared with. Only existing people (listPeople) are accepted, so a typo
+    // can't silently create a share nobody sees.
+    setActivitySharedWith: async (_parent, { id, people }, context) => {
+      const activity = await requireOwnedActivity(id, context);
+      const known = await listPeople(GPX_FILES_DIRECTORY);
+      const slugs = new Set<string>();
+      for (const name of people) {
+        const slug = slugifyPerson(name);
+        if (!slug || !known.includes(slug)) throw new Error(`Unknown person: ${name}`);
+        if (slug === activity.owner) throw new Error("Can't share an activity with its owner");
+        slugs.add(slug);
+      }
+
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("DELETE FROM activity_shares WHERE gpx_filename = $1", [
+          activity.gpx_filename,
+        ]);
+        for (const slug of slugs) {
+          await client.query("INSERT INTO activity_shares (gpx_filename, person) VALUES ($1, $2)", [
+            activity.gpx_filename,
+            slug,
+          ]);
+        }
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+
+      const { rows } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
+      return mapActivityRow(rows[0]);
     },
 
     updateImmichSettings: async (_parent, { immichBaseUrl, immichApiKey }) => {
@@ -945,6 +1078,14 @@ export const resolvers = {
   },
 
   Activity: {
+    sharedWith: async (parent) => {
+      const { rows } = await pool.query(
+        "SELECT person FROM activity_shares WHERE gpx_filename = $1 ORDER BY person",
+        [parent.gpxFilename],
+      );
+      return rows.map((r) => r.person);
+    },
+
     // Heuristic-ranked type suggestions, computed live from stats already on
     // the row (no extra query) — see track/suggestType.js. Used by the
     // frontend to prioritize suggestions in the type-editing dropdown for
@@ -971,7 +1112,7 @@ export const resolvers = {
       };
     },
 
-    similarActivities: async (parent) => {
+    similarActivities: async (parent, _args, context) => {
       const { rows } = await pool.query(
         `
         WITH target AS (
@@ -983,7 +1124,7 @@ export const resolvers = {
           FROM activity_routes r
           JOIN activities a ON a.id = r.activity_id
           CROSS JOIN target
-          WHERE r.activity_id != $1
+          WHERE r.activity_id != $1 AND ${visibleTo("a", 5)}
         )
         SELECT * FROM scored
         WHERE hausdorff_meters <= $3
@@ -995,6 +1136,7 @@ export const resolvers = {
           SIMILAR_ROUTE_SIMPLIFY_TOLERANCE_DEGREES,
           SIMILAR_ROUTE_THRESHOLD_METERS,
           DEGREES_TO_METERS,
+          personOf(context),
         ],
       );
       return rows.map((row) => ({
@@ -1009,18 +1151,20 @@ export const resolvers = {
     // "Previous"/"next" mean chronologically older/more recent by start_time,
     // matching the Dashboard's newest-first ordering (next = closer to now).
     // A plain neighbor lookup rather than fetching the whole activities list.
-    previousActivityId: async (parent) => {
+    previousActivityId: async (parent, _args, context) => {
       const { rows } = await pool.query(
-        "SELECT id FROM activities WHERE start_time < $1 ORDER BY start_time DESC LIMIT 1",
-        [parent.startTime],
+        `SELECT id FROM activities a WHERE start_time < $1 AND ${visibleTo("a", 2)}
+         ORDER BY start_time DESC LIMIT 1`,
+        [parent.startTime, personOf(context)],
       );
       return rows[0]?.id ?? null;
     },
 
-    nextActivityId: async (parent) => {
+    nextActivityId: async (parent, _args, context) => {
       const { rows } = await pool.query(
-        "SELECT id FROM activities WHERE start_time > $1 ORDER BY start_time ASC LIMIT 1",
-        [parent.startTime],
+        `SELECT id FROM activities a WHERE start_time > $1 AND ${visibleTo("a", 2)}
+         ORDER BY start_time ASC LIMIT 1`,
+        [parent.startTime, personOf(context)],
       );
       return rows[0]?.id ?? null;
     },

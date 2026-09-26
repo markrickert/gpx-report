@@ -1,26 +1,38 @@
 import "leaflet/dist/leaflet.css";
 import "@/web.css";
 
+import { useState } from "react";
 import { ApolloProvider } from "@apollo/client";
-import { Slot, usePathname } from "expo-router";
+import { Slot, useGlobalSearchParams, usePathname } from "expo-router";
 import { Link } from "@/components/web-link";
 import { useUploadQueueTriggers } from "@/hooks/use-upload-queue-triggers";
 import { apolloClient } from "@/lib/apollo";
+import { DEFAULT_PERSON } from "@/lib/person";
 import { NotificationsProvider } from "@/utils/notifications";
 import { UnitsProvider, useUnits } from "@/utils/units";
 import { ThemeProvider, useTheme } from "@/utils/web-theme";
 
-const NAV = [
-  { href: "/", label: "Dashboard" },
-  { href: "/heatmap", label: "Heatmap" },
-  { href: "/record", label: "Record" },
-  { href: "/stats", label: "Stats" },
-  { href: "/settings", label: "Settings" },
-  { href: "/code", label: "Code" },
+// Paths under /<person>/; Code is global.
+const PERSON_NAV = [
+  { path: "", label: "Dashboard" },
+  { path: "/heatmap", label: "Heatmap" },
+  { path: "/record", label: "Record" },
+  { path: "/stats", label: "Stats" },
+  { path: "/settings", label: "Settings" },
 ];
 
 function Shell() {
   const pathname = usePathname();
+  // Pages outside /<person>/ (the picker, Code) keep linking to whoever was
+  // viewed last.
+  const { person: routePerson } = useGlobalSearchParams<{ person?: string }>();
+  const [lastPerson, setLastPerson] = useState(DEFAULT_PERSON);
+  if (routePerson && routePerson !== lastPerson) setLastPerson(routePerson);
+  const person = routePerson ?? lastPerson;
+  const nav = [
+    ...PERSON_NAV.map(({ path, label }) => ({ href: `/${person}${path}`, label })),
+    { href: "/code", label: "Code" },
+  ];
   const isCode = pathname === "/code";
   const { unit, setUnit } = useUnits();
   const { theme, toggleTheme } = useTheme();
@@ -29,7 +41,10 @@ function Shell() {
   return (
     <div className="app-shell">
       <nav className="nav">
-        {NAV.map(({ href, label }) => (
+        <Link to="/" className="nav-person" title="Switch person">
+          {person} ▾
+        </Link>
+        {nav.map(({ href, label }) => (
           <Link key={href} to={href} className={pathname === href ? "active" : undefined}>
             {label}
           </Link>

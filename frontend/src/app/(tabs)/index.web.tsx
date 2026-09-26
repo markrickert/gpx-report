@@ -1,3 +1,3 @@
-import Dashboard from "@/screens/web/dashboard";
+import PeoplePicker from "@/screens/web/people-picker";
 
-export default Dashboard;
+export default PeoplePicker;

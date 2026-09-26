@@ -1,4 +1,4 @@
-import { apolloClient } from "@/lib/apollo";
+import { clientFor } from "@/lib/apollo";
 import { SAVE_RECORDED_ACTIVITY } from "@/graphql/queries";
 import { buildGpxXml } from "./gpx";
 import * as store from "./store";
@@ -33,7 +33,7 @@ async function drain(now: number) {
         rec.title ?? "Recorded activity",
         rec.activityType,
       );
-      const { data } = await apolloClient.mutate({
+      const { data } = await clientFor(rec.person).mutate({
         mutation: SAVE_RECORDED_ACTIVITY,
         variables: { gpxContent, clientId: rec.id },
       });
@@ -53,7 +53,10 @@ async function drain(now: number) {
       });
     }
   }
-  if (due.length > 0) apolloClient.refetchQueries({ include: "active" }).catch(() => {});
+  for (const person of new Set(due.map((r) => r.person)))
+    clientFor(person)
+      .refetchQueries({ include: "active" })
+      .catch(() => {});
 }
 
 export function retryNow(id: string) {

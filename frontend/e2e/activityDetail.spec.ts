@@ -31,7 +31,7 @@ test.describe("ActivityDetail (read-only, real activity)", () => {
       if (msg.type() === "error") errors.push(msg.text());
     });
 
-    await page.goto("/");
+    await page.goto("/mark");
     const firstActivityLink = page.locator(".activity-list-link").first();
     await expect(firstActivityLink).toBeVisible();
     await firstActivityLink.click();

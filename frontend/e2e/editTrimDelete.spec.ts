@@ -142,7 +142,7 @@ test.describe("Edit / trim / delete flow (disposable fixture activity)", () => {
     await page.goto(`/activities/${activityId}`);
     await page.locator(".delete-activity-button").click();
 
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/mark$/);
 
     const data = await graphql<{ activity: unknown }>(
       `

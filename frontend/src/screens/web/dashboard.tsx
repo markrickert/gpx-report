@@ -20,6 +20,7 @@ import {
 import { ACTIVITY_TYPES } from "@/utils/activity-types";
 import { activityTypeLabel } from "@/utils/activity-type-icons";
 import { downloadCsv } from "@/utils/csv";
+import { usePersonHref } from "@/lib/person";
 
 const PAGE_SIZE = 50;
 
@@ -85,6 +86,7 @@ function RouteThumbnail({ routeThumbnail }) {
 }
 
 function OnThisDayCard() {
+  const href = usePersonHref();
   const { unit } = useUnits();
   const { data } = useQuery(GET_ON_THIS_DAY);
   const activities = data?.onThisDay;
@@ -98,7 +100,7 @@ function OnThisDayCard() {
           const yearsAgo = new Date().getFullYear() - new Date(activity.startTime).getFullYear();
           return (
             <li key={activity.id}>
-              <Link to={`/activities/${activity.id}`}>
+              <Link to={href(`/activities/${activity.id}`)}>
                 {activity.title} — {yearsAgo} {yearsAgo === 1 ? "year" : "years"} ago (
                 {activityTypeLabel(activity.activityType)},{" "}
                 {formatDistance(activity.distanceMeters, unit)})
@@ -112,6 +114,7 @@ function OnThisDayCard() {
 }
 
 export default function Dashboard() {
+  const href = usePersonHref();
   const { unit } = useUnits();
   const [activityType, setActivityType] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -420,7 +423,7 @@ export default function Dashboard() {
                   onChange={() => toggleSelected(activity.id)}
                 />
               )}
-              <Link to={`/activities/${activity.id}`} className="activity-list-link">
+              <Link to={href(`/activities/${activity.id}`)} className="activity-list-link">
                 <RouteThumbnail routeThumbnail={activity.routeThumbnail} />
                 <div>
                   <div className="activity-list-title">{activity.title}</div>

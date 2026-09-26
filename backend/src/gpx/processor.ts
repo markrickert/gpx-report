@@ -7,6 +7,7 @@ import { parseSkizFile } from "../skiz/parser.js";
 import { reverseGeocode } from "../geocoding.js";
 import { computeBestEfforts } from "../track/personalRecords.js";
 import { detectLiftSegments } from "../track/liftDetection.js";
+import { fileIdentity } from "../people.js";
 
 function toLineStringWkt(points) {
   const coords = points.map((p) => `${p.lon} ${p.lat}`).join(", ");
@@ -20,8 +21,11 @@ export function parseActivityFile(filePath) {
   return parseGpxFile(filePath);
 }
 
-export async function processFile(filePath, { skipGeocode = false } = {}) {
-  const filename = path.basename(filePath);
+export async function processFile(
+  filePath,
+  { skipGeocode = false, baseDir = process.env.GPX_FILES_DIRECTORY } = {},
+) {
+  const { gpxFilename: filename, owner } = fileIdentity(baseDir, filePath);
   // avgHr/maxHr are only produced by the GPX parser (IGC/.skiz carry no
   // heart-rate data); typed loosely here since parseActivityFile's return is
   // a union across the three format-specific parsers, only one of which has
@@ -79,11 +83,12 @@ export async function processFile(filePath, { skipGeocode = false } = {}) {
 
     const activityResult = await client.query(
       `INSERT INTO activities (
-         gpx_filename, title, activity_type, start_time, end_time, duration_seconds,
+         gpx_filename, owner, title, activity_type, start_time, end_time, duration_seconds,
          distance_meters, avg_speed_mps, moving_avg_speed_mps, max_speed_mps, total_elevation_gain, total_elevation_loss, elevation_gain_excluding_lift_meters, location_name,
          best_1km_seconds, best_5km_seconds, best_10km_seconds, avg_hr, max_hr, updated_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19, NOW())
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20, NOW())
        ON CONFLICT (gpx_filename) DO UPDATE SET
+         owner = EXCLUDED.owner,
          title = EXCLUDED.title,
          activity_type = EXCLUDED.activity_type,
          start_time = EXCLUDED.start_time,
@@ -106,6 +111,7 @@ export async function processFile(filePath, { skipGeocode = false } = {}) {
        RETURNING id`,
       [
         filename,
+        owner,
         parsed.title,
         parsed.activityType,
         parsed.startTime,
@@ -153,23 +159,32 @@ export async function processFile(filePath, { skipGeocode = false } = {}) {
   }
 }
 
+// Recursive so per-person folders (GPX_FILES_DIRECTORY/<person>/) are
+// covered; _backups/ copies are skipped, matching watcher.ts.
 async function listGpxFiles(directory) {
-  const entries = await readdir(directory, { withFileTypes: true });
+  const entries = await readdir(directory, { withFileTypes: true, recursive: true });
   return entries
-    .filter((e) => e.isFile() && /\.(gpx|igc|skiz)$/i.test(e.name))
-    .map((e) => path.join(directory, e.name));
+    .filter(
+      (e) =>
+        e.isFile() &&
+        /\.(gpx|igc|skiz)$/i.test(e.name) &&
+        !e.parentPath.split(path.sep).includes("_backups"),
+    )
+    .map((e) => path.join(e.parentPath, e.name));
 }
 
 const CONCURRENCY = 5;
 
 // Processing all files at once would open one DB connection per file, far
 // exceeding the pool size; cap how many run concurrently instead.
-async function processAll(files) {
+async function processAll(files, baseDir) {
   const results = [];
   for (let i = 0; i < files.length; i += CONCURRENCY) {
     const batch = files.slice(i, i + CONCURRENCY);
     results.push(
-      ...(await Promise.allSettled(batch.map((f) => processFile(f, { skipGeocode: true })))),
+      ...(await Promise.allSettled(
+        batch.map((f) => processFile(f, { skipGeocode: true, baseDir })),
+      )),
     );
   }
   return results;
@@ -177,7 +192,7 @@ async function processAll(files) {
 
 export async function reanalyzeAll(directory) {
   const files = await listGpxFiles(directory);
-  const results = await processAll(files);
+  const results = await processAll(files, directory);
   return summarize(files, results);
 }
 
@@ -187,7 +202,7 @@ export async function reanalyzeByDateRange(directory, startDate, endDate) {
     [startDate, endDate],
   );
   const files = rows.map((r) => path.join(directory, r.gpx_filename));
-  const results = await processAll(files);
+  const results = await processAll(files, directory);
   return summarize(files, results);
 }
 

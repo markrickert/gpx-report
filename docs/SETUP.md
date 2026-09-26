@@ -48,6 +48,18 @@ gpx-report/
 The repo-root `docker-compose.yml` already defines the `db` service (`postgis/postgis:15-3.4`), reading `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` from `.env` (see `.env.example`). `docker compose up` (or `up -d db`) starts it; `backend/db/init.sql` is mounted into the image's init-script directory and runs automatically the *first* time the `db_data` volume is created.
 
 *   **Schema changes to an existing deployment:** `init.sql` will not re-run against an existing volume. Apply changes by hand with `psql` (or `docker compose exec db psql -U $POSTGRES_USER -d $POSTGRES_DB`) — there is no migration tool. See `docs/TODO.md`.
+*   **Accounts migration (existing deployments):** adding per-person accounts needs:
+    ```sql
+    ALTER TABLE activities ADD COLUMN owner VARCHAR(64) NOT NULL DEFAULT 'mark';
+    CREATE INDEX IF NOT EXISTS idx_activities_owner ON activities (owner);
+    CREATE TABLE IF NOT EXISTS activity_shares (
+      gpx_filename VARCHAR(255) NOT NULL,
+      person       VARCHAR(64) NOT NULL,
+      PRIMARY KEY (gpx_filename, person)
+    );
+    CREATE INDEX IF NOT EXISTS idx_activity_shares_person ON activity_shares (person);
+    ```
+    Existing rows are all top-level files, so the `'mark'` default is already correct for them — no re-analysis needed. Unlike every other table, `activity_shares` can't be regenerated from the GPX files; `GET /export/full` includes it as `activity-shares.json`.
 *   **Local (non-Docker) Postgres:** install PostgreSQL + PostGIS yourself, create a DB/user, `CREATE EXTENSION IF NOT EXISTS postgis;`, then run `backend/db/init.sql` against it manually. Point `DATABASE_URL` at it.
 
 ## 3. Backend Setup
@@ -85,7 +97,7 @@ docker compose up -d --build backend frontend
 
 ## 5. Data Ingestion Setup
 
-1.  **Configure GPX Directory:** `GPX_FILES_DIRECTORY` (backend env var) points at the directory to watch. In Docker Compose this is `/gpx-files` inside the container, bind-mounted from `./data/gpx` on the host.
+1.  **Configure GPX Directory:** `GPX_FILES_DIRECTORY` (backend env var) points at the directory to watch. In Docker Compose this is `/gpx-files` inside the container, bind-mounted from `./data/gpx` on the host. Each person's files go in their own subfolder (`data/gpx/kristin/`); files at the top level belong to the default person (`DEFAULT_PERSON` env var, default `mark`). A new subfolder is a new person — create it by hand or let their first phone upload create it. Keep folder names lowercase letters/digits/dashes, and don't use a web route name (`stats`, `heatmap`, `settings`, `record`, `activities`, `code`).
 2.  **How ingestion actually runs:** there's no separate script to invoke — `backend/src/index.ts` starts a `chokidar` watcher (`backend/src/gpx/watcher.ts`) on boot, which fires an `add` event for every pre-existing file and then keeps watching for new ones. Each file is parsed (`gpx/parser.js`) and upserted (`gpx/processor.js`) automatically; there's nothing to schedule or trigger manually beyond dropping a `.gpx` file into the directory.
 3.  **Re-analysis:** the `reanalyzeAllActivities` / `reanalyzeActivitiesByDateRange` GraphQL mutations (wired to the Settings page buttons) re-run the same parse+upsert pipeline over files that already have a matching `activities` row.
 
@@ -99,11 +111,12 @@ The same `frontend/` project builds a native recorder app. It records with `expo
 
 1.  **Build a development build** (Expo Go can't do background location): from `frontend/`, `npx expo run:ios --device` / `npx expo run:android --device` with the phone plugged in, or `npx eas-cli@latest build --profile development` (see `frontend/eas.json`) and install the result. Store distribution is not set up yet.
 2.  **Install Tailscale on the phone** and join the same tailnet as the server.
-3.  **Point the app at the server:** app → Settings → Server → enter the GraphQL URL (e.g. `https://gpx-report-api.example.com/graphql`) → *Save & test connection*. This overrides the `EXPO_PUBLIC_GRAPHQL_URL` baked into the build, so a changed hostname doesn't need a rebuild. Plain `http://` URLs (e.g. a raw Tailscale IP) are allowed: `app.json` enables cleartext HTTP on both platforms.
-4.  **Grant location "Always"** (iOS) / "Allow all the time" (Android) when prompted. With only "While using", recording can stop once the phone locks; Settings shows the current grant and links to the system settings.
-5.  **Record:** Record tab → Start. Pause/Resume creates a new `<trkseg>`, so pause gaps aren't counted as distance. Stop → title + activity type → Save.
+3.  **Set your name:** app → Settings → Your name → *Save name*. It decides whose folder your recordings upload into and whose activities History shows; recording is blocked until it's set.
+4.  **Point the app at the server:** app → Settings → Server → enter the GraphQL URL (e.g. `https://gpx-report-api.example.com/graphql`) → *Save & test connection*. This overrides the `EXPO_PUBLIC_GRAPHQL_URL` baked into the build, so a changed hostname doesn't need a rebuild. Plain `http://` URLs (e.g. a raw Tailscale IP) are allowed: `app.json` enables cleartext HTTP on both platforms.
+5.  **Grant location "Always"** (iOS) / "Allow all the time" (Android) when prompted. With only "While using", recording can stop once the phone locks; Settings shows the current grant and links to the system settings.
+6.  **Record:** Record tab → Start. Pause/Resume creates a new `<trkseg>`, so pause gaps aren't counted as distance. Stop → title + activity type → Save.
 
-**Offline uploads:** Save never needs the server. The recording goes into a local upload queue that retries on app start, on network change, when the app returns to the foreground, and once a minute while open, with exponential backoff (30s doubling, capped at 6h). History shows anything not yet uploaded, with its last error and a *Retry now* button. Each upload sends the recording's UUID as `clientId`, so the server writes `recorded-<uuid>.gpx` exactly once even if a retry follows a lost response.
+**Offline uploads:** Save never needs the server. The recording goes into a local upload queue that retries on app start, on network change, when the app returns to the foreground, and once a minute while open, with exponential backoff (30s doubling, capped at 6h). History shows anything not yet uploaded, with its last error and a *Retry now* button. Each upload sends the recording's UUID as `clientId`, so the server writes `<person>/recorded-<uuid>.gpx` exactly once even if a retry follows a lost response.
 
 **Platform behavior worth knowing:** Android keeps recording via a foreground-service notification even if you swipe the app away. On iOS, swiping the app away from the app switcher stops location updates (an OS rule); being suspended or terminated by the system does not.
 

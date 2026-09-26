@@ -16,7 +16,9 @@ import { ACTIVITY_TYPES } from "@/utils/activity-types";
 import { formatDuration, trackDistanceMeters } from "@/utils/geo";
 import { formatDistance, formatElevation, useUnits } from "@/utils/units";
 
-export function RecordScreen() {
+// `person` is who the recording belongs to: the phone's Settings name, or
+// the /<person>/ of the web page. Null blocks recording until it's set.
+export function RecordScreen({ person }: { person: string | null }) {
   const colors = useTheme();
   const { unit } = useUnits();
   const { recording, points, refresh } = useActiveRecording();
@@ -50,7 +52,11 @@ export function RecordScreen() {
   const handleStart = () =>
     run(async () => {
       setNote(null);
-      const result = await startRecording();
+      if (!person) {
+        setError("Set your name in Settings before recording.");
+        return;
+      }
+      const result = await startRecording(person);
       if (result.error) setError(result.error);
       if (result.warning) setNote(result.warning);
     });

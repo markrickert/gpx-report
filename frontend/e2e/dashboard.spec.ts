@@ -11,7 +11,7 @@ test.describe("Dashboard", () => {
       if (msg.type() === "error") errors.push(msg.text());
     });
 
-    await page.goto("/");
+    await page.goto("/mark");
 
     await expect(page.locator(".summary-grid")).toBeVisible();
     await expect(page.locator(".summary-grid .summary-value").first()).not.toHaveText("");

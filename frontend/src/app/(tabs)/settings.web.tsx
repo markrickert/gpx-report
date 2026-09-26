@@ -1,3 +1,7 @@
-import Settings from "@/screens/web/settings";
+import { Redirect } from "expo-router";
+import { DEFAULT_PERSON } from "@/lib/person";
 
-export default Settings;
+// Pre-accounts URL; pages now live under /<person>/.
+export default function LegacyRoute() {
+  return <Redirect href={`/${DEFAULT_PERSON}/settings`} />;
+}

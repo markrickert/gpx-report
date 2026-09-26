@@ -42,6 +42,8 @@ export const GET_ACTIVITY = gql`
     activity(id: $id) {
       id
       gpxFilename
+      owner
+      sharedWith
       title
       activityType
       startTime
@@ -459,6 +461,21 @@ export const GET_SERVER_CHECK = gql`
   query GetServerCheck {
     activitySummary {
       totalActivities
+    }
+  }
+`;
+
+export const GET_PEOPLE = gql`
+  query GetPeople {
+    people
+  }
+`;
+
+export const SET_ACTIVITY_SHARED_WITH = gql`
+  mutation SetActivitySharedWith($id: ID!, $people: [String!]!) {
+    setActivitySharedWith(id: $id, people: $people) {
+      id
+      sharedWith
     }
   }
 `;

@@ -3,14 +3,19 @@ import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fro
 import * as Location from "expo-location";
 import { GET_SERVER_CHECK } from "@/graphql/queries";
 import { useTheme } from "@/hooks/use-theme";
-import { apolloClient, getGraphqlUrl, setGraphqlUrl } from "@/lib/apollo";
+import { useApolloClient } from "@apollo/client";
+import { getGraphqlUrl, setGraphqlUrl } from "@/lib/apollo";
+import { getPerson, setPerson } from "@/lib/person";
 import { drainUploadQueue } from "@/recording/upload-queue";
 import { useUnits } from "@/utils/units";
 
 export function SettingsScreen() {
   const colors = useTheme();
   const { unit, setUnit } = useUnits();
+  const apolloClient = useApolloClient();
   const [url, setUrl] = useState(getGraphqlUrl);
+  const [name, setName] = useState(() => getPerson() ?? "");
+  const [nameSaved, setNameSaved] = useState(false);
   const [check, setCheck] = useState<string | null>(null);
   const [permission, setPermission] = useState<string>("…");
 
@@ -47,6 +52,34 @@ export function SettingsScreen() {
       contentContainerStyle={styles.container}
       contentInsetAdjustmentBehavior="automatic"
     >
+      <View style={[styles.section, { backgroundColor: colors.backgroundElement }]}>
+        <Text style={[styles.heading, text]}>Your name</Text>
+        <Text style={[styles.meta, secondary]}>
+          Your recordings upload to your own folder on the server, and History shows your activities
+          plus ones shared with you.
+        </Text>
+        <TextInput
+          value={name}
+          onChangeText={(value) => {
+            setName(value);
+            setNameSaved(false);
+          }}
+          autoCapitalize="words"
+          autoCorrect={false}
+          placeholder="e.g. Kristin"
+          style={[styles.input, text, { borderColor: colors.backgroundSelected }]}
+        />
+        <Pressable
+          onPress={() => {
+            setPerson(name);
+            setNameSaved(true);
+          }}
+        >
+          <Text style={styles.link}>Save name</Text>
+        </Pressable>
+        {nameSaved && <Text style={[styles.meta, secondary]}>Saved.</Text>}
+      </View>
+
       <View style={[styles.section, { backgroundColor: colors.backgroundElement }]}>
         <Text style={[styles.heading, text]}>Server</Text>
         <Text style={[styles.meta, secondary]}>

@@ -5,6 +5,10 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE TABLE IF NOT EXISTS activities (
   id                    SERIAL PRIMARY KEY,
   gpx_filename          VARCHAR(255) NOT NULL UNIQUE,
+  -- Person who recorded it: the first folder segment of gpx_filename
+  -- (GPX_FILES_DIRECTORY/<person>/...), or DEFAULT_PERSON for top-level
+  -- files. Derived on every ingest, like every other column here.
+  owner                 VARCHAR(64) NOT NULL DEFAULT 'mark',
   title                 VARCHAR(255) NOT NULL,
   activity_type         VARCHAR(50) NOT NULL,
   start_time            TIMESTAMPTZ NOT NULL,
@@ -45,6 +49,19 @@ CREATE TABLE IF NOT EXISTS activities (
 
 CREATE INDEX IF NOT EXISTS idx_activities_start_time ON activities (start_time DESC);
 CREATE INDEX IF NOT EXISTS idx_activities_activity_type ON activities (activity_type);
+CREATE INDEX IF NOT EXISTS idx_activities_owner ON activities (owner);
+
+-- Opt-in "did this with..." sharing: a shared activity counts for `person`
+-- exactly like their own. Keyed by gpx_filename rather than activity id so
+-- it survives re-analysis. NOT derived data — it isn't recoverable from the
+-- GPX files, so wiping the volume loses it (it's included in /export/full).
+CREATE TABLE IF NOT EXISTS activity_shares (
+  gpx_filename  VARCHAR(255) NOT NULL,
+  person        VARCHAR(64) NOT NULL,
+  PRIMARY KEY (gpx_filename, person)
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_shares_person ON activity_shares (person);
 
 CREATE TABLE IF NOT EXISTS activity_routes (
   activity_id             INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,

@@ -10,12 +10,14 @@ import type { Recording } from "./types";
 // see the same recording; these functions are the only writers of `status`
 // before upload.
 
-export async function startRecording(): Promise<{ error?: string; warning?: string }> {
+export async function startRecording(
+  person: string,
+): Promise<{ error?: string; warning?: string }> {
   const perms = await requestLocationPermissions();
   if (!perms.granted) {
     return { error: "Location permission was denied. Enable it in Settings to record." };
   }
-  store.createRecording(randomUUID(), Date.now());
+  store.createRecording(randomUUID(), Date.now(), person);
   try {
     await startLocation();
   } catch (err) {

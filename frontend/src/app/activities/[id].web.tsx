@@ -1,3 +1,8 @@
-import ActivityDetail from "@/screens/web/activity-detail";
+import { Redirect, useLocalSearchParams } from "expo-router";
+import { DEFAULT_PERSON } from "@/lib/person";
 
-export default ActivityDetail;
+// Pre-accounts URL; pages now live under /<person>/.
+export default function LegacyRoute() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  return <Redirect href={`/${DEFAULT_PERSON}/activities/${id}`} />;
+}

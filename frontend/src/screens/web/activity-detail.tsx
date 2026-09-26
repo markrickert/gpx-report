@@ -29,6 +29,8 @@ import {
   SEARCH_ACTIVITIES_FOR_COMPARE,
   DELETE_ACTIVITY,
   GET_PERSONAL_RECORDS,
+  GET_PEOPLE,
+  SET_ACTIVITY_SHARED_WITH,
 } from "@/graphql/queries";
 import {
   useUnits,
@@ -44,6 +46,7 @@ import { useTheme } from "@/utils/web-theme";
 import { ACTIVITY_TYPES } from "@/utils/activity-types";
 import { activityTypeIcon, activityTypeLabel } from "@/utils/activity-type-icons";
 import { apiOrigin } from "@/lib/apollo";
+import { usePersonHref } from "@/lib/person";
 
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -52,8 +55,10 @@ function formatDuration(seconds) {
 }
 
 // .gpx and .skiz activities support edits (gpx/writer.js and skiz/writer.js
-// rewrite the source file; .igc has no equivalent write path yet).
-function isEditable(activity) {
+// rewrite the source file; .igc has no equivalent write path yet). Only the
+// owner can edit — a share recipient views it read-only.
+function isEditable(activity, person) {
+  if (activity.owner !== person) return false;
   const filename = activity.gpxFilename.toLowerCase();
   return filename.endsWith(".gpx") || filename.endsWith(".skiz");
 }
@@ -103,18 +108,19 @@ export function matchedRecords(activity, record) {
 // than rendered disabled, and the whole row disappears when there's only one
 // activity total.
 function ActivityNav({ activity }) {
+  const href = usePersonHref();
   if (!activity.previousActivityId && !activity.nextActivityId) return null;
   return (
     <div className="activity-nav">
       {activity.previousActivityId ? (
-        <Link to={`/activities/${activity.previousActivityId}`} className="title-edit-button">
+        <Link to={href(`/activities/${activity.previousActivityId}`)} className="title-edit-button">
           ← Previous
         </Link>
       ) : (
         <span />
       )}
       {activity.nextActivityId ? (
-        <Link to={`/activities/${activity.nextActivityId}`} className="title-edit-button">
+        <Link to={href(`/activities/${activity.nextActivityId}`)} className="title-edit-button">
           Next →
         </Link>
       ) : (
@@ -124,7 +130,7 @@ function ActivityNav({ activity }) {
   );
 }
 
-function ActivityHeader({ activity, record, editMode, onEditModeChange }) {
+function ActivityHeader({ activity, person, record, editMode, onEditModeChange }) {
   const [updateTitle] = useMutation(UPDATE_ACTIVITY_TITLE);
   const [updateType] = useMutation(UPDATE_ACTIVITY_TYPE);
   const [titleDraft, setTitleDraft] = useState(activity.title);
@@ -138,7 +144,7 @@ function ActivityHeader({ activity, record, editMode, onEditModeChange }) {
       <>
         <h1>
           {activity.title}{" "}
-          {isEditable(activity) && (
+          {isEditable(activity, person) && (
             <button
               className="title-edit-button"
               onClick={() => {
@@ -175,6 +181,9 @@ function ActivityHeader({ activity, record, editMode, onEditModeChange }) {
             Download {activity.gpxFilename.split(".").pop().toUpperCase()}
           </a>
         </p>
+        {activity.owner !== person && (
+          <p className="activity-shared-by">Shared by {activity.owner}</p>
+        )}
       </>
     );
   }
@@ -243,13 +252,14 @@ function ActivityHeader({ activity, record, editMode, onEditModeChange }) {
 // Freeform notes are DB-only (no source-file round-trip), so this edits
 // independently of the title/type/trim edit-mode flag above and works for
 // every file type, including .igc which has no writer.js equivalent.
-function NotesSection({ activity }) {
+function NotesSection({ activity, readOnly }) {
   const [updateNotes] = useMutation(UPDATE_ACTIVITY_NOTES);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(activity.notes || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  if (readOnly && !activity.notes) return null;
   if (!editing) {
     return (
       <div className="notes-section">
@@ -258,16 +268,18 @@ function NotesSection({ activity }) {
         ) : (
           <p className="notes-text notes-empty">No notes yet.</p>
         )}
-        <button
-          className="title-edit-button"
-          onClick={() => {
-            setDraft(activity.notes || "");
-            setError(null);
-            setEditing(true);
-          }}
-        >
-          {activity.notes ? "Edit notes" : "Add notes"}
-        </button>
+        {!readOnly && (
+          <button
+            className="title-edit-button"
+            onClick={() => {
+              setDraft(activity.notes || "");
+              setError(null);
+              setEditing(true);
+            }}
+          >
+            {activity.notes ? "Edit notes" : "Add notes"}
+          </button>
+        )}
       </div>
     );
   }
@@ -1065,6 +1077,7 @@ function diffLabel(primary, compare, formatFn, unit = undefined) {
 // activities being compared can have very different point counts/lengths
 // and raw index alignment would badly misrepresent them.
 function ComparisonSection({ activity }) {
+  const href = usePersonHref();
   const { unit } = useUnits();
   const [compareId, setCompareId] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -1233,7 +1246,7 @@ function ComparisonSection({ activity }) {
       </ResponsiveContainer>
 
       <p>
-        <Link to={`/activities/${compareActivity.id}`}>View {compareActivity.title}</Link>{" "}
+        <Link to={href(`/activities/${compareActivity.id}`)}>View {compareActivity.title}</Link>{" "}
         <button type="button" className="title-edit-button" onClick={() => setCompareId(null)}>
           Remove comparison
         </button>
@@ -1242,18 +1255,63 @@ function ComparisonSection({ activity }) {
   );
 }
 
-// Permanently removes both the DB row and the source .gpx/.igc/.skiz file
-// (see deleteActivity resolver) — irreversible, so this requires the same
-// window.confirm guard used by the other destructive action on this page
-// (OutlierCleanup's "Clean & Save").
-function DeleteActivitySection({ activity }) {
+// "Did this with...": the owner picks who else this activity counts for.
+// A shared activity shows up in the recipient's list, totals, PRs, streaks
+// and heatmap exactly like their own.
+function SharingSection({ activity }) {
+  const { data } = useQuery(GET_PEOPLE);
+  const [setSharedWith, { loading }] = useMutation(SET_ACTIVITY_SHARED_WITH);
+  const [error, setError] = useState(null);
+  const others = (data?.people ?? []).filter((p) => p !== activity.owner);
+  if (others.length === 0) return null;
+
+  const toggle = async (name, checked) => {
+    setError(null);
+    const people = checked
+      ? [...activity.sharedWith, name]
+      : activity.sharedWith.filter((p) => p !== name);
+    try {
+      await setSharedWith({ variables: { id: activity.id, people } });
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  return (
+    <div className="sharing-section">
+      <span>Did this with:</span>
+      {others.map((name) => (
+        <label key={name}>
+          <input
+            type="checkbox"
+            checked={activity.sharedWith.includes(name)}
+            onChange={(e) => toggle(name, e.target.checked)}
+            disabled={loading}
+          />{" "}
+          {name}
+        </label>
+      ))}
+      {error && <p className="title-edit-error">Failed to share: {error}</p>}
+    </div>
+  );
+}
+
+// For the owner: permanently removes both the DB row and the source
+// .gpx/.igc/.skiz file (see deleteActivity resolver) — irreversible, so this
+// requires the same window.confirm guard used by the other destructive
+// action on this page (OutlierCleanup's "Clean & Save"). For a share
+// recipient the same mutation only removes them from the share.
+function DeleteActivitySection({ activity, isOwner }) {
   const [deleteActivity, { loading: deleting }] = useMutation(DELETE_ACTIVITY);
   const [error, setError] = useState(null);
+  const href = usePersonHref();
 
   const handleDelete = async () => {
     if (
       !window.confirm(
-        `Delete "${activity.title}" permanently? This removes the activity and its source file and cannot be undone.`,
+        isOwner
+          ? `Delete "${activity.title}" permanently? This removes the activity and its source file and cannot be undone.`
+          : `Remove "${activity.title}" from your activities? ${activity.owner} keeps it.`,
       )
     ) {
       return;
@@ -1261,7 +1319,7 @@ function DeleteActivitySection({ activity }) {
     setError(null);
     try {
       await deleteActivity({ variables: { id: activity.id } });
-      router.push("/");
+      router.push(href(""));
     } catch (e) {
       setError(e.message);
     }
@@ -1270,7 +1328,7 @@ function DeleteActivitySection({ activity }) {
   return (
     <div className="delete-activity-section">
       <button className="delete-activity-button" onClick={handleDelete} disabled={deleting}>
-        {deleting ? "Deleting…" : "Delete Activity"}
+        {deleting ? "Removing…" : isOwner ? "Delete Activity" : "Remove from my activities"}
       </button>
       {error && <p className="title-edit-error">Failed to delete: {error}</p>}
     </div>
@@ -1283,6 +1341,7 @@ function DeleteActivitySection({ activity }) {
 // rather than rendering an empty heading.
 function SimilarActivitiesSection({ activity }) {
   const { unit } = useUnits();
+  const href = usePersonHref();
   if (activity.similarActivities.length === 0) return null;
 
   return (
@@ -1291,7 +1350,7 @@ function SimilarActivitiesSection({ activity }) {
       <ul className="on-this-day-list">
         {activity.similarActivities.map((match) => (
           <li key={match.id}>
-            <Link to={`/activities/${match.id}`}>
+            <Link to={href(`/activities/${match.id}`)}>
               {match.title} — {new Date(match.startTime).toLocaleDateString()} (
               {activityTypeLabel(match.activityType)}, {formatDistance(match.distanceMeters, unit)})
             </Link>
@@ -1303,7 +1362,7 @@ function SimilarActivitiesSection({ activity }) {
 }
 
 export default function ActivityDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, person } = useLocalSearchParams<{ id: string; person: string }>();
   const { unit } = useUnits();
   const { theme } = useTheme();
   const { data, loading, error, refetch } = useQuery(GET_ACTIVITY, { variables: { id } });
@@ -1319,6 +1378,7 @@ export default function ActivityDetail() {
   if (!data.activity) return <p>Activity not found.</p>;
 
   const activity = data.activity;
+  const isOwner = activity.owner === person;
   const personalRecord = recordsData?.personalRecordsByType.find(
     (r) => r.activityType === activity.activityType,
   );
@@ -1374,7 +1434,7 @@ export default function ActivityDetail() {
       : null;
 
   const [trimStart, trimEnd] = trimRange ?? [0, elevationData.length - 1];
-  const trimActive = editMode && isEditable(activity) && trimRange !== null;
+  const trimActive = editMode && isEditable(activity, person) && trimRange !== null;
   const visiblePositions = trimActive ? positions.slice(trimStart, trimEnd + 1) : positions;
   const visibleElevationData = trimActive
     ? elevationData.slice(trimStart, trimEnd + 1)
@@ -1445,12 +1505,15 @@ export default function ActivityDetail() {
 
       <ActivityHeader
         activity={activity}
+        person={person}
         record={personalRecord}
         editMode={editMode}
         onEditModeChange={(next) => (next ? enterEditMode() : exitEditMode())}
       />
 
-      <NotesSection activity={activity} />
+      {isOwner && <SharingSection activity={activity} />}
+
+      <NotesSection activity={activity} readOnly={!isOwner} />
 
       <div className="metrics-grid">
         <div className="metric-tile">
@@ -1956,15 +2019,15 @@ export default function ActivityDetail() {
 
       <MediaGallery activity={activity} />
 
-      <OutlierCleanup activity={activity} />
+      {isOwner && <OutlierCleanup activity={activity} />}
 
-      <ElevationFixTool activity={activity} />
+      {isOwner && <ElevationFixTool activity={activity} />}
 
       <ComparisonSection activity={activity} />
 
       <SimilarActivitiesSection activity={activity} />
 
-      <DeleteActivitySection activity={activity} />
+      <DeleteActivitySection activity={activity} isOwner={isOwner} />
     </div>
   );
 }

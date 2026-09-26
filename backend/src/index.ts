@@ -13,6 +13,7 @@ import { watchGpxDirectory } from "./gpx/watcher.js";
 import { pool } from "./db.js";
 import { getImmichSettings } from "./immich/settings.js";
 import { fetchImmichAssetStream } from "./immich/client.js";
+import { personFromHeader } from "./people.js";
 
 const PORT = Number(process.env.GRAPHQL_PORT) || 4000;
 const GPX_FILES_DIRECTORY = process.env.GPX_FILES_DIRECTORY;
@@ -32,7 +33,17 @@ const server = new ApolloServer({
 
 await server.start();
 
-app.use("/graphql", cors(), express.json({ limit: "50mb" }), expressMiddleware(server));
+// Who's asking: the phone sends the name from its Settings, the web app the
+// /<person>/ from its URL. Missing/invalid falls back to DEFAULT_PERSON so
+// older clients keep working.
+app.use(
+  "/graphql",
+  cors(),
+  express.json({ limit: "50mb" }),
+  expressMiddleware(server, {
+    context: async ({ req }) => ({ person: personFromHeader(req.headers["x-gpx-person"]) }),
+  }),
+);
 
 app.get("/activities/:id/download", async (req, res) => {
   const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [
@@ -43,7 +54,7 @@ app.get("/activities/:id/download", async (req, res) => {
     return;
   }
   const gpxFilename = rows[0].gpx_filename;
-  res.download(path.join(GPX_FILES_DIRECTORY, gpxFilename), gpxFilename);
+  res.download(path.join(GPX_FILES_DIRECTORY, gpxFilename), path.basename(gpxFilename));
 });
 
 // Streams an Immich photo/video (or its thumbnail) through the backend
@@ -126,6 +137,11 @@ app.get("/export/full", async (req, res) => {
   // length limit (RangeError: Invalid string length) even though the raw
   // data itself is a very manageable size.
   archive.append(Readable.from(dbExportJsonChunks(rows)), { name: "db-export.json" });
+  // activity_shares isn't derivable from the GPX files, so it's exported too.
+  const { rows: shares } = await pool.query(
+    "SELECT gpx_filename, person FROM activity_shares ORDER BY gpx_filename, person",
+  );
+  archive.append(JSON.stringify(shares, null, 2), { name: "activity-shares.json" });
 
   await archive.finalize();
 });
