@@ -6,7 +6,6 @@
   "dependencies": {
     "@apollo/client": "^3.14.1",
     "@expo/ui": "~57.0.20",
-    "@maplibre/maplibre-react-native": "^11.4.0",
     "@react-native-community/netinfo": "12.0.1",
     "expo": "~57.0.25",
     "expo-build-properties": "~57.0.22",
@@ -20,6 +19,7 @@
     "expo-image": "~57.0.5",
     "expo-linking": "~57.0.11",
     "expo-location": "~57.0.20",
+    "expo-maps": "~57.0.3",
     "expo-router": "~57.0.23",
     "expo-splash-screen": "~57.0.9",
     "expo-sqlite": "~57.0.3",
