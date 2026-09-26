@@ -33,29 +33,32 @@ export function LiveTrackMap({ points, follow, style }: Props) {
   // not on a finished track.
   const wantsLocation = !last || follow;
   const [canShowLocation, setCanShowLocation] = useState(false);
+  const [here, setHere] = useState<Camera["coordinates"]>();
+  // Google Maps rejects camera moves until its map has loaded; Apple Maps
+  // accepts them right away.
+  const [mapReady, setMapReady] = useState(Platform.OS === "ios");
 
   useEffect(() => {
     if (!wantsLocation) return;
     Location.requestForegroundPermissionsAsync().then(async ({ granted }) => {
       setCanShowLocation(granted);
-      if (!granted || last) return;
-      const here =
+      if (!granted) return;
+      const position =
         (await Location.getLastKnownPositionAsync()) ?? (await Location.getCurrentPositionAsync());
-      const { latitude, longitude } = here.coords;
-      map.current?.setCameraPosition({ coordinates: { latitude, longitude }, zoom: FOLLOW_ZOOM });
+      const { latitude, longitude } = position.coords;
+      setHere({ latitude, longitude });
     });
-    // Only re-run when location becomes wanted, not on every new point.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wantsLocation]);
 
   useEffect(() => {
-    if (!last) return;
-    map.current?.setCameraPosition(
-      follow
-        ? { coordinates: { latitude: last.lat, longitude: last.lon }, zoom: FOLLOW_ZOOM }
-        : fitCamera(points),
-    );
-  }, [points, last, follow]);
+    if (!mapReady) return;
+    let camera: Camera | undefined;
+    if (!last) camera = here && { coordinates: here, zoom: FOLLOW_ZOOM };
+    else if (follow)
+      camera = { coordinates: { latitude: last.lat, longitude: last.lon }, zoom: FOLLOW_ZOOM };
+    else camera = fitCamera(points);
+    if (camera) map.current?.setCameraPosition(camera);
+  }, [mapReady, here, points, last, follow]);
 
   const segments = new Map<number, { latitude: number; longitude: number }[]>();
   for (const p of points) {
@@ -75,5 +78,9 @@ export function LiveTrackMap({ points, follow, style }: Props) {
     properties: { isMyLocationEnabled: wantsLocation && canShowLocation },
   };
 
-  return Platform.OS === "ios" ? <AppleMaps.View {...shared} /> : <GoogleMaps.View {...shared} />;
+  return Platform.OS === "ios" ? (
+    <AppleMaps.View {...shared} />
+  ) : (
+    <GoogleMaps.View {...shared} onMapLoaded={() => setMapReady(true)} />
+  );
 }

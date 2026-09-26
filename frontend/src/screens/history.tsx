@@ -81,7 +81,9 @@ export function HistoryScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       renderItem={({ item }) => (
         <Link href={`/activities/${item.id}`} asChild>
-          <Pressable style={[styles.row, { backgroundColor: colors.backgroundElement }]}>
+          <Pressable
+            style={StyleSheet.flatten([styles.row, { backgroundColor: colors.backgroundElement }])}
+          >
             <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
             <Text style={[styles.meta, { color: colors.textSecondary }]}>
               {item.activityType} · {new Date(item.startTime).toLocaleDateString()} ·{" "}
