@@ -100,7 +100,7 @@ export function RecordScreen({ person }: { person: string | null }) {
   return (
     // The native safe area includes the tab bar, so sizing to it (instead of
     // the scroll view's automatic inset) keeps the controls just above it.
-    <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1, backgroundColor: colors.background }}>
+    <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={styles.container} contentInsetAdjustmentBehavior="never">
         {Platform.OS === "web" && (
           <Text style={[styles.hint, { color: colors.textSecondary }]}>

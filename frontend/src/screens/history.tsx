@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useQuery } from "@apollo/client";
 import { Link, useFocusEffect } from "expo-router";
+import { RouteThumbnail } from "@/components/route-thumbnail";
 import { GET_DASHBOARD } from "@/graphql/queries";
 import { useTheme } from "@/hooks/use-theme";
 import * as store from "@/recording/store";
@@ -17,6 +18,7 @@ type ServerActivity = {
   startTime: string;
   durationSeconds: number;
   distanceMeters: number;
+  routeThumbnail: number[][] | null;
 };
 
 export function HistoryScreen() {
@@ -82,14 +84,21 @@ export function HistoryScreen() {
       renderItem={({ item }) => (
         <Link href={`/activities/${item.id}`} asChild>
           <Pressable
-            style={StyleSheet.flatten([styles.row, { backgroundColor: colors.backgroundElement }])}
+            style={StyleSheet.flatten([
+              styles.row,
+              styles.activityRow,
+              { backgroundColor: colors.backgroundElement },
+            ])}
           >
-            <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
-            <Text style={[styles.meta, { color: colors.textSecondary }]}>
-              {item.activityType} · {new Date(item.startTime).toLocaleDateString()} ·{" "}
-              {formatDistance(item.distanceMeters, unit)} ·{" "}
-              {formatDuration(item.durationSeconds * 1000)}
-            </Text>
+            <RouteThumbnail routeThumbnail={item.routeThumbnail} />
+            <View style={styles.activityText}>
+              <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
+              <Text style={[styles.meta, { color: colors.textSecondary }]}>
+                {item.activityType} · {new Date(item.startTime).toLocaleDateString()} ·{" "}
+                {formatDistance(item.distanceMeters, unit)} ·{" "}
+                {formatDuration(item.durationSeconds * 1000)}
+              </Text>
+            </View>
           </Pressable>
         </Link>
       )}
@@ -101,6 +110,8 @@ const styles = StyleSheet.create({
   list: { padding: 16, gap: 8 },
   header: { gap: 8, marginBottom: 8 },
   row: { padding: 12, borderRadius: 12, borderCurve: "continuous", gap: 4 },
+  activityRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  activityText: { flex: 1, gap: 4 },
   title: { fontSize: 16, fontWeight: "600" },
   meta: { fontSize: 13 },
   link: { color: "#2563eb", fontSize: 14, fontWeight: "600" },
