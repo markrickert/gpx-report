@@ -45,7 +45,7 @@ app.use(
   }),
 );
 
-app.get("/activities/:id/download", async (req, res) => {
+app.get("/api/activities/:id/download", async (req, res) => {
   const { rows } = await pool.query("SELECT gpx_filename FROM activities WHERE id = $1", [
     req.params.id,
   ]);
@@ -97,8 +97,8 @@ async function proxyImmichAsset(req, res, variant: "original" | "thumbnail") {
   Readable.fromWeb(upstream.body as any).pipe(res);
 }
 
-app.get("/activities/:id/media/:assetId", (req, res) => proxyImmichAsset(req, res, "original"));
-app.get("/activities/:id/media/:assetId/thumbnail", (req, res) =>
+app.get("/api/activities/:id/media/:assetId", (req, res) => proxyImmichAsset(req, res, "original"));
+app.get("/api/activities/:id/media/:assetId/thumbnail", (req, res) =>
   proxyImmichAsset(req, res, "thumbnail"),
 );
 
@@ -108,7 +108,7 @@ app.get("/activities/:id/media/:assetId/thumbnail", (req, res) =>
 // route_geom as GeoJSON) — distinct from the Settings page's summary-only
 // analysis export, which excludes per-point track data. No client input is
 // used to build any filesystem path or query here.
-app.get("/export/full", async (req, res) => {
+app.get("/api/export/full", async (req, res) => {
   const { rows } = await pool.query(`
     SELECT
       a.*,

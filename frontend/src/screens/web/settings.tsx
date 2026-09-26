@@ -326,7 +326,7 @@ function ExportTab() {
           summary-only export above.
         </p>
         <div className="button-row">
-          <a className="download-link" href={`${apiOrigin()}/export/full`}>
+          <a className="download-link" href={`${apiOrigin()}/api/export/full`}>
             Download Full Backup (.zip)
           </a>
         </div>

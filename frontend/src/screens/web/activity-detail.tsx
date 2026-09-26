@@ -177,7 +177,10 @@ function ActivityHeader({ activity, person, record, editMode, onEditModeChange }
               — <span className="activity-location">{activity.locationName}</span>
             </>
           )}{" "}
-          <a href={`${apiOrigin()}/activities/${activity.id}/download`} className="download-link">
+          <a
+            href={`${apiOrigin()}/api/activities/${activity.id}/download`}
+            className="download-link"
+          >
             Download {activity.gpxFilename.split(".").pop().toUpperCase()}
           </a>
         </p>
@@ -418,7 +421,7 @@ function MediaPillShape({ cx, cy, isVideo, onEnter, onLeave }) {
 function MediaThumbnail({ activityId, assetId, alt = "" }) {
   return (
     <img
-      src={`${apiOrigin()}/activities/${activityId}/media/${assetId}/thumbnail`}
+      src={`${apiOrigin()}/api/activities/${activityId}/media/${assetId}/thumbnail`}
       alt={alt || ""}
       loading="lazy"
     />
@@ -457,13 +460,13 @@ function MediaGallery({ activity }) {
           <div className="media-lightbox-content" onClick={(e) => e.stopPropagation()}>
             {current.assetType === "VIDEO" ? (
               <video
-                src={`${apiOrigin()}/activities/${activity.id}/media/${current.immichAssetId}`}
+                src={`${apiOrigin()}/api/activities/${activity.id}/media/${current.immichAssetId}`}
                 controls
                 autoPlay
               />
             ) : (
               <img
-                src={`${apiOrigin()}/activities/${activity.id}/media/${current.immichAssetId}`}
+                src={`${apiOrigin()}/api/activities/${activity.id}/media/${current.immichAssetId}`}
                 alt=""
               />
             )}

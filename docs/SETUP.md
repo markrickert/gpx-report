@@ -76,9 +76,8 @@ The repo-root `docker-compose.yml` already defines the `db` service (`postgis/po
 
 `frontend/` is one Expo (Expo Router) project that builds both the web analysis UI served by this server and the iOS/Android recording app.
 
-*   **Web via Docker (recommended):** `docker compose up --build frontend` runs `expo export -p web` and serves the static SPA with `serve -s` on port 3000. **Important:** `EXPO_PUBLIC_GRAPHQL_URL` is baked into the static JS bundle at *image build time* via a Docker build arg (`frontend.build.args` in `docker-compose.yml`), not read at container runtime — changing it requires a rebuild (`docker compose up -d --build frontend`), not just a restart.
-*   **Web locally:** `cd frontend && pnpm install && pnpm exec expo start --web`. Set `EXPO_PUBLIC_GRAPHQL_URL` in the environment if not using `localhost:4000/graphql`.
-*   `http://localhost:4000/graphql` only works when the browser and backend run on the same machine — for any real deployment `EXPO_PUBLIC_GRAPHQL_URL` needs to be a domain reachable from wherever the browser is (see §6 below for the reverse-proxy setup used in this project's actual deployment).
+*   **Web via Docker (recommended):** `docker compose up --build frontend` runs `expo export -p web` and serves the result with Caddy on port 3000 (`frontend/Caddyfile`). The same Caddy proxies `/graphql` and `/api/*` to `backend:4000`, so the web app and its API share one origin: the production bundle calls `/graphql` on whatever site served it, and no API URL is baked in.
+*   **Web locally:** `cd frontend && pnpm install && pnpm exec expo start --web`. The Metro dev server has no proxy, so set `EXPO_PUBLIC_GRAPHQL_URL` to a reachable backend (default `http://localhost:4000/graphql`).
 *   **pnpm:** each of `backend/`, `frontend/`, and the repo root has its own `pnpm-lock.yaml` (the Dockerfiles install `pnpm@11.0.9`, matching `packageManager`). `frontend/pnpm-workspace.yaml` sets `nodeLinker: hoisted`, since Expo/React Native tooling expects a flat `node_modules`. pnpm only runs dependency install scripts listed in `allowBuilds` (in each project's `pnpm-workspace.yaml`); a new dependency with one fails `pnpm install` until you run `pnpm approve-builds`.
 
 ### Hot-reload dev mode (in-Docker)
@@ -97,7 +96,7 @@ Use this to iterate on the live LXC host without a production rebuild (~8–10 m
 
 How it works: `docker-compose.dev.yml` is an override file. It bind-mounts `./backend/src` and `./frontend/src` into the running containers and replaces their production command with `tsx watch src/index.ts` (backend, built from `backend/Dockerfile.dev` — a lightweight image with the full `pnpm install`, no `tsc` build step, since `tsx` runs the TypeScript source directly) and Expo's Metro web dev server via `pnpm exec expo start --web --port 3000` (frontend, built from `frontend/Dockerfile.dev` — a lightweight image that skips the `expo export` production stage entirely).
 
-The frontend dev server reads `EXPO_PUBLIC_GRAPHQL_URL` from the container environment when Metro bundles, rather than from the image build arg the production image bakes in — same values from `.env`, different mechanism.
+The frontend dev server has no Caddy proxy in front of it, so it reads `EXPO_PUBLIC_GRAPHQL_URL` from the container environment (set it in `.env` to the backend, e.g. `http://<host>:4000/graphql`). The production image ignores this variable.
 
 This only activates when you pass both `-f` flags. A plain `docker compose up`/`up --build` is untouched and keeps using the production Dockerfiles.
 
@@ -124,7 +123,7 @@ The same `frontend/` project builds a native recorder app. It records with `expo
 2.  **Build a development build** (Expo Go can't do background location): from `frontend/`, `npx expo run:ios --device` / `npx expo run:android --device` with the phone plugged in, or `npx eas-cli@latest build --profile development` (see `frontend/eas.json`) and install the result. Store distribution is not set up yet.
 3.  **Install Tailscale on the phone** and join the same tailnet as the server.
 4.  **Set your name:** app → Settings → Your name → *Save name*. It decides whose folder your recordings upload into and whose activities History shows; recording is blocked until it's set.
-5.  **Point the app at the server:** app → Settings → Server → enter the GraphQL URL (e.g. `https://gpx-report-api.example.com/graphql`) → *Save & test connection*. This overrides the `EXPO_PUBLIC_GRAPHQL_URL` baked into the build, so a changed hostname doesn't need a rebuild. Plain `http://` URLs (e.g. a raw Tailscale IP) are allowed: `app.json` enables cleartext HTTP on both platforms.
+5.  **Point the app at the server:** app → Settings → Server → enter the GraphQL URL (e.g. `https://gpx-report.example.com/graphql`) → *Save & test connection*. This overrides the `EXPO_PUBLIC_GRAPHQL_URL` baked into the build, so a changed hostname doesn't need a rebuild. Plain `http://` URLs (e.g. a raw Tailscale IP) are allowed: `app.json` enables cleartext HTTP on both platforms.
 6.  **Grant location "Always"** (iOS) / "Allow all the time" (Android) when prompted. With only "While using", recording can stop once the phone locks; Settings shows the current grant and links to the system settings.
 7.  **Record:** Record tab → Start. Pause/Resume creates a new `<trkseg>`, so pause gaps aren't counted as distance. Stop → title + activity type → Save.
 
@@ -132,19 +131,17 @@ The same `frontend/` project builds a native recorder app. It records with `expo
 
 **Platform behavior worth knowing:** Android keeps recording via a foreground-service notification even if you swipe the app away. On iOS, swiping the app away from the app switcher stops location updates (an OS rule); being suspended or terminated by the system does not.
 
-### Exposing the GraphQL API Through a Reverse Proxy
+### Exposing the App Through a Reverse Proxy
 
-The web frontend is a static bundle — `expo export` inlines `EXPO_PUBLIC_GRAPHQL_URL` into the built JS at **image build time**, not at container runtime. `docker-compose.yml`'s `frontend` build arg reads it from `${EXPO_PUBLIC_GRAPHQL_URL}` (set in gitignored `.env`, e.g. `https://gpx-report-api.example.com/graphql`) rather than a value hardcoded in the compose file, so the real domain never needs to be committed; the browser (wherever it's running — your laptop, your phone) needs to be able to resolve and reach that domain directly, and it does **not** matter what the backend container's address looks like from inside the Docker network.
+One hostname serves everything: point a proxy at the frontend container's port 3000, and its Caddy routes `/graphql` and `/api/*` to the backend itself. On this deployment that's a Pangolin resource (HTTP target = the container's Tailscale IP, port 3000, SSO off so the phone app can reach the API). With Caddy instead:
 
-*   **`http://localhost:4000/graphql` will not work** as this value once it's baked into a bundle served to a browser on a different machine than the server — "localhost" then means the browser's own device, which has nothing listening on port 4000. This caused an initial "Failed to fetch" on the dashboard; the fix was adding a real routable domain.
-*   **Add a Caddy site for it:**
-    ```
-    gpx-report-api.example.com {
-        reverse_proxy localhost:4000
-    }
-    ```
-    Apollo Server doesn't do `Host`-header validation, so no header rewrite is needed. The phone app uses this same URL.
-*   **Any time `EXPO_PUBLIC_GRAPHQL_URL` changes, the frontend image must be rebuilt** (`docker compose up -d --build frontend`) — restarting the existing container alone won't pick up a new build arg, since it's compiled into the static JS, not read from the environment at runtime.
+```
+gpx-report.example.com {
+    reverse_proxy localhost:3000
+}
+```
+
+The phone app uses `https://<that-host>/graphql` as its server URL.
 
 ## 7. Testing
 
@@ -169,7 +166,7 @@ Running this in a Proxmox LXC container (as opposed to a full VM) has a couple o
 
 ## Running the Application
 
-1.  `cp .env.example .env`, then set a real `POSTGRES_PASSWORD` and point `EXPO_PUBLIC_GRAPHQL_URL` at a URL your browser can reach (`http://localhost:4000/graphql` when it's the same machine).
+1.  `cp .env.example .env`, then set a real `POSTGRES_PASSWORD`.
 2.  `docker compose up -d --build` (the first build takes ~8–10 min).
 3.  Drop a few `.gpx`/`.igc`/`.skiz` files into `data/gpx/`.
 4.  Open the frontend (http://localhost:3000 on the same machine) and pick a person.

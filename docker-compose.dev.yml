@@ -11,9 +11,9 @@
 # rebuild. `db` is untouched — dev containers talk
 # to the same live Postgres.
 #
-# The frontend dev server reads EXPO_PUBLIC_GRAPHQL_URL
-# from the container env when Metro bundles, not baked in at image build time
-# via the build arg like the production image — see `.env`.
+# The frontend dev server has no Caddy proxy, so it reads EXPO_PUBLIC_GRAPHQL_URL
+# from the container env when Metro bundles — see `.env`. The production image
+# calls /graphql on its own origin instead.
 #
 # To go back to production, rebuild without this override file:
 #   docker compose up -d --build backend frontend

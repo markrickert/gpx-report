@@ -7,7 +7,7 @@ Operating rules for agents that work in this repository.
 `/opt/gpx-report` on the LXC host is the live deployment, not a development checkout. There is no separate deploy step. The default images have no source bind mount. Thus an edit on disk does not change the running code.
 
 - **Backend** (`backend/src/**`): run `docker compose up -d --build backend`. Do not use `docker compose restart backend`, because it runs the old image and keeps stale code.
-- **Frontend** (`frontend/src/**`): run `docker compose up -d --build frontend`. The build takes about 8–10 minutes. `EXPO_PUBLIC_GRAPHQL_URL` is baked in at image build time, so a change to it also needs this rebuild.
+- **Frontend** (`frontend/src/**`): run `docker compose up -d --build frontend`. The build takes about 8–10 minutes.
 - **`backend/db/init.sql`**: runs only on a new Postgres volume. For a change, run a manual `psql`/`ALTER` against the running database, or rebuild the volume.
 - **Hot-reload dev mode**: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build backend frontend`. Edits under `backend/src` and `frontend/src` then take effect without a rebuild. To leave dev mode, run `docker compose up -d --build backend frontend`.
 

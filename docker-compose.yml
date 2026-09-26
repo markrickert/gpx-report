@@ -36,10 +36,7 @@ services:
       - ./data/gpx:/gpx-files
 
   frontend:
-    build:
-      context: ./frontend
-      args:
-        EXPO_PUBLIC_GRAPHQL_URL: ${EXPO_PUBLIC_GRAPHQL_URL}
+    build: ./frontend
     container_name: gpx-report-frontend
     restart: unless-stopped
     mem_limit: 512m

@@ -34,7 +34,7 @@ docker compose up --build
 ```
 
 - Frontend: http://localhost:3000
-- GraphQL API: http://localhost:4000/graphql
+- GraphQL API: http://localhost:3000/graphql (also directly on http://localhost:4000/graphql)
 - Postgres/PostGIS: localhost:5432
 - Phone app: build it from `frontend/` — see `docs/SETUP.md` §6.
 - Drop `.gpx`, `.igc`, or `.skiz` files into `data/gpx/` — they're picked up automatically and ingested.
