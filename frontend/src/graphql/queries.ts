@@ -439,25 +439,6 @@ export const GET_ACTIVITIES_FOR_EXPORT = gql`
   }
 `;
 
-export const GET_ACTIVITY_SUMMARY = gql`
-  query GetActivitySummary($id: ID!) {
-    activity(id: $id) {
-      id
-      title
-      activityType
-      startTime
-      durationSeconds
-      distanceMeters
-      movingAvgSpeedMps
-      totalElevationGain
-      locationName
-      route {
-        coordinates
-      }
-    }
-  }
-`;
-
 export const GET_PEOPLE = gql`
   query GetPeople {
     people

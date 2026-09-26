@@ -423,6 +423,9 @@ function MediaThumbnail({ activityId, assetId, alt = "" }) {
       src={`${apiOrigin()}/api/activities/${activityId}/media/${assetId}/thumbnail`}
       alt={alt || ""}
       loading="lazy"
+      // An asset deleted from Immich after the scan 404s; show the empty tile
+      // instead of a broken-image icon.
+      onError={(e) => (e.currentTarget.style.visibility = "hidden")}
     />
   );
 }
@@ -430,13 +433,38 @@ function MediaThumbnail({ activityId, assetId, alt = "" }) {
 // Thumbnail grid + click-to-expand lightbox (image or video playback) for
 // every matched Immich asset, regardless of whether it carries GPS.
 function MediaGallery({ activity }) {
+  const { unit } = useUnits();
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [touchStartX, setTouchStartX] = useState(null);
   const media = activity.media;
 
   if (!media || media.length === 0) return null;
 
   const close = () => setLightboxIndex(null);
   const current = lightboxIndex != null ? media[lightboxIndex] : null;
+  const go = (index) => {
+    if (index >= 0 && index < media.length) setLightboxIndex(index);
+  };
+
+  // Photos carry EXIF GPS but no altitude, so altitude (and the position,
+  // when the photo has none) comes from the track point closest in time.
+  let location = null;
+  if (current) {
+    const points = activity.route.coordinates;
+    const point =
+      points[
+        nearestPointIndexForTimestamp(
+          points.map((p) => p.timestamp ?? null),
+          new Date(current.takenAt).getTime(),
+        )
+      ];
+    const lat = current.lat ?? point?.lat;
+    const lon = current.lon ?? point?.lon;
+    location = {
+      coords: lat != null && lon != null ? `${lat.toFixed(5)}, ${lon.toFixed(5)}` : null,
+      altitude: point?.elevation != null ? formatElevation(point.elevation, unit) : null,
+    };
+  }
 
   return (
     <>
@@ -455,7 +483,16 @@ function MediaGallery({ activity }) {
         ))}
       </div>
       {current && (
-        <div className="media-lightbox-backdrop" onClick={close}>
+        <div
+          className="media-lightbox-backdrop"
+          onClick={close}
+          onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
+          onTouchEnd={(e) => {
+            const dx = e.changedTouches[0].clientX - (touchStartX ?? e.changedTouches[0].clientX);
+            if (Math.abs(dx) > 50) go(lightboxIndex + (dx < 0 ? 1 : -1));
+            setTouchStartX(null);
+          }}
+        >
           <div className="media-lightbox-content" onClick={(e) => e.stopPropagation()}>
             {current.assetType === "VIDEO" ? (
               <video
@@ -469,6 +506,12 @@ function MediaGallery({ activity }) {
                 alt=""
               />
             )}
+            {(location.coords || location.altitude) && (
+              <div className="media-lightbox-info">
+                {location.coords && <div>{location.coords}</div>}
+                {location.altitude && <div>Altitude {location.altitude}</div>}
+              </div>
+            )}
             <button type="button" className="media-lightbox-close" onClick={close}>
               ✕
             </button>
@@ -476,7 +519,7 @@ function MediaGallery({ activity }) {
               <button
                 type="button"
                 className="media-lightbox-nav media-lightbox-prev"
-                onClick={() => setLightboxIndex(lightboxIndex - 1)}
+                onClick={() => go(lightboxIndex - 1)}
               >
                 ‹
               </button>
@@ -485,7 +528,7 @@ function MediaGallery({ activity }) {
               <button
                 type="button"
                 className="media-lightbox-nav media-lightbox-next"
-                onClick={() => setLightboxIndex(lightboxIndex + 1)}
+                onClick={() => go(lightboxIndex + 1)}
               >
                 ›
               </button>

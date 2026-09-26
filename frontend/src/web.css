@@ -1231,6 +1231,55 @@ select {
   transform: translateY(-50%);
 }
 
+.media-lightbox-info {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.75rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+/* Phones: fill the screen, swipe to page, arrows inside the edges. */
+@media (max-width: 700px) {
+  .media-lightbox-backdrop {
+    background: #000;
+  }
+
+  .media-lightbox-content,
+  .media-lightbox-content img,
+  .media-lightbox-content video {
+    width: 100vw;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    object-fit: contain;
+    border-radius: 0;
+  }
+
+  .media-lightbox-close {
+    top: calc(env(safe-area-inset-top) + 0.75rem);
+    right: 0.75rem;
+  }
+
+  .media-lightbox-prev {
+    left: 0.5rem;
+  }
+
+  .media-lightbox-next {
+    right: 0.5rem;
+  }
+
+  .media-lightbox-info {
+    top: calc(env(safe-area-inset-top) + 0.75rem);
+  }
+}
+
 .media-map-popup img {
   width: 140px;
   height: 140px;
