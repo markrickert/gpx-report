@@ -1,6 +1,6 @@
 # Setup and Installation
 
-This document provides instructions for setting up the development environment and running gpx-report. For the fastest path, see `CLAUDE.md`'s "Running the stack" section (`cp .env.example .env && docker compose up --build`) — the sections below give more detail on each piece.
+Fastest path: `cp .env.example .env && docker compose up --build` (see "Running the Application" at the end). The sections below give more detail on each piece.
 
 ## Prerequisites
 
@@ -27,12 +27,12 @@ gpx-report/
 │   │   ├── graphql/queries.ts
 │   │   └── lib/apollo.ts
 │   └── package.json
-├── backend/                   # Node (ESM), no framework/ORM
+├── backend/                   # Node (ESM, TypeScript), no ORM
 │   ├── src/
-│   │   ├── graphql/            # typeDefs.js, resolvers.js, scalars.js
-│   │   ├── gpx/                 # parser.js, processor.js, watcher.js
-│   │   ├── db.js                # shared pg.Pool
-│   │   └── index.js             # entrypoint — boots Apollo Server + watcher
+│   │   ├── graphql/            # typeDefs.ts, resolvers.ts, scalars.ts
+│   │   ├── gpx/                 # parser.ts, processor.ts, watcher.ts
+│   │   ├── db.ts                # shared pg.Pool
+│   │   └── index.ts             # entrypoint — boots Apollo Server + watcher
 │   ├── db/init.sql              # schema, applied on first container start only
 │   └── package.json
 └── docs/
@@ -48,7 +48,9 @@ gpx-report/
 The repo-root `docker-compose.yml` already defines the `db` service (`postgis/postgis:15-3.4`), reading `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` from `.env` (see `.env.example`). `docker compose up` (or `up -d db`) starts it; `backend/db/init.sql` is mounted into the image's init-script directory and runs automatically the *first* time the `db_data` volume is created.
 
 *   **Schema changes to an existing deployment:** `init.sql` will not re-run against an existing volume. Apply changes by hand with `psql` (or `docker compose exec db psql -U $POSTGRES_USER -d $POSTGRES_DB`) — there is no migration tool. See `docs/TODO.md`.
-*   **Accounts migration (existing deployments):** adding per-person accounts needs:
+*   **Accounts migration (existing deployments):**
+    1.  Open a DB shell: `docker compose exec db psql -U $POSTGRES_USER -d $POSTGRES_DB`.
+    2.  Run:
     ```sql
     ALTER TABLE activities ADD COLUMN owner VARCHAR(64) NOT NULL DEFAULT 'mark';
     CREATE INDEX IF NOT EXISTS idx_activities_owner ON activities (owner);
@@ -59,14 +61,16 @@ The repo-root `docker-compose.yml` already defines the `db` service (`postgis/po
     );
     CREATE INDEX IF NOT EXISTS idx_activity_shares_person ON activity_shares (person);
     ```
-    Existing rows are all top-level files, so the `'mark'` default is already correct for them — no re-analysis needed. Unlike every other table, `activity_shares` can't be regenerated from the GPX files; `GET /export/full` includes it as `activity-shares.json`.
+    3.  Rebuild: `docker compose up -d --build backend frontend`.
+
+    No re-analysis needed: existing rows are all top-level files, so the `'mark'` default is already correct for them. Back up `activity_shares` before any volume wipe — unlike every other table, `activity_shares` can't be regenerated from the GPX files; `GET /export/full` includes it as `activity-shares.json`.
 *   **Local (non-Docker) Postgres:** install PostgreSQL + PostGIS yourself, create a DB/user, `CREATE EXTENSION IF NOT EXISTS postgis;`, then run `backend/db/init.sql` against it manually. Point `DATABASE_URL` at it.
 
 ## 3. Backend Setup
 
 *   **Via Docker (recommended):** already wired up in `docker-compose.yml` — `docker compose up --build backend` builds and starts it, with `DATABASE_URL` and `GPX_FILES_DIRECTORY` set from the compose file's `environment:` block.
 *   **Locally:** `cd backend && pnpm install && pnpm dev` (uses `tsx watch` against the TypeScript source directly). Requires `DATABASE_URL` and `GPX_FILES_DIRECTORY` env vars — see `docker-compose.yml`'s `backend.environment` for the shape. `pnpm start` runs the compiled output (`pnpm build` first, then `node dist/index.js`) without watch mode.
-*   The server listens on `GRAPHQL_PORT` (`4000` by default) and serves Apollo Server standalone at `/graphql`.
+*   The server listens on `GRAPHQL_PORT` (`4000` by default) and serves Apollo Server on Express at `/graphql`.
 
 ## 4. Frontend Setup
 
@@ -79,21 +83,23 @@ The repo-root `docker-compose.yml` already defines the `db` service (`postgis/po
 
 ### Hot-reload dev mode (in-Docker)
 
-For iterating on this live LXC host without a full rebuild each time (frontend production rebuilds take ~8-10 min), `docker-compose.dev.yml` is an override file that swaps `backend`/`frontend` for a bind-mounted, watch-mode setup:
+Use this to iterate on the live LXC host without a production rebuild (~8–10 min for the frontend) after every edit.
 
-```
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build backend frontend
-```
+1.  Start dev mode:
+    ```
+    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build backend frontend
+    ```
+2.  Edit under `backend/src` or `frontend/src`. The backend restarts on save; the frontend gets Fast Refresh.
+3.  Leave dev mode by rebuilding the production containers:
+    ```
+    docker compose up -d --build backend frontend
+    ```
 
-This bind-mounts `./backend/src` and `./frontend/src` into the running containers and replaces their production command with `tsx watch src/index.ts` (backend, built from `backend/Dockerfile.dev` — a lightweight image with the full `pnpm install`, no `tsc` build step, since `tsx` runs the TypeScript source directly) and Expo's Metro web dev server via `pnpm exec expo start --web --port 3000` (frontend, built from `frontend/Dockerfile.dev` — a lightweight image that skips the `expo export` production stage entirely). Edits under `backend/src`/`frontend/src` take effect immediately: the backend process restarts on save, the frontend gets Fast Refresh.
+How it works: `docker-compose.dev.yml` is an override file. It bind-mounts `./backend/src` and `./frontend/src` into the running containers and replaces their production command with `tsx watch src/index.ts` (backend, built from `backend/Dockerfile.dev` — a lightweight image with the full `pnpm install`, no `tsc` build step, since `tsx` runs the TypeScript source directly) and Expo's Metro web dev server via `pnpm exec expo start --web --port 3000` (frontend, built from `frontend/Dockerfile.dev` — a lightweight image that skips the `expo export` production stage entirely).
 
 The frontend dev server reads `EXPO_PUBLIC_GRAPHQL_URL`/`EXPO_PUBLIC_CODE_SERVER_URL` from the container environment when Metro bundles, rather than from the image build arg the production image bakes in — same values from `.env`, different mechanism.
 
-This only activates when you pass both `-f` flags. A plain `docker compose up`/`up --build` is untouched and keeps using the production Dockerfiles. To go back to the production containers, rebuild the normal way:
-
-```
-docker compose up -d --build backend frontend
-```
+This only activates when you pass both `-f` flags. A plain `docker compose up`/`up --build` is untouched and keeps using the production Dockerfiles.
 
 ## 5. Data Ingestion Setup
 
@@ -103,7 +109,12 @@ docker compose up -d --build backend frontend
 
 Note: both the file watcher (on startup, when it sees every pre-existing file) and the `reanalyze*` mutations process files with bounded concurrency (a small in-process queue / batches of 5) rather than firing all of them at Postgres at once. This matters in practice — the default `pg.Pool` size is 10, and syncing in a large backlog (e.g. seeding the app with hundreds of historical tracks at once) will otherwise open far more simultaneous connections than the pool can serve, causing a chunk of files to fail with `Connection terminated unexpectedly`. If you ever see that error on a bulk ingest, it's a concurrency/pool-exhaustion symptom, not a bad GPX file — re-running `reanalyzeAllActivities` is safe (upserts are idempotent) but shouldn't be necessary now that both ingestion paths are queued.
 
-**Reverse-geocoding rate limit (Nominatim):** `processFile()` also resolves each activity's start point to a place name via Nominatim (`backend/src/geocoding.ts`), which caps usage at 1 request/sec and can temporarily block an IP that exceeds it. This is only safe because the watcher processes one file at a time — but that alone isn't enough: the watcher's startup replay (an `add` event fires for every *pre-existing* file on every backend restart, not just new ones) would otherwise fire one geocode request per file back-to-back with no natural spacing, since each file's DB work finishes in well under a second. `gpx/watcher.js` guards against this by gating on chokidar's `ready` event — only files added *after* the initial scan settles trigger a live lookup; the startup replay itself always passes `{ skipGeocode: true }`. `reverseGeocode()` also self-throttles at the module level (≥1.1s between any two outbound calls) as a second line of defense. Getting this wrong is not hypothetical: an earlier version of this wiring (before the `ready` gate existed) let a container restart fire ~500 unthrottled requests at Nominatim in a few seconds, which drew HTTP 429s and left this deployment's IP rate-limited for a while afterward — confirmed by a plain `curl` to Nominatim also returning 429 well after the app had stopped calling it. If you ever see `location_name` failing to populate for new activities, check for 429s in the backend logs before assuming a code bug — it may just be an active Nominatim block that needs to clear. Existing activities are backfilled separately via `backend/scripts/backfillLocationNames.js`, which processes rows strictly sequentially with an explicit ~1.1s sleep between requests — never run this (or anything else hitting Nominatim) concurrently with itself or with a fresh backend restart's initial scan.
+**Reverse-geocoding rate limit (Nominatim):** if `location_name` stops populating for new activities, check the backend logs for HTTP 429s before debugging code — it's usually an active Nominatim block that clears on its own.
+
+*   **The limit:** Nominatim allows 1 request/sec and temporarily blocks an IP that exceeds it. `processFile()` resolves each activity's start point to a place name through it (`backend/src/geocoding.ts`).
+*   **How ingest stays under it:** the watcher replays an `add` event for every *pre-existing* file on each backend restart. `gpx/watcher.ts` gates live lookups on chokidar's `ready` event, so that replay always passes `{ skipGeocode: true }` and only files added after the initial scan trigger a lookup. `reverseGeocode()` also self-throttles (≥1.1s between any two outbound calls) as a second line of defense.
+*   **Backfill:** existing activities are backfilled by `backend/scripts/backfillLocationNames.js`, strictly sequential with a ~1.1s sleep. Never run it (or anything else hitting Nominatim) concurrently with itself or with a fresh backend restart's initial scan.
+*   **Why this matters:** before the `ready` gate existed, one container restart fired ~500 unthrottled requests in a few seconds. Nominatim answered with 429s and kept this deployment's IP rate-limited well after the app stopped calling it (a plain `curl` still got 429).
 
 ## 6. Recording From Your Phone (Mobile App)
 
@@ -168,9 +179,7 @@ Running this in a Proxmox LXC container (as opposed to a full VM) has a couple o
 
 ## Running the Application
 
-1.  Ensure the database is running.
-2.  Start the backend server.
-3.  Start the frontend development server.
-4.  Place a few `.gpx` files in the configured `GPX_FILES_DIRECTORY`.
-5.  Access the frontend in your browser and explore the dashboard. Use the Settings page to trigger re-analysis if needed.
-
+1.  `cp .env.example .env`, then set a real `POSTGRES_PASSWORD` and point `EXPO_PUBLIC_GRAPHQL_URL` at a URL your browser can reach (`http://localhost:4000/graphql` when it's the same machine).
+2.  `docker compose up -d --build` (the first build takes ~8–10 min).
+3.  Drop a few `.gpx`/`.igc`/`.skiz` files into `data/gpx/`.
+4.  Open the frontend (http://localhost:3000 on the same machine) and pick a person.

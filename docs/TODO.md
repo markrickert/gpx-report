@@ -6,7 +6,7 @@ Tracks work that is planned/wanted but not yet implemented, plus gaps found when
 
 ### Immich media gallery (photos/videos synced to activities)
 
-New integration: optioanlly allow the user to give a url and api key in the interface, pointing the app at a private Immich instance and, per activity, pull in photos/videos taken during that activity's time window. Surfaced as a gallery on the activity detail page, a media-count badge on the dashboard list, pins on the map, and markers on the elevation chart.
+New integration: optionally allow the user to give a url and api key in the interface, pointing the app at a private Immich instance and, per activity, pull in photos/videos taken during that activity's time window. Surfaced as a gallery on the activity detail page, a media-count badge on the dashboard list, pins on the map, and markers on the elevation chart.
 
 - [x] **Immich credentials + settings storage** (2026-08-25) — new single-row `immich_settings` table (`immich_base_url`, `immich_api_key`), applied live via a manual `CREATE TABLE` against the running DB (no volume recreate). `immichSettings`/`updateImmichSettings` Query/Mutation in `resolvers.ts`/`typeDefs.ts` (`backend/src/immich/settings.ts`), edited from a new "Immich" tab on `Settings.tsx`. The API key is genuinely write-only: `immichSettings` only ever returns `configured: Boolean!` + the base URL, never the key itself, and the frontend field always renders blank, only sending a new value up when the user actually types one (blank = keep existing key).
 - [x] **`activity_media` table + Immich scan (Time-Primary Matching)** (2026-08-25) — new `activity_media` table (`activity_id` FK, `immich_asset_id`, `asset_type`, `taken_at`, nullable `lat`/`lon`/`duration_seconds`, unique on `(activity_id, immich_asset_id)`), applied live the same way. `backend/src/immich/client.ts` calls Immich's `/api/search/metadata` per activity, filtered by `takenAfter`/`takenBefore` = activity start/end ± a 15-minute clock-skew buffer. `backend/src/immich/match.ts` (pure, unit-tested — `match.test.ts`, 8 cases) does the actual assignment: an asset landing in only one activity's window goes straight there; an asset landing in more than one overlapping window is assigned via geo tiebreak (closest `ST_Distance` from its EXIF GPS to each candidate's `route_geom`, computed in `scan.ts` only for that rare overlap case rather than per-match) or, with no GPS, to whichever candidate activity started first. `backend/src/immich/scan.ts` orchestrates the whole thing with batches-of-5 concurrency, matching `gpx/processor.ts`'s `processAll()` pattern, and upserts matches into `activity_media`.
@@ -24,7 +24,16 @@ New integration: optioanlly allow the user to give a url and api key in the inte
 
 ### Accounts (branch `expo-universal`)
 
-- [ ] **Roll out accounts on the live server.** Run the `ALTER`/`CREATE TABLE` in `docs/SETUP.md` §2 ("Accounts migration"), `mkdir data/gpx/kristin` (or let her first upload create it), then rebuild backend + frontend. Then check on real phones: an upload as Kristin lands in `data/gpx/kristin/` and shows on `/kristin` only; sharing it with Mark makes it count on `/mark`; Mark sees it read-only with "Shared by kristin"; "Remove from my activities" leaves the file alone.
+- [ ] **Roll out accounts on the live server.**
+  1. Run the SQL in `docs/SETUP.md` §2 ("Accounts migration").
+  2. `mkdir data/gpx/kristin` (or let her first upload create it).
+  3. Rebuild: `docker compose up -d --build backend frontend`.
+
+  Then check on real phones:
+  - [ ] An upload as Kristin lands in `data/gpx/kristin/` and shows on `/kristin` only.
+  - [ ] Sharing it with Mark makes it count on `/mark`.
+  - [ ] Mark sees it read-only with "Shared by kristin".
+  - [ ] "Remove from my activities" leaves the file alone.
 - [ ] **Browser ingest notifications are per default person only.** `utils/notifications.tsx` is mounted at the web root and polls with the header-less client, so it only notices the default person's new activities.
 
 ### Test coverage gaps
