@@ -29,7 +29,7 @@ Order remaining items simplest/lowest-risk first — builds a track record of cl
 Launch exactly one background `Agent` (`subagent_type: general-purpose`, default direct-repo isolation — no worktree needed) per TODO item. Never launch the next until the current one has landed a commit or reported a genuine concern.
 
 Each brief is self-contained — the agent has no memory of this conversation. Include:
-- Point it at `CLAUDE.md` first, for deployment mechanics and behavioral rules.
+- Point it at `.agents/docs/workflow.md` first, for deployment mechanics and behavioral rules.
 - Name exact files/patterns to reuse — don't make it rediscover conventions already settled here (CSS variable theming, the `xAxisId="idx"` chart pattern, the file-based ingestion pipeline, etc.).
 - State the verification method explicitly: rebuild the right `docker compose` service, drive it with Playwright + system chromium (no `chromium-cli` here), screenshot, check light/dark theme and mobile viewport where relevant.
 - Require it to update `docs/TODO.md` (move item to Done, present-tense description), sweep other `docs/*.md` if now stale, then commit — one commit per item, not batched.
@@ -42,7 +42,7 @@ Each brief is self-contained — the agent has no memory of this conversation. I
 - Wakeup fires but the agent hasn't completed: check `git log`/`git status` first. No new commit yet? Check whether its transcript (`.jsonl` under `~/.claude/projects/.../subagents/`) is still growing before assuming it's stuck — a heavy task can legitimately run 10+ minutes. Still writing → re-arm the wakeup and keep waiting. Never launch a duplicate agent for the same item.
 - Harness interrupted mid-task (a `status: stopped` notification instead of `completed`, transcript preserved) → **resume the same agent via `SendMessage` to its id**, don't start fresh. Check `git status`/disk state first so the resume message states exactly what's done vs. pending; nothing is lost, work-in-progress sits uncommitted on disk.
 - Real usage-limit signal (explicit quota/rate-limit error, not just a slow task) → stop launching new agents immediately. Leave a clear note of what shipped, what's left, why you stopped, then either schedule a much longer wakeup (past the likely reset window) or end the loop. Don't retry into the same limit in a tight cycle.
-- Never run two TODO-item agents in parallel — same one-at-a-time-for-bounded-resource-usage reasoning as this codebase's ingestion-concurrency rule in `CLAUDE.md`.
+- Never run two TODO-item agents in parallel — same one-at-a-time-for-bounded-resource-usage reasoning as this codebase's ingestion-concurrency rule in `.agents/docs/ingestion.md`.
 
 ## 4. Stopping conditions
 
