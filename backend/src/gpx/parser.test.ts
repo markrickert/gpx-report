@@ -130,6 +130,22 @@ describe("parseGpxFile", () => {
     expect(result.activityType).toBe("E-Mountain Bike Ride");
   });
 
+  it("keeps a <type> that is already a known display label", async () => {
+    const filePath = await writeGpx(
+      "recorded.gpx",
+      gpx({
+        type: "E-Mountain Bike Ride",
+        trkpts: [
+          trkpt(0, 0, 0, "2024-01-01T00:00:00Z"),
+          trkpt(0, 0.001, 0, "2024-01-01T00:01:00Z"),
+        ],
+      }),
+    );
+
+    const result = await parseGpxFile(filePath);
+    expect(result.activityType).toBe("E-Mountain Bike Ride");
+  });
+
   it("title-cases an unrecognized raw <type>", async () => {
     const filePath = await writeGpx(
       "custom.gpx",

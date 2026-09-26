@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A personal, self-hosted alternative to Strava. Users drop `.gpx` files into `data/gpx/` (synced from a phone via Syncthing, or manually), and a Node backend parses and stores them in PostGIS-backed Postgres. A React frontend renders a dashboard, per-activity map/elevation views, and a settings page for re-analysis.
+A personal, self-hosted alternative to Strava. A phone app (the iOS/Android build of `frontend/`, an Expo app) records GPS tracks in the background and uploads them to the server over Tailscale; files can also be dropped into `data/gpx/` manually. A Node backend parses and stores them in PostGIS-backed Postgres. The same Expo codebase's web build renders the big-screen analysis UI: dashboard, per-activity map/elevation views, stats, heatmap, and settings.
 
 ## Running the stack
 
@@ -16,7 +16,7 @@ docker compose up --build
 - Frontend: http://localhost:3000
 - GraphQL API (Apollo Server on Express): http://localhost:4000/graphql
 - Postgres/PostGIS: localhost:5432
-- Syncthing GUI (GPX sync from phone, optional): http://localhost:8384 — start separately with `docker compose up -d syncthing`
+- Phone app: development build from `frontend/` (`npx expo run:ios|android`), see `docs/SETUP.md` §6
 
 The backend has a Vitest suite covering the GPX/IGC/`.skiz` parsers (`backend/src/{gpx,igc,skiz}/parser.test.js`) — run with `cd backend && npm test`. Nothing else in the repo (resolvers, processor, frontend) has test coverage yet. ESLint (flat config, `backend/eslint.config.js` and `frontend/eslint.config.js`) and Prettier (`.prettierrc.json` at repo root) are set up — see "Linting/formatting" below.
 
@@ -25,20 +25,21 @@ The backend has a Vitest suite covering the GPX/IGC/`.skiz` parsers (`backend/sr
 `/opt/gpx-report` is the live host itself, not a dev checkout — there's no separate deploy/push step, but `docker compose`'s default images here have **no bind mount for source code**, so editing a file on disk does not change what's running:
 
 - **Backend** (`backend/src/**`): image is built from `backend/Dockerfile` with no source bind mount. A code edit needs `docker compose up -d --build backend` to take effect — restarting the container (`docker compose restart backend`) re-runs the *old* image and silently keeps stale code running.
-- **Frontend** (`frontend/src/**`): same story, plus the `VITE_GRAPHQL_URL`/`VITE_CODE_SERVER_URL` build-arg caveat above — always `docker compose up -d --build frontend`. This is the slow one (~8–10 min, see Deployment notes).
+- **Frontend** (`frontend/src/**`): same story, plus the `EXPO_PUBLIC_GRAPHQL_URL`/`EXPO_PUBLIC_CODE_SERVER_URL` build-arg caveat above — always `docker compose up -d --build frontend`. This is the slow one (~8–10 min, see Deployment notes).
 - **`docker/init.sql`**: only applied on a fresh Postgres volume — an edit here needs a manual `psql`/`ALTER` against the running DB, not a rebuild (see Database section).
-- **Hot-reload dev mode** (in-Docker, doesn't need a separate host checkout): `docker-compose.dev.yml` is an *override* file, applied only when explicitly layered on — `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build backend frontend`. It bind-mounts `./backend/src:/app/src` and `./frontend/src:/app/src` into the `backend`/`frontend` containers and swaps their command for `node --watch src/index.js` / `npm run dev` (frontend built via `frontend/Dockerfile.dev`, a plain `npm ci` + Vite dev server image, skipping the production `vite build` stage entirely) — edits under `backend/src` or `frontend/src` take effect without a rebuild (backend: watch restarts the process; frontend: Vite HMR/live reload). The frontend dev server reads `VITE_GRAPHQL_URL`/`VITE_CODE_SERVER_URL` as real runtime env vars via `import.meta.env` on each request, unlike the production build's compile-time build-arg baking — same `.env` values, different mechanism. A plain `docker compose up`/`up --build` (no `-f docker-compose.dev.yml`) is completely unaffected by this file and behaves exactly as before. To leave dev mode, rebuild the normal way: `docker compose up -d --build backend frontend`.
+- **Hot-reload dev mode** (in-Docker, doesn't need a separate host checkout): `docker-compose.dev.yml` is an *override* file, applied only when explicitly layered on — `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build backend frontend`. It bind-mounts `./backend/src:/app/src` and `./frontend/src:/app/src` into the `backend`/`frontend` containers and swaps their command for `node --watch src/index.js` / `npx expo start --web --port 3000` (frontend built via `frontend/Dockerfile.dev`, a plain `npm ci` + Metro dev server image, skipping the production `expo export` stage entirely) — edits under `backend/src` or `frontend/src` take effect without a rebuild (backend: watch restarts the process; frontend: Fast Refresh). The frontend dev server reads `EXPO_PUBLIC_GRAPHQL_URL`/`EXPO_PUBLIC_CODE_SERVER_URL` from the container env when Metro bundles, unlike the production build's image-build-time baking — same `.env` values, different mechanism. A plain `docker compose up`/`up --build` (no `-f docker-compose.dev.yml`) is completely unaffected by this file and behaves exactly as before. To leave dev mode, rebuild the normal way: `docker compose up -d --build backend frontend`.
 
 ### Local (non-Docker) dev
 
 - Backend: `cd backend && npm install && npm run dev` (uses `node --watch`; needs `DATABASE_URL` and `GPX_FILES_DIRECTORY` env vars set — see `docker-compose.yml` for the shape).
-- Frontend: `cd frontend && npm install && npm run dev` (Vite, binds `0.0.0.0`). Set `VITE_GRAPHQL_URL` if not proxying to `localhost:4000/graphql`.
+- Frontend (web): `cd frontend && npm install && npx expo start --web`. Set `EXPO_PUBLIC_GRAPHQL_URL` if not using `localhost:4000/graphql`.
+- Frontend (phone): `npx expo run:ios --device` / `npx expo run:android --device` — needs a development build; Expo Go can't run background location, MapLibre, or the SQLite task.
 
-**Important:** `VITE_GRAPHQL_URL` is baked into the frontend's static JS bundle at **image build time** via a Docker build arg (see `docker-compose.yml`'s `frontend.build.args` and `frontend/Dockerfile`), not read at container runtime. The build arg's value comes from `${VITE_GRAPHQL_URL}` in gitignored `.env` (not hardcoded in `docker-compose.yml`), so the real domain never lands in git — `.env.example` documents it with a placeholder. Changing it requires `docker compose up -d --build frontend` — restarting the container alone won't pick up the new value. `http://localhost:4000/graphql` only works if the browser and backend are on the same machine; for any real deployment this must be a routable domain reachable from wherever the browser runs.
+**Important:** `EXPO_PUBLIC_GRAPHQL_URL` is baked into the frontend's static JS bundle at **image build time** via a Docker build arg (see `docker-compose.yml`'s `frontend.build.args` and `frontend/Dockerfile`), not read at container runtime. The build arg's value comes from `${EXPO_PUBLIC_GRAPHQL_URL}` in gitignored `.env` (not hardcoded in `docker-compose.yml`), so the real domain never lands in git — `.env.example` documents it with a placeholder. Changing it requires `docker compose up -d --build frontend` — restarting the container alone won't pick up the new value. `http://localhost:4000/graphql` only works if the browser and backend are on the same machine; for any real deployment this must be a routable domain reachable from wherever the browser runs. The phone app uses the same value as its default but lets the user override it in its Settings tab (stored in `localStorage`, polyfilled on native by expo-sqlite), so a Tailscale hostname change doesn't need an app rebuild.
 
 ### Linting/formatting
 
-- `backend/eslint.config.js` and `frontend/eslint.config.js` are separate ESLint 9 flat configs (`backend`'s is plain Node/ESM rules; `frontend`'s adds `eslint-plugin-react` + `eslint-plugin-react-hooks` for JSX). A single `.prettierrc.json` + `.prettierignore` at the repo root apply to both. `eslint-config-prettier` is included in each so ESLint doesn't fight Prettier over formatting.
+- `backend/eslint.config.js` and `frontend/eslint.config.js` are separate ESLint 9 flat configs (`backend`'s is plain Node/ESM rules; `frontend`'s is Expo's `eslint-config-expo`, run via `npm run lint` → `expo lint`). A single `.prettierrc.json` + `.prettierignore` at the repo root apply to both. `eslint-config-prettier` is included in each so ESLint doesn't fight Prettier over formatting.
 - Run `npm run lint` / `npm run format` inside `backend/` or `frontend/` individually, or from the repo root (`npm run lint` / `npm run format` there delegates into both subprojects).
 - A root-level `package.json` (new — this repo otherwise has no root package) exists solely to host `husky` + `lint-staged`, since git hooks need to live at the repo root (`.git` is at `/opt/gpx-report`, not inside either subproject). `.husky/pre-commit` runs `npx lint-staged`, which runs `eslint --fix` then `prettier --write` on staged `backend/**/*.ts` / `frontend/**/*.{js,jsx}` files using each subproject's own local ESLint binary and config (see the `lint-staged` block in the root `package.json`).
 - After cloning/pulling, run `npm install` at the repo root at least once so `prepare` wires up the husky hook (`git config core.hooksPath` gets pointed at `.husky/_`) — the hook is a no-op if `node_modules`/husky was never installed.
@@ -63,22 +64,24 @@ The backend has a Vitest suite covering the GPX/IGC/`.skiz` parsers (`backend/sr
 
 There's no separate `route`/`elevation` resolver table join beyond `Activity.route`, which reads straight from `activity_routes`.
 
-**Frontend** (`frontend/src`, TypeScript on Vite + React 18, no state management library beyond Apollo cache):
-- `apolloClient.ts` — plain `HttpLink` pointed at `VITE_GRAPHQL_URL` (see build-arg note above).
-- `App.tsx` — top-level routes: `/` (Dashboard), `/activities/:id` (ActivityDetail), `/settings` (Settings). Single global nav, no auth.
-- `pages/Dashboard.tsx`, `ActivityDetail.tsx`, `Settings.tsx` — one file per route, no shared component library yet.
-- Map rendering via `react-leaflet`/`leaflet`; elevation chart via `recharts`.
+**Frontend** (`frontend/`, one Expo SDK 57 / Expo Router app for iOS, Android, and web; TypeScript `strict: false`; no state management library beyond Apollo cache):
+- `src/app/` — routes only. A `.web.tsx` sibling swaps the screen on web: `(tabs)/index` is History on the phone / Dashboard on web, `(tabs)/settings` differs likewise, `activities/[id]` is a light summary on the phone / full ActivityDetail on web. `heatmap`/`stats`/`code` are web-only (native fallbacks redirect to `/`). `_layout.web.tsx` is the web nav shell; `_layout.tsx` is the native Stack + NativeTabs and also imports `@/recording/task` so the background location task is registered at startup.
+- `src/screens/web/` — the web analysis pages (Dashboard, ActivityDetail, Stats, Heatmap, Settings, CodeEditor): plain DOM + `src/web.css` + `react-leaflet`/`recharts`, linking via `components/web-link.tsx` (a real `<a>` + `router.push`). Don't convert these to RN components; they only run on web.
+- `src/screens/record.tsx`, `history.tsx`, `settings.tsx`, `activity-summary.tsx` — React Native screens. Record runs on both platforms.
+- `src/recording/` — the recorder: `task.ts` (TaskManager task writing points to SQLite), `store.ts` (expo-sqlite; `store.web.ts` is an in-memory stand-in), `location-source.ts`/`.web.ts`, `recorder.ts` (state machine), `gpx.ts`, `upload-queue.ts` (backoff + `clientId` idempotency).
+- `src/lib/apollo.ts` — `HttpLink` whose URL is resolved per request (Settings override, else `EXPO_PUBLIC_GRAPHQL_URL`).
+- Maps: `react-leaflet` on web, `@maplibre/maplibre-react-native` (OSM raster style, no API key) on native — `components/live-track-map.tsx`/`.web.tsx`.
+- Tests: Vitest (`frontend/vitest.config.mts`), which resolves `.web.*` first the way Metro does for web, so recorder tests hit the in-memory store. `frontend/.npmrc` sets `legacy-peer-deps=true` — npm's resolver crashes on this tree without it.
 - Every page must be usable on both a desktop browser and a mobile phone — this is a hard requirement (the dashboard is regularly checked from a phone), not a nice-to-have.
 
 **Docs**: `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md`, `docs/FEATURES.md` describe the intended v1 design (some sections are still templated/aspirational placeholders). `docs/SETUP.md` is the most current and detailed — it has real, hard-won operational notes (Syncthing pairing/permissions, reverse proxy gotchas, LXC deployment quirks, the pool-exhaustion issue above) worth reading before touching deployment or ingestion.
 
 ## Deployment notes
 
-Deployed via `docker compose` on a Proxmox LXC host behind Caddy (see `docs/SETUP.md` §6–7 for the full reverse-proxy and Syncthing pairing walkthrough). Key points if touching deploy-related files:
+Deployed via `docker compose` on a Proxmox LXC host behind Caddy (see `docs/SETUP.md` §6–7 for the phone-app setup and reverse-proxy walkthrough). Key points if touching deploy-related files:
 - All services already have `restart: unless-stopped`; no extra systemd unit is needed for reboot survival as long as the Docker daemon itself is enabled.
 - `.env` is gitignored; a fresh host needs `cp .env.example .env` with a real `POSTGRES_PASSWORD` before first `docker compose up`.
-- The frontend image build (`npm install` + `vite build`) is the slow step (~8–10 min on a fresh host) — don't assume a long `docker compose up --build` is hung.
-- Syncthing needs `PUID`/`PGID` left at `0` (root) in `docker-compose.yml`, or it crash-loops on first boot trying to write its cert into a root-owned config volume.
+- The frontend image build (`npm ci` + `expo export -p web`) is the slow step (~8–10 min on a fresh host) — don't assume a long `docker compose up --build` is hung.
 - `code-server` (browser-based VS Code, port 8443) is bind-mounted read-write at the repo root and runs with `--auth none` — no login. It's reachable via `https://gpx-report-code.example.com` (a Caddy site, `reverse_proxy localhost:8443`, matching the GraphQL API site) and iframed by the frontend's Code tab (`VITE_CODE_SERVER_URL` build arg). That domain only resolves/routes within Tailscale on this deployment, so it relies entirely on the Tailscale/LAN network boundary for access control, same as the Syncthing GUI and Postgres port — not on code-server's own auth. See `docs/SETUP.md` §7.
 
 ## Behavioral Guidelines

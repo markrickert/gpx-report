@@ -1,0 +1,27 @@
+export type TrackPoint = {
+  lat: number;
+  lon: number;
+  elevation: number | null;
+  timestamp: number;
+  // Incremented on every resume, so each pause/resume stretch becomes its
+  // own <trkseg> and the pause gap isn't counted as distance while recording.
+  segment: number;
+};
+
+export type RecordingStatus =
+  "recording" | "paused" | "stopped" | "pending" | "uploaded" | "failed";
+
+export type Recording = {
+  id: string;
+  status: RecordingStatus;
+  title: string | null;
+  activityType: string;
+  startedAt: number;
+  elapsedMs: number;
+  segmentStartedAt: number | null;
+  segment: number;
+  uploadAttempts: number;
+  nextAttemptAt: number | null;
+  lastError: string | null;
+  uploadedFilename: string | null;
+};

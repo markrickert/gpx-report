@@ -820,7 +820,7 @@ export const resolvers = {
       return mapActivityRow(updated[0]);
     },
 
-    saveRecordedActivity: async (_parent, { gpxContent }) => {
+    saveRecordedActivity: async (_parent, { gpxContent, clientId }) => {
       if (typeof gpxContent !== "string" || gpxContent.trim().length === 0) {
         throw new Error("gpxContent must be a non-empty string");
       }
@@ -831,8 +831,24 @@ export const resolvers = {
         throw new Error("gpxContent does not look like a valid GPX track");
       }
 
-      const filename = `recorded-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomBytes(3).toString("hex")}.gpx`;
-      await writeFile(path.join(GPX_FILES_DIRECTORY, filename), gpxContent, "utf-8");
+      if (clientId != null && !/^[A-Za-z0-9-]{8,64}$/.test(clientId)) {
+        throw new Error("clientId must be 8-64 letters, digits, or dashes");
+      }
+
+      // A clientId (the mobile app's per-recording UUID) makes retries
+      // idempotent: an upload whose response was lost gets re-sent with the
+      // same id, and the "wx" flag refuses to write a second copy.
+      const filename = clientId
+        ? `recorded-${clientId}.gpx`
+        : `recorded-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomBytes(3).toString("hex")}.gpx`;
+      try {
+        await writeFile(path.join(GPX_FILES_DIRECTORY, filename), gpxContent, {
+          encoding: "utf-8",
+          flag: "wx",
+        });
+      } catch (err) {
+        if (!clientId || err.code !== "EEXIST") throw err;
+      }
       // Not processed synchronously here — the directory watcher (watcher.js)
       // picks the new file up and runs it through the same processFile()
       // path as any synced file. The frontend polls for the resulting

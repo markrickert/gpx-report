@@ -1,0 +1,19 @@
+{
+  "name": "GPX Report",
+  "short_name": "GPX Report",
+  "description": "Self-hosted activity tracker for GPX files",
+  "theme_color": "#2563eb",
+  "background_color": "#f9fafb",
+  "display": "standalone",
+  "start_url": "/",
+  "icons": [
+    { "src": "pwa-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "pwa-512x512.png", "sizes": "512x512", "type": "image/png" },
+    {
+      "src": "maskable-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

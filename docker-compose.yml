@@ -42,8 +42,8 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_GRAPHQL_URL: ${VITE_GRAPHQL_URL}
-        VITE_CODE_SERVER_URL: ${VITE_CODE_SERVER_URL}
+        EXPO_PUBLIC_GRAPHQL_URL: ${EXPO_PUBLIC_GRAPHQL_URL}
+        EXPO_PUBLIC_CODE_SERVER_URL: ${EXPO_PUBLIC_CODE_SERVER_URL}
     container_name: gpx-report-frontend
     restart: unless-stopped
     mem_limit: 512m
@@ -51,26 +51,6 @@ services:
       - backend
     ports:
       - "3000:3000"
-
-  syncthing:
-    image: syncthing/syncthing:latest
-    container_name: gpx-report-syncthing
-    restart: unless-stopped
-    hostname: gpx-report-server
-    environment:
-      # The official image chown's $HOME non-recursively on boot, which never
-      # reaches /var/syncthing/config since it's a separate mounted volume
-      # (owned by root by default) — running as root avoids that mismatch.
-      PUID: ${SYNCTHING_PUID:-0}
-      PGID: ${SYNCTHING_PGID:-0}
-    volumes:
-      - syncthing_config:/var/syncthing/config
-      - ./data/gpx:/var/syncthing/gpx
-    ports:
-      - "8384:8384" # Web GUI
-      - "22000:22000/tcp" # Sync protocol
-      - "22000:22000/udp"
-      - "21027:21027/udp" # Local discovery
 
   code-server:
     image: codercom/code-server:latest
@@ -81,7 +61,7 @@ services:
     # No built-in auth (--auth none): this container has full read/write
     # access to the repo (and a shell) via the browser. Reachable via a
     # Caddy site (gpx-report-code.example.com), same Tailscale-only
-    # trust boundary as the Syncthing GUI / GraphQL API sites. See
+    # trust boundary as the GraphQL API site. See
     # docs/SETUP.md.
     command: --auth none --bind-addr 0.0.0.0:8080 /opt/gpx-report
     volumes:
@@ -95,5 +75,4 @@ services:
 
 volumes:
   db_data:
-  syncthing_config:
   code_server_data:

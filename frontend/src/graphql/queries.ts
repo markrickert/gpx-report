@@ -249,8 +249,8 @@ export const GET_ACTIVITY_DATES = gql`
 `;
 
 export const SAVE_RECORDED_ACTIVITY = gql`
-  mutation SaveRecordedActivity($gpxContent: String!) {
-    saveRecordedActivity(gpxContent: $gpxContent) {
+  mutation SaveRecordedActivity($gpxContent: String!, $clientId: String) {
+    saveRecordedActivity(gpxContent: $gpxContent, clientId: $clientId) {
       filename
     }
   }
@@ -432,6 +432,33 @@ export const GET_ACTIVITIES_FOR_EXPORT = gql`
       best1kmSeconds
       best5kmSeconds
       best10kmSeconds
+    }
+  }
+`;
+
+export const GET_ACTIVITY_SUMMARY = gql`
+  query GetActivitySummary($id: ID!) {
+    activity(id: $id) {
+      id
+      title
+      activityType
+      startTime
+      durationSeconds
+      distanceMeters
+      movingAvgSpeedMps
+      totalElevationGain
+      locationName
+      route {
+        coordinates
+      }
+    }
+  }
+`;
+
+export const GET_SERVER_CHECK = gql`
+  query GetServerCheck {
+    activitySummary {
+      totalActivities
     }
   }
 `;

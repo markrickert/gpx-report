@@ -117,16 +117,21 @@ This document details the features of gpx-report, and reflects what is actually 
 *   **Embedded Editor:** A nav tab iframes a `code-server` (browser VS Code) instance bind-mounted read-write at the repo root, for making and committing changes to gpx-report from the same UI. Reachable only within the deployment's Tailscale network — see `CLAUDE.md` deployment notes.
 *   **Theme sync:** Toggling the dashboard's light/dark mode also flips code-server's VS Code theme (`setCodeServerTheme` mutation writes `workbench.colorTheme` to its `settings.json`), and the iframe reloads to pick it up.
 
-## 9. Record Page (In-App GPS Recording)
+## 9. Recording (Phone App + Web Record Page)
 
-*   **Live Recording:** A nav tab (`/record`) records a track live via the browser Geolocation API (`navigator.geolocation.watchPosition()`) with Start/Pause/Resume/Stop controls, a live-updating map (route drawn as it's recorded, current-position marker), and live stats (duration, distance, current elevation, point count).
-*   **Foreground-Only:** Recording only runs while the tab is open and the screen is on — there is no background/wake-lock GPS tracking (would need a native app or unreliable browser workarounds); the page states this limitation up front.
-*   **Save Flow:** On Stop, the user names the activity and picks an activity type from the same preselected list used elsewhere, then Save builds a minimal GPX 1.1 document from the recorded points client-side and submits it via the `saveRecordedActivity` GraphQL mutation. The backend writes it to a server-generated filename (`recorded-<timestamp>-<random>.gpx`, never derived from client input) inside `GPX_FILES_DIRECTORY` and returns immediately — the existing directory watcher picks the file up and runs it through the normal ingestion pipeline (same `processFile()` path as a synced file), so recording doesn't add a second way to write activity rows into the database. The page polls briefly for the new activity to appear (to apply the chosen activity type and redirect to its detail page); if the watcher hasn't caught up yet, it tells the user the activity is still processing rather than blocking.
+*   **Phone app:** The iOS/Android build of `frontend/` has three tabs — History, Record, Settings. It's the primary way new activities are created.
+*   **Background recording:** Record uses `expo-location` background updates (`startLocationUpdatesAsync`, BestForNavigation, every ~5 m / 2 s), so recording continues with the screen locked. Android shows a foreground-service notification while recording. Each location batch is written straight to on-device SQLite by a module-scope TaskManager task, so a killed or relaunched JS runtime loses nothing.
+*   **Live view:** Duration, distance, current elevation, point count, and a MapLibre map (OSM raster tiles, no map API keys) drawing the route and current position. Pause/Resume starts a new `<trkseg>`; distance never counts the gap across a pause.
+*   **Save flow:** On Stop, the user names the activity and picks a type from the shared preselected list. The GPX is built from the stored points with the type in `<trk><type>` (which the backend parser maps straight to the activity type), then handed to the upload queue.
+*   **Offline upload queue:** Saving never requires the server. Unsent recordings retry with exponential backoff on app start, network change, foreground, and a 1-minute timer. Each upload carries the recording's UUID as `clientId`, which the server uses as the filename (`recorded-<uuid>.gpx`, written with an exclusive-create flag) so retries are idempotent. The backend writes the file into `GPX_FILES_DIRECTORY` and the directory watcher ingests it through the normal `processFile()` pipeline.
+*   **History:** Server activities (newest 50, pull to refresh) plus any local recordings still waiting to upload or failed, with the last error and a *Retry now* action. Tapping an activity opens a light summary (route map + distance/duration/elevation/moving speed); full analysis stays on the web UI.
+*   **Settings:** Server GraphQL URL (overrides the build-time default, since Tailscale hostnames can change), with a connection test; units; current location permission with a link to system settings.
+*   **Web Record page:** The same Record screen runs in the browser at `/record` via `watchPositionAsync`. It's foreground-only (the tab must stay open with the screen on), keeps points in memory, and reports the first upload attempt's result right after Save.
 
 ## 10. Data Management
 
 *   **Self-Hosted:** All data is stored locally, ensuring user privacy and control.
-*   **GPX File Synchronization:** GPX files mostly arrive via external sync (Syncthing) or manual drop into the monitored directory; the Record page (see above) is the one in-app way to create a new activity file, via the same directory-watch pipeline rather than a direct upload/file-management UI.
+*   **Activity sources:** New activities come from the phone app's uploads (see above) or from files dropped manually into the monitored directory (`.gpx`, `.igc`, `.skiz`). Both go through the same directory-watch pipeline.
 
 ## User Flows
 

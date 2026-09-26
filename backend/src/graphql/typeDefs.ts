@@ -239,7 +239,7 @@ export const typeDefs = `#graphql
     updateActivityNotes(id: ID!, notes: String!): Activity!
     updateActivityType(id: ID!, activityType: String!): Activity!
     trimActivity(id: ID!, startIndex: Int!, endIndex: Int!): Activity!
-    saveRecordedActivity(gpxContent: String!): SaveRecordedActivityResult!
+    saveRecordedActivity(gpxContent: String!, clientId: String): SaveRecordedActivityResult!
     setCodeServerTheme(theme: String!): Boolean!
     cleanActivityOutliers(id: ID!): Activity!
     fixActivityElevationSpikes(id: ID!): Activity!

@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 vi.mock("../db.js", () => ({ pool: { query: vi.fn() } }));
 vi.mock("../track/outliers.js", () => ({ detectOutliers: vi.fn() }));
@@ -12,6 +15,7 @@ const { pool } = (await import("../db.js")) as any;
 const { detectOutliers } = (await import("../track/outliers.js")) as any;
 const { detectLiftSegments } = (await import("../track/liftDetection.js")) as any;
 const { computeTrackStats } = (await import("../track/geo.js")) as any;
+process.env.GPX_FILES_DIRECTORY = mkdtempSync(path.join(tmpdir(), "resolvers-test-"));
 const { resolvers } = await import("./resolvers.js");
 
 const { activityStreak, yearOverYearComparison, trainingLoad, personalRecordsByType } =
@@ -358,5 +362,40 @@ describe("activitiesWithOutliers", () => {
     const result = await activitiesWithOutliers();
 
     expect(result.map((r) => r.activityId)).toEqual([2, 1]);
+  });
+});
+
+describe("saveRecordedActivity", () => {
+  const { saveRecordedActivity } = resolvers.Mutation;
+  const gpx = (name: string) =>
+    `<gpx><trk><name>${name}</name><trkseg><trkpt lat="1" lon="2"></trkpt></trkseg></trk></gpx>`;
+
+  it("writes a clientId upload to a stable filename and ignores retries", async () => {
+    const clientId = "0b6f3c2e-9a1d-4c7e-8f00-123456789abc";
+    const first = await saveRecordedActivity(null, { gpxContent: gpx("first"), clientId });
+    const retry = await saveRecordedActivity(null, { gpxContent: gpx("retry"), clientId });
+
+    expect(first.filename).toBe(`recorded-${clientId}.gpx`);
+    expect(retry.filename).toBe(first.filename);
+    const written = readFileSync(
+      path.join(process.env.GPX_FILES_DIRECTORY, first.filename),
+      "utf-8",
+    );
+    expect(written).toContain("first");
+  });
+
+  it("generates a unique filename per call without a clientId", async () => {
+    const a = await saveRecordedActivity(null, { gpxContent: gpx("a") });
+    const b = await saveRecordedActivity(null, { gpxContent: gpx("b") });
+    expect(a.filename).not.toBe(b.filename);
+    expect(readdirSync(process.env.GPX_FILES_DIRECTORY)).toEqual(
+      expect.arrayContaining([a.filename, b.filename]),
+    );
+  });
+
+  it("rejects a clientId that could escape the filename", async () => {
+    await expect(
+      saveRecordedActivity(null, { gpxContent: gpx("x"), clientId: "../../etc/passwd" }),
+    ).rejects.toThrow(/clientId/);
   });
 });

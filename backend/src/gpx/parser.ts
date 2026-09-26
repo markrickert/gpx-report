@@ -71,7 +71,11 @@ function guessActivityType(filename) {
 function resolveActivityType(rawType, filename) {
   if (rawType && rawType.trim()) {
     const key = rawType.trim().toLowerCase();
-    return ACTIVITY_TYPE_LABELS[key] ?? formatUnknownType(rawType.trim());
+    return (
+      ACTIVITY_TYPE_LABELS[key] ??
+      Object.values(ACTIVITY_TYPE_LABELS).find((label) => label.toLowerCase() === key) ??
+      formatUnknownType(rawType.trim())
+    );
   }
   return guessActivityType(filename);
 }

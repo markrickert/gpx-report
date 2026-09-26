@@ -1,13 +1,15 @@
 FROM node:22-alpine AS build
 WORKDIR /app
-ARG VITE_GRAPHQL_URL
-ENV VITE_GRAPHQL_URL=$VITE_GRAPHQL_URL
-ARG VITE_CODE_SERVER_URL
-ENV VITE_CODE_SERVER_URL=$VITE_CODE_SERVER_URL
-COPY package.json package-lock.json ./
+# EXPO_PUBLIC_* values are inlined into the JS bundle at export time, so they
+# must be present here (build args), not at container runtime.
+ARG EXPO_PUBLIC_GRAPHQL_URL
+ENV EXPO_PUBLIC_GRAPHQL_URL=$EXPO_PUBLIC_GRAPHQL_URL
+ARG EXPO_PUBLIC_CODE_SERVER_URL
+ENV EXPO_PUBLIC_CODE_SERVER_URL=$EXPO_PUBLIC_CODE_SERVER_URL
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 COPY . .
-RUN npm run build
+RUN npx expo export -p web
 
 FROM node:22-alpine
 WORKDIR /app
