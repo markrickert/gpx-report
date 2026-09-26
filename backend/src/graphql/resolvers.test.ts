@@ -403,6 +403,19 @@ describe("saveRecordedActivity", () => {
   });
 });
 
+// A minimal GraphQLResolveInfo whose query selected these fields.
+function selecting(...fields: string[]) {
+  return {
+    fieldNodes: [
+      {
+        selectionSet: {
+          selections: fields.map((f) => ({ kind: "Field", name: { value: f } })),
+        },
+      },
+    ],
+  } as any;
+}
+
 describe("visibility", () => {
   beforeEach(() => {
     pool.query.mockReset();
@@ -410,12 +423,28 @@ describe("visibility", () => {
 
   it("scopes queries to the requesting person", async () => {
     pool.query.mockResolvedValue({ rows: [] });
-    await resolvers.Query.activities(null, {} as any, kristin);
+    await resolvers.Query.activities(null, {} as any, kristin, selecting("id"));
     const [sql, params] = pool.query.mock.calls[0];
     expect(sql).toMatch(
       /a\.owner = \$1 OR a\.gpx_filename IN \(SELECT gpx_filename FROM activity_shares/,
     );
     expect(params[0]).toBe("kristin");
+  });
+
+  it("only samples route thumbnails when routeThumbnail is selected", async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+    await resolvers.Query.activities(null, { limit: 5 } as any, kristin, selecting("id"));
+    await resolvers.Query.activities(
+      null,
+      { limit: 5 } as any,
+      kristin,
+      selecting("id", "routeThumbnail"),
+    );
+    const [[plainSql, plainParams], [thumbSql, thumbParams]] = pool.query.mock.calls;
+    expect(plainSql).not.toMatch(/activity_routes/);
+    expect(plainParams).toEqual(["kristin", 5, 0]);
+    expect(thumbSql).toMatch(/activity_routes/);
+    expect(thumbParams).toEqual(["kristin", 60, 5, 0]);
   });
 
   it("returns null for an activity the person can't see", async () => {

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@apollo/client";
+import { router, type Href } from "expo-router";
 import {
   BarChart,
   Bar,
@@ -28,6 +29,7 @@ import {
   elevationValue,
   elevationUnitLabel,
 } from "@/utils/units";
+import { usePersonHref } from "@/lib/person";
 import { downloadCsv } from "@/utils/csv";
 import { activityTypeLabel } from "@/utils/activity-type-icons";
 
@@ -360,9 +362,56 @@ function scatterFields(unit) {
   };
 }
 
+// Common pairings, each good at surfacing a different kind of bad data.
+const SCATTER_PRESETS = [
+  {
+    label: "Distance × Duration",
+    x: "distance",
+    y: "duration",
+    color: "#2563eb",
+    hint: "GPS jumps, or a recording left running",
+  },
+  {
+    label: "Distance × Speed",
+    x: "distance",
+    y: "avgSpeed",
+    color: "#16a34a",
+    hint: "Wrong activity type, like a drive logged as a ride",
+  },
+  {
+    label: "Distance × Elevation",
+    x: "distance",
+    y: "elevationGain",
+    color: "#d97706",
+    hint: "Elevation spikes",
+  },
+  {
+    label: "Duration × Speed",
+    x: "duration",
+    y: "avgSpeed",
+    color: "#9333ea",
+    hint: "Pauses counted as moving time",
+  },
+  {
+    label: "Time of Day × Distance",
+    x: "timeOfDay",
+    y: "distance",
+    color: "#db2777",
+    hint: "Bad timestamps or time zones",
+  },
+  {
+    label: "Day of Week × Distance",
+    x: "dayOfWeek",
+    y: "distance",
+    color: "#0891b2",
+    hint: "Weekly habits and odd days out",
+  },
+];
+
 function ScatterPlotBuilder({ activities, unit }: { activities: any[]; unit: string }) {
   const fields = useMemo(() => scatterFields(unit), [unit]);
   const fieldKeys = Object.keys(fields);
+  const href = usePersonHref();
 
   const types = useMemo(() => {
     const set = new Set(activities.map((a) => a.activityType));
@@ -378,7 +427,7 @@ function ScatterPlotBuilder({ activities, unit }: { activities: any[]; unit: str
     const y = fields[yField];
     return activities
       .filter((a) => activityType === "All" || a.activityType === activityType)
-      .map((a) => ({ x: x.value(a), y: y.value(a) }))
+      .map((a) => ({ x: x.value(a), y: y.value(a), activity: a }))
       .filter((p) => p.x != null && p.y != null);
   }, [activities, activityType, fields, xField, yField]);
 
@@ -411,6 +460,27 @@ function ScatterPlotBuilder({ activities, unit }: { activities: any[]; unit: str
           </select>
         </div>
       </div>
+      <div className="scatter-presets">
+        {SCATTER_PRESETS.map((preset) => (
+          <button
+            key={preset.label}
+            type="button"
+            title={preset.hint}
+            className={
+              preset.x === xField && preset.y === yField
+                ? "scatter-preset selected"
+                : "scatter-preset"
+            }
+            style={{ "--pill": preset.color } as React.CSSProperties}
+            onClick={() => {
+              setXField(preset.x);
+              setYField(preset.y);
+            }}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
       {points.length === 0 ? (
         <p>No activities with both fields available.</p>
       ) : (
@@ -435,21 +505,39 @@ function ScatterPlotBuilder({ activities, unit }: { activities: any[]; unit: str
             />
             <Tooltip
               cursor={{ strokeDasharray: "3 3" }}
-              contentStyle={{
-                background: "rgba(17, 24, 39, 0.92)",
-                border: "none",
-                borderRadius: 6,
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const { x, y, activity } = payload[0].payload;
+                const show = (key, value) =>
+                  key === "dayOfWeek" ? DAY_NAMES[value] : Number(value).toFixed(2);
+                return (
+                  <div
+                    style={{
+                      background: "rgba(17, 24, 39, 0.92)",
+                      borderRadius: 6,
+                      padding: "6px 10px",
+                      color: "#e5e7eb",
+                    }}
+                  >
+                    <strong>{activity.title}</strong>
+                    <div>
+                      {new Date(activity.startTime).toLocaleDateString()} ·{" "}
+                      {activityTypeLabel(activity.activityType)}
+                    </div>
+                    <div>{`${fields[xField].label}: ${show(xField, x)}`}</div>
+                    <div>{`${fields[yField].label}: ${show(yField, y)}`}</div>
+                  </div>
+                );
               }}
-              labelStyle={{ color: "#e5e7eb" }}
-              itemStyle={{ color: "#e5e7eb" }}
-              formatter={(value, name) => [
-                name === fields.dayOfWeek?.label
-                  ? DAY_NAMES[Number(value)]
-                  : Number(value).toFixed(2),
-                name,
-              ]}
             />
-            <Scatter data={points} fill="var(--accent)" />
+            <Scatter
+              data={points}
+              fill="var(--accent)"
+              cursor="pointer"
+              onClick={(point) =>
+                router.push(href(`/activities/${point.payload.activity.id}`) as Href)
+              }
+            />
           </ScatterChart>
         </ResponsiveContainer>
       )}

@@ -240,6 +240,7 @@ export const GET_ACTIVITY_DATES = gql`
   query GetActivityDates {
     activities(limit: 1000) {
       id
+      title
       startTime
       activityType
       distanceMeters

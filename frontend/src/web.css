@@ -588,6 +588,32 @@ select {
   color: var(--text);
 }
 
+.scatter-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.scatter-preset {
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--pill);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pill) 12%, transparent);
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.scatter-preset:hover {
+  background: color-mix(in srgb, var(--pill) 25%, transparent);
+}
+
+.scatter-preset.selected {
+  background: var(--pill);
+  color: #ffffff;
+}
+
 .calendar-heatmap-wrap {
   overflow-x: auto;
   padding-bottom: 0.25rem;

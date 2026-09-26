@@ -128,6 +128,13 @@ const MAX_HEATMAP_POINTS_PER_ROUTE = 300;
 // THUMBNAIL_MAX_POINTS.
 const MAX_THUMBNAIL_POINTS_PER_ROUTE = 60;
 
+/** Whether the GraphQL query selected `field` directly on this resolver's result. */
+function selectsField(info, field: string) {
+  return info.fieldNodes.some((node) =>
+    node.selectionSet?.selections.some((sel) => sel.kind === "Field" && sel.name.value === field),
+  );
+}
+
 // heatmapPoints is expensive (scans every stored track point across all
 // activities to sample it down) and rarely changes between requests, so
 // cache the result for a few minutes instead of recomputing on every page
@@ -201,6 +208,7 @@ export const resolvers = {
       _parent,
       { limit = 20, offset = 0, activityType, startDate, endDate, search },
       context,
+      info,
     ) => {
       const params = [personOf(context)];
       const conditions = [visibleTo("a", 1)];
@@ -223,7 +231,6 @@ export const resolvers = {
       }
 
       const whereClause = `WHERE ${conditions.join(" AND ")}`;
-      params.push(MAX_THUMBNAIL_POINTS_PER_ROUTE, limit, offset);
 
       // Thumbnails are sampled down to a handful of [lat, lon] pairs in SQL
       // and joined in here, rather than the frontend fetching each
@@ -233,11 +240,15 @@ export const resolvers = {
       // points_data array (r.points_data->i), not jsonb_array_elements +
       // modulo filter — the latter expands every point of every route
       // (hundreds to thousands each) just to throw most of them away, which
-      // dominated the dashboard's load time.
-      const { rows } = await pool.query(
-        `SELECT a.*, thumb.points AS route_thumbnail, COALESCE(media.count, 0) AS media_count
-         FROM activities a
-         LEFT JOIN LATERAL (
+      // dominated the dashboard's load time. Even sampled, it still reads
+      // every route's points_data, so it's skipped when the query doesn't
+      // ask for routeThumbnail (the Stats page's 1000-activity list).
+      let thumbnailSelect = "NULL AS route_thumbnail";
+      let thumbnailJoin = "";
+      if (selectsField(info, "routeThumbnail")) {
+        params.push(MAX_THUMBNAIL_POINTS_PER_ROUTE);
+        thumbnailSelect = "thumb.points AS route_thumbnail";
+        thumbnailJoin = `LEFT JOIN LATERAL (
            SELECT jsonb_agg(
              jsonb_build_array(
                (r.points_data->i->>'lat')::float8,
@@ -248,10 +259,17 @@ export const resolvers = {
            LATERAL generate_series(
              0,
              jsonb_array_length(r.points_data) - 1,
-             GREATEST(1, jsonb_array_length(r.points_data) / $${params.length - 2})
+             GREATEST(1, jsonb_array_length(r.points_data) / $${params.length})
            ) AS i
            WHERE r.activity_id = a.id
-         ) thumb ON true
+         ) thumb ON true`;
+      }
+      params.push(limit, offset);
+
+      const { rows } = await pool.query(
+        `SELECT a.*, ${thumbnailSelect}, COALESCE(media.count, 0) AS media_count
+         FROM activities a
+         ${thumbnailJoin}
          LEFT JOIN LATERAL (
            SELECT COUNT(*) AS count FROM activity_media m WHERE m.activity_id = a.id
          ) media ON true
