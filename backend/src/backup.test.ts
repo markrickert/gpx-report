@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, writeFile, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { backupFile } from "./backup.js";
+import { backupFile, findOriginalBackup } from "./backup.js";
 
 describe("backupFile", () => {
   let dir;
@@ -37,5 +37,35 @@ describe("backupFile", () => {
     const backupsDir = path.join(dir, "_backups");
     const backups = (await readdir(backupsDir)).filter((f) => f.startsWith("multi.gpx."));
     expect(backups).toHaveLength(2);
+  });
+});
+
+describe("findOriginalBackup", () => {
+  let dir;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "original-test-"));
+  });
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("returns null when the file has never been backed up", async () => {
+    expect(await findOriginalBackup(path.join(dir, "untouched.gpx"))).toBeNull();
+  });
+
+  it("returns the earliest backup, ignoring other files' backups", async () => {
+    const filePath = path.join(dir, "hike.gpx");
+    await writeFile(filePath, "v1", "utf-8");
+    await backupFile(filePath);
+    await writeFile(filePath, "v2", "utf-8");
+    await backupFile(filePath);
+    // Shares the prefix but is a different file.
+    await writeFile(path.join(dir, "hike.gpx.gpx"), "other", "utf-8");
+    await backupFile(path.join(dir, "hike.gpx.gpx"));
+
+    const original = await findOriginalBackup(filePath);
+    expect(await readFile(original, "utf-8")).toBe("v1");
   });
 });

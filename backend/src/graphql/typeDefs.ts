@@ -33,6 +33,8 @@ export const typeDefs = `#graphql
     suggestedActivityTypes: [String!]!
     mediaCount: Int!
     media: [ActivityMedia!]!
+    "True once the source file has been edited and its original is saved in _backups/."
+    originalSaved: Boolean!
   }
 
   type ActivityMedia {
@@ -242,6 +244,7 @@ export const typeDefs = `#graphql
     updateActivityNotes(id: ID!, notes: String!): Activity!
     updateActivityType(id: ID!, activityType: String!): Activity!
     trimActivity(id: ID!, startIndex: Int!, endIndex: Int!): Activity!
+    restoreActivityOriginal(id: ID!): Activity!
     saveRecordedActivity(gpxContent: String!, clientId: String): SaveRecordedActivityResult!
     cleanActivityOutliers(id: ID!): Activity!
     fixActivityElevationSpikes(id: ID!): Activity!

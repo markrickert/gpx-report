@@ -22,6 +22,7 @@ import {
   UPDATE_ACTIVITY_NOTES,
   UPDATE_ACTIVITY_TYPE,
   TRIM_ACTIVITY,
+  RESTORE_ACTIVITY_ORIGINAL,
   GET_ACTIVITY_OUTLIER_DIFF,
   CLEAN_ACTIVITY_OUTLIERS,
   GET_ACTIVITY_ELEVATION_FIX_DIFF,
@@ -729,7 +730,7 @@ function TrimControls({ activity, pointCount, trimRange, onSaved }) {
   const save = async () => {
     if (
       !window.confirm(
-        "Trimming permanently deletes the selected track points from the source GPX file. This cannot be undone. Continue?",
+        "Trimming removes the track points outside the handles from the file. The original stays saved on the server, and you can restore it from this page. Continue?",
       )
     ) {
       return;
@@ -785,7 +786,7 @@ function OutlierCleanup({ activity }) {
   const save = async () => {
     if (
       !window.confirm(
-        `Remove ${diff.outlierPoints.length} flagged GPS point(s) from the source file? This permanently rewrites the file and cannot be undone.`,
+        `Remove ${diff.outlierPoints.length} flagged GPS point(s) from the source file? The original stays saved on the server, and you can restore it from this page.`,
       )
     ) {
       return;
@@ -920,7 +921,7 @@ function ElevationFixTool({ activity }) {
   const save = async () => {
     if (
       !window.confirm(
-        `Normalize ${diff.spikePoints.length} flagged elevation point(s) in the source file? This permanently rewrites the file and cannot be undone.`,
+        `Normalize ${diff.spikePoints.length} flagged elevation point(s) in the source file? The original stays saved on the server, and you can restore it from this page.`,
       )
     ) {
       return;
@@ -1337,6 +1338,42 @@ function SharingSection({ activity }) {
 // requires the same window.confirm guard used by the other destructive
 // action on this page (OutlierCleanup's "Clean & Save"). For a share
 // recipient the same mutation only removes them from the share.
+// Shown once the source file has been edited: the server keeps the file as
+// first uploaded (backend/src/backup.ts), and this puts it back.
+function RestoreOriginal({ activity, onRestored }) {
+  const [restore, { loading }] = useMutation(RESTORE_ACTIVITY_ORIGINAL);
+  const [error, setError] = useState(null);
+
+  const handleRestore = async () => {
+    if (
+      !window.confirm(
+        "Restore the file as it was first uploaded? This undoes every trim and cleanup, and the title and type go back to the original too. Your notes stay. The current version is kept in the server's backups.",
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    try {
+      await restore({ variables: { id: activity.id } });
+      await onRestored();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  return (
+    <div className="trim-controls">
+      <p className="chart-hint">
+        This activity has been edited. The original file is saved on the server.
+      </p>
+      <button onClick={handleRestore} disabled={loading}>
+        {loading ? "Restoring…" : "Restore original"}
+      </button>
+      {error && <p className="title-edit-error">Failed to restore: {error}</p>}
+    </div>
+  );
+}
+
 function DeleteActivitySection({ activity, isOwner }) {
   const [deleteActivity, { loading: deleting }] = useMutation(DELETE_ACTIVITY);
   const [error, setError] = useState(null);
@@ -1346,7 +1383,7 @@ function DeleteActivitySection({ activity, isOwner }) {
     if (
       !window.confirm(
         isOwner
-          ? `Delete "${activity.title}" permanently? This removes the activity and its source file and cannot be undone.`
+          ? `Delete "${activity.title}"? This removes the activity. A copy of its file stays in the server's backups folder, but the app can't bring it back.`
           : `Remove "${activity.title}" from your activities? ${activity.owner} keeps it.`,
       )
     ) {
@@ -1976,6 +2013,10 @@ export default function ActivityDetail() {
             exitEditMode();
           }}
         />
+      )}
+
+      {isOwner && activity.originalSaved && !trimActive && (
+        <RestoreOriginal activity={activity} onRestored={refetch} />
       )}
 
       {hasHrData && (

@@ -42,6 +42,7 @@ export const GET_ACTIVITY = gql`
     activity(id: $id) {
       id
       gpxFilename
+      originalSaved
       owner
       sharedWith
       title
@@ -162,6 +163,14 @@ export const UPDATE_ACTIVITY_TYPE = gql`
 export const TRIM_ACTIVITY = gql`
   mutation TrimActivity($id: ID!, $startIndex: Int!, $endIndex: Int!) {
     trimActivity(id: $id, startIndex: $startIndex, endIndex: $endIndex) {
+      id
+    }
+  }
+`;
+
+export const RESTORE_ACTIVITY_ORIGINAL = gql`
+  mutation RestoreActivityOriginal($id: ID!) {
+    restoreActivityOriginal(id: $id) {
       id
     }
   }

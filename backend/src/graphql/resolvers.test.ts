@@ -1,11 +1,22 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 vi.mock("../db.js", () => ({ pool: { query: vi.fn(), connect: vi.fn() } }));
 vi.mock("../track/outliers.js", () => ({ detectOutliers: vi.fn() }));
 vi.mock("../track/liftDetection.js", () => ({ detectLiftSegments: vi.fn() }));
+vi.mock("../gpx/processor.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as object;
+  return { ...actual, processFile: vi.fn() };
+});
 vi.mock("../track/geo.js", async (importOriginal) => {
   const actual = (await importOriginal()) as object;
   return { ...actual, computeTrackStats: vi.fn() };
@@ -15,6 +26,8 @@ const { pool } = (await import("../db.js")) as any;
 const { detectOutliers } = (await import("../track/outliers.js")) as any;
 const { detectLiftSegments } = (await import("../track/liftDetection.js")) as any;
 const { computeTrackStats } = (await import("../track/geo.js")) as any;
+const { processFile } = (await import("../gpx/processor.js")) as any;
+const { backupFile } = await import("../backup.js");
 process.env.GPX_FILES_DIRECTORY = mkdtempSync(path.join(tmpdir(), "resolvers-test-"));
 const { resolvers } = await import("./resolvers.js");
 
@@ -531,5 +544,71 @@ describe("ownership", () => {
         setActivitySharedWith(null, { id: "1", people: ["mark"] }, kristin),
       ).rejects.toThrow(/Only mark/);
     });
+  });
+});
+
+describe("original file", () => {
+  const { restoreActivityOriginal, deleteActivity } = resolvers.Mutation;
+  const dir = () => process.env.GPX_FILES_DIRECTORY;
+
+  beforeEach(() => {
+    pool.query.mockReset();
+    processFile.mockReset();
+  });
+
+  it("reports originalSaved only once the file has a backup", async () => {
+    const filePath = path.join(dir(), "fresh.gpx");
+    writeFileSync(filePath, "v1");
+    expect(await resolvers.Activity.originalSaved({ gpxFilename: "fresh.gpx" })).toBe(false);
+    await backupFile(filePath);
+    expect(await resolvers.Activity.originalSaved({ gpxFilename: "fresh.gpx" })).toBe(true);
+  });
+
+  it("restores the first version after two edits and backs up the current one first", async () => {
+    const filePath = path.join(dir(), "hike.gpx");
+    writeFileSync(filePath, "original");
+    await backupFile(filePath);
+    writeFileSync(filePath, "trimmed");
+    await backupFile(filePath);
+    writeFileSync(filePath, "trimmed and renamed");
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ gpx_filename: "hike.gpx", owner: "mark" }] })
+      .mockResolvedValueOnce({ rows: [{ id: 7, gpx_filename: "hike.gpx", owner: "mark" }] });
+
+    await restoreActivityOriginal(null, { id: "7" }, mark);
+
+    expect(readFileSync(filePath, "utf-8")).toBe("original");
+    expect(processFile).toHaveBeenCalledWith(filePath);
+    const backups = readdirSync(path.join(dir(), "_backups"))
+      .filter((f) => f.startsWith("hike.gpx."))
+      .sort();
+    expect(backups).toHaveLength(3);
+    expect(readFileSync(path.join(dir(), "_backups", backups[2]), "utf-8")).toBe(
+      "trimmed and renamed",
+    );
+  });
+
+  it("refuses to restore an activity that was never edited", async () => {
+    writeFileSync(path.join(dir(), "never.gpx"), "v1");
+    pool.query.mockResolvedValueOnce({ rows: [{ gpx_filename: "never.gpx", owner: "mark" }] });
+    await expect(restoreActivityOriginal(null, { id: "8" }, mark)).rejects.toThrow(
+      /nothing to restore/,
+    );
+  });
+
+  it("keeps a copy of a deleted activity's file", async () => {
+    const filePath = path.join(dir(), "gone.gpx");
+    writeFileSync(filePath, "keep me");
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ gpx_filename: "gone.gpx", owner: "mark" }] })
+      .mockResolvedValue({ rows: [], rowCount: 0 });
+
+    expect(await deleteActivity(null, { id: "9" }, mark)).toBe(true);
+    expect(existsSync(filePath)).toBe(false);
+    const copies = readdirSync(path.join(dir(), "_backups")).filter((f) =>
+      f.startsWith("gone.gpx."),
+    );
+    expect(copies).toHaveLength(1);
+    expect(readFileSync(path.join(dir(), "_backups", copies[0]), "utf-8")).toBe("keep me");
   });
 });

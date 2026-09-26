@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useQuery } from "@apollo/client";
 import { Link, useFocusEffect } from "expo-router";
 import { RouteThumbnail } from "@/components/route-thumbnail";
@@ -35,12 +35,33 @@ export function HistoryScreen() {
   const { unit } = useUnits();
   const { data, error, refetch } = useQuery(GET_DASHBOARD, { variables: { limit: 50 } });
   const [unsynced, setUnsynced] = useState<Recording[]>([]);
+  const [uploaded, setUploaded] = useState<Recording[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadUnsynced = useCallback(
-    () => setUnsynced(store.listRecordings(["pending", "failed"])),
-    [],
-  );
+  const loadUnsynced = useCallback(() => {
+    setUnsynced(store.listRecordings(["pending", "failed"]));
+    setUploaded(store.listRecordings(["uploaded"]));
+  }, []);
+
+  // The server has the file (and backs up the original before any edit), so
+  // the phone's copy is only a safety net until the user clears it.
+  function removeUploaded() {
+    Alert.alert(
+      "Remove from this phone?",
+      "These recordings are already on the server. Recordings that haven't uploaded yet stay.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            for (const rec of store.listRecordings(["uploaded"])) store.deleteRecording(rec.id);
+            loadUnsynced();
+          },
+        },
+      ],
+    );
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -78,6 +99,16 @@ export function HistoryScreen() {
           )}
         </View>
       ))}
+      {uploaded.length > 0 && (
+        <View style={[styles.row, { backgroundColor: colors.backgroundElement }]}>
+          <Text style={[styles.meta, { color: colors.textSecondary }]}>
+            {`${uploaded.length} uploaded ${uploaded.length === 1 ? "recording is" : "recordings are"} still saved on this phone. ${uploaded.length === 1 ? "It's" : "They're"} on the server now.`}
+          </Text>
+          <Pressable onPress={removeUploaded}>
+            <Text style={styles.link}>Remove from phone</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 

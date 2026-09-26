@@ -3,6 +3,7 @@ import os from "node:os";
 import { writeFile, mkdir, copyFile, rm, unlink } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { pool } from "../db.js";
+import { backupFile, findOriginalBackup } from "../backup.js";
 import {
   reanalyzeAll,
   reanalyzeByDateRange,
@@ -905,6 +906,24 @@ export const resolvers = {
       return mapActivityRow(updated[0]);
     },
 
+    // Puts back the file as it was before its first edit. Title and type live
+    // in the file, so they revert too; notes are database-only and stay. The
+    // current version is backed up first, so a restore can be undone by hand.
+    restoreActivityOriginal: async (_parent, { id }, context) => {
+      const activity = await requireOwnedActivity(id, context);
+      const filePath = path.join(GPX_FILES_DIRECTORY, activity.gpx_filename);
+      const original = await findOriginalBackup(filePath);
+      if (!original)
+        throw new Error("This activity hasn't been edited, so there's nothing to restore");
+
+      await backupFile(filePath);
+      await copyFile(original, filePath);
+      await processFile(filePath);
+
+      const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
+      return mapActivityRow(updated[0]);
+    },
+
     saveRecordedActivity: async (_parent, { gpxContent, clientId }, context) => {
       if (typeof gpxContent !== "string" || gpxContent.trim().length === 0) {
         throw new Error("gpxContent must be a non-empty string");
@@ -1008,8 +1027,10 @@ export const resolvers = {
         return true;
       }
 
+      // Keep a copy in _backups/ so a deleted activity can be recovered by hand.
       const filePath = path.join(GPX_FILES_DIRECTORY, rows[0].gpx_filename);
       try {
+        await backupFile(filePath);
         await unlink(filePath);
       } catch (err) {
         if (err.code !== "ENOENT") throw err;
@@ -1071,6 +1092,9 @@ export const resolvers = {
   },
 
   Activity: {
+    originalSaved: async (parent) =>
+      (await findOriginalBackup(path.join(GPX_FILES_DIRECTORY, parent.gpxFilename))) != null,
+
     sharedWith: async (parent) => {
       const { rows } = await pool.query(
         "SELECT person FROM activity_shares WHERE gpx_filename = $1 ORDER BY person",
