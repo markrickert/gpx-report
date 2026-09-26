@@ -5,7 +5,7 @@ This document provides instructions for setting up the development environment a
 ## Prerequisites
 
 *   **Docker & Docker Compose:** The primary way to run everything (Postgres/PostGIS, backend, web frontend, code-server) — see `docker-compose.yml` at the repo root.
-*   **Node.js & npm:** Only needed for running the backend or frontend outside Docker (`tsx watch` / Expo dev server), and for building the phone app (Node 20+).
+*   **Node.js & pnpm:** Only needed for running the backend or frontend outside Docker (`tsx watch` / Expo dev server), and for building the phone app (Node 20+).
 *   **Git:** For version control.
 
 There is no Python anywhere in this stack — GPX parsing is done in Node via the `gpxparser` npm package.
@@ -65,7 +65,7 @@ The repo-root `docker-compose.yml` already defines the `db` service (`postgis/po
 ## 3. Backend Setup
 
 *   **Via Docker (recommended):** already wired up in `docker-compose.yml` — `docker compose up --build backend` builds and starts it, with `DATABASE_URL` and `GPX_FILES_DIRECTORY` set from the compose file's `environment:` block.
-*   **Locally:** `cd backend && npm install && npm run dev` (uses `tsx watch` against the TypeScript source directly). Requires `DATABASE_URL` and `GPX_FILES_DIRECTORY` env vars — see `docker-compose.yml`'s `backend.environment` for the shape. `npm start` runs the compiled output (`npm run build` first, then `node dist/index.js`) without watch mode.
+*   **Locally:** `cd backend && pnpm install && pnpm dev` (uses `tsx watch` against the TypeScript source directly). Requires `DATABASE_URL` and `GPX_FILES_DIRECTORY` env vars — see `docker-compose.yml`'s `backend.environment` for the shape. `pnpm start` runs the compiled output (`pnpm build` first, then `node dist/index.js`) without watch mode.
 *   The server listens on `GRAPHQL_PORT` (`4000` by default) and serves Apollo Server standalone at `/graphql`.
 
 ## 4. Frontend Setup
@@ -73,9 +73,9 @@ The repo-root `docker-compose.yml` already defines the `db` service (`postgis/po
 `frontend/` is one Expo (Expo Router) project that builds both the web analysis UI served by this server and the iOS/Android recording app.
 
 *   **Web via Docker (recommended):** `docker compose up --build frontend` runs `expo export -p web` and serves the static SPA with `serve -s` on port 3000. **Important:** `EXPO_PUBLIC_GRAPHQL_URL` is baked into the static JS bundle at *image build time* via a Docker build arg (`frontend.build.args` in `docker-compose.yml`), not read at container runtime — changing it requires a rebuild (`docker compose up -d --build frontend`), not just a restart.
-*   **Web locally:** `cd frontend && npm install && npx expo start --web`. Set `EXPO_PUBLIC_GRAPHQL_URL` in the environment if not using `localhost:4000/graphql`.
+*   **Web locally:** `cd frontend && pnpm install && pnpm exec expo start --web`. Set `EXPO_PUBLIC_GRAPHQL_URL` in the environment if not using `localhost:4000/graphql`.
 *   `http://localhost:4000/graphql` only works when the browser and backend run on the same machine — for any real deployment `EXPO_PUBLIC_GRAPHQL_URL` needs to be a domain reachable from wherever the browser is (see §6 below for the reverse-proxy setup used in this project's actual deployment).
-*   `frontend/.npmrc` sets `legacy-peer-deps=true`: npm's resolver crashes (`Cannot read properties of null (reading 'edgesOut')`) on some of the dev dependencies' optional peers otherwise. Keep it so local installs and the Docker `npm ci` resolve the same tree.
+*   **pnpm:** each of `backend/`, `frontend/`, and the repo root has its own `pnpm-lock.yaml` (the Dockerfiles install `pnpm@11.0.9`, matching `packageManager`). `frontend/pnpm-workspace.yaml` sets `nodeLinker: hoisted`, since Expo/React Native tooling expects a flat `node_modules`. pnpm only runs dependency install scripts listed in `allowBuilds` (in each project's `pnpm-workspace.yaml`); a new dependency with one fails `pnpm install` until you run `pnpm approve-builds`.
 
 ### Hot-reload dev mode (in-Docker)
 
@@ -85,7 +85,7 @@ For iterating on this live LXC host without a full rebuild each time (frontend p
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build backend frontend
 ```
 
-This bind-mounts `./backend/src` and `./frontend/src` into the running containers and replaces their production command with `tsx watch src/index.ts` (backend, built from `backend/Dockerfile.dev` — a lightweight image with the full `npm ci`, no `tsc` build step, since `tsx` runs the TypeScript source directly) and Expo's Metro web dev server via `npx expo start --web --port 3000` (frontend, built from `frontend/Dockerfile.dev` — a lightweight image that skips the `expo export` production stage entirely). Edits under `backend/src`/`frontend/src` take effect immediately: the backend process restarts on save, the frontend gets Fast Refresh.
+This bind-mounts `./backend/src` and `./frontend/src` into the running containers and replaces their production command with `tsx watch src/index.ts` (backend, built from `backend/Dockerfile.dev` — a lightweight image with the full `pnpm install`, no `tsc` build step, since `tsx` runs the TypeScript source directly) and Expo's Metro web dev server via `pnpm exec expo start --web --port 3000` (frontend, built from `frontend/Dockerfile.dev` — a lightweight image that skips the `expo export` production stage entirely). Edits under `backend/src`/`frontend/src` take effect immediately: the backend process restarts on save, the frontend gets Fast Refresh.
 
 The frontend dev server reads `EXPO_PUBLIC_GRAPHQL_URL`/`EXPO_PUBLIC_CODE_SERVER_URL` from the container environment when Metro bundles, rather than from the image build arg the production image bakes in — same values from `.env`, different mechanism.
 
@@ -147,9 +147,9 @@ The web frontend is a static bundle — `expo export` inlines `EXPO_PUBLIC_GRAPH
 
 ## 8. Testing
 
-Unit tests (`backend/src/**/*.test.ts`, `frontend/src/**/*.test.{ts,tsx}`) run via `npm test` (Vitest) in each subproject — no live stack needed, see CLAUDE.md. `frontend/vitest.config.mts` resolves `.web.ts(x)` files first, the way Metro does for web, so recorder tests run against the in-memory `store.web.ts` rather than native SQLite.
+Unit tests (`backend/src/**/*.test.ts`, `frontend/src/**/*.test.{ts,tsx}`) run via `pnpm test` (Vitest) in each subproject — no live stack needed, see CLAUDE.md. `frontend/vitest.config.mts` resolves `.web.ts(x)` files first, the way Metro does for web, so recorder tests run against the in-memory `store.web.ts` rather than native SQLite.
 
-A Playwright E2E smoke suite (`frontend/e2e/`, `frontend/playwright.config.ts`) runs against the *actual running docker-compose stack* instead — `npm run test:e2e` inside `frontend/`, with the stack already up (`docker compose up`). It's read-only for the real dataset (Dashboard load, opening a real activity, the Stats page) and creates/destroys its own disposable synthetic activity for the edit/trim/delete flow (dropped into and cleaned back out of the real `data/gpx/` — see `frontend/e2e/gpxFixture.ts`), so it's safe to run against a live deployment's real data. Every spec runs under both a desktop and a Chromium-based mobile-device emulation profile (`devices["Pixel 5"]` — not `devices["iPhone 13"]`/other WebKit-default profiles, since this host only has Chromium installed, not WebKit).
+A Playwright E2E smoke suite (`frontend/e2e/`, `frontend/playwright.config.ts`) runs against the *actual running docker-compose stack* instead — `pnpm test:e2e` inside `frontend/`, with the stack already up (`docker compose up`). It's read-only for the real dataset (Dashboard load, opening a real activity, the Stats page) and creates/destroys its own disposable synthetic activity for the edit/trim/delete flow (dropped into and cleaned back out of the real `data/gpx/` — see `frontend/e2e/gpxFixture.ts`), so it's safe to run against a live deployment's real data. Every spec runs under both a desktop and a Chromium-based mobile-device emulation profile (`devices["Pixel 5"]` — not `devices["iPhone 13"]`/other WebKit-default profiles, since this host only has Chromium installed, not WebKit).
 
 *   `E2E_BASE_URL` (default `http://localhost:3000`) and `E2E_GRAPHQL_URL` (default `http://localhost:4000/graphql`) point the suite at a non-default host/port.
 *   `E2E_CHROMIUM_PATH` (default `/usr/bin/chromium`) points at a different browser binary — this suite deliberately uses an already-installed system Chromium via `launchOptions.executablePath` rather than `@playwright/test`'s own downloaded browsers, since a fresh `npx playwright install` needs a ~300MB download this host's network access can't always do (same reasoning as the TypeScript-conversion verification note in `docs/TODO.md`'s Done section).
@@ -162,7 +162,7 @@ Running this in a Proxmox LXC container (as opposed to a full VM) has a couple o
 
 *   **Surviving a power cycle needs no extra systemd unit.** Every service in `docker-compose.yml` already has `restart: unless-stopped`. As long as the Docker daemon itself is enabled at the systemd level (`systemctl enable docker` — check with `systemctl is-enabled docker`), a reboot brings the daemon back up, and Docker restarts every container that wasn't manually `docker compose down`'d beforehand. No cron job, no custom `.service` file, no `@reboot` entry needed — this was verified working on the actual deployment host.
 *   **`.env` isn't committed** (it's gitignored) — after cloning onto a fresh host, `cp .env.example .env` and replace the placeholder `POSTGRES_PASSWORD` with a real generated value (e.g. `openssl rand -hex 16`) before the first `docker compose up`. The example password is a placeholder, not something to run with.
-*   **The frontend image build is the slow step** — its multi-stage Dockerfile runs `npm ci` and then `expo export -p web` for the production bundle. A first `docker compose up -d --build` on a fresh host can take 8–10 minutes total; don't assume a hung terminal is a stuck build.
+*   **The frontend image build is the slow step** — its multi-stage Dockerfile runs `pnpm install` and then `expo export -p web` for the production bundle. A first `docker compose up -d --build` on a fresh host can take 8–10 minutes total; don't assume a hung terminal is a stuck build.
 *   **Docker isn't guaranteed to be preinstalled on a fresh LXC** — check with `docker --version` before assuming it's there; on Debian-based LXCs it's a standard `apt-get install docker.io docker-compose-plugin` (or Docker's official convenience script) away.
 *   **A small LXC disk fills up fast from Docker build cache.** Rebuilding the frontend/backend images repeatedly (each `docker compose up -d --build`) leaves behind dangling image layers and BuildKit cache, which grows unbounded and isn't reclaimed automatically. `docker/disk-cleanup.sh` (`docker builder prune -af`, `docker image prune -af`, `apt-get clean`, `journalctl --vacuum-time=7d`) runs weekly via a root crontab entry (`crontab -l` to view; `17 4 * * 0` — Sunday 4:17am, logs to `/var/log/disk-cleanup.log`) to keep this in check. Everything it removes is regenerable (build cache, package download cache, old log history) — safe to also run manually if `df -h /` looks tight before the next scheduled run.
 

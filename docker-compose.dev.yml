@@ -22,7 +22,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
-    command: npm run dev
+    command: pnpm run dev
     volumes:
       - ./backend/src:/app/src
 
@@ -30,7 +30,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
-    command: npx expo start --web --port 3000
+    command: pnpm exec expo start --web --port 3000
     environment:
       EXPO_PUBLIC_GRAPHQL_URL: ${EXPO_PUBLIC_GRAPHQL_URL}
       EXPO_PUBLIC_CODE_SERVER_URL: ${EXPO_PUBLIC_CODE_SERVER_URL}

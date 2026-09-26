@@ -6,10 +6,11 @@ ARG EXPO_PUBLIC_GRAPHQL_URL
 ENV EXPO_PUBLIC_GRAPHQL_URL=$EXPO_PUBLIC_GRAPHQL_URL
 ARG EXPO_PUBLIC_CODE_SERVER_URL
 ENV EXPO_PUBLIC_CODE_SERVER_URL=$EXPO_PUBLIC_CODE_SERVER_URL
-COPY package.json package-lock.json .npmrc ./
-RUN npm ci
+RUN npm install -g pnpm@11.0.9
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY . .
-RUN npx expo export -p web
+RUN pnpm exec expo export -p web
 
 FROM node:22-alpine
 WORKDIR /app

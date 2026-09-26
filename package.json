@@ -1,11 +1,12 @@
 {
   "name": "gpx-report",
   "private": true,
+  "packageManager": "pnpm@11.0.9",
   "version": "1.0.0",
   "scripts": {
     "prepare": "husky",
-    "lint": "npm run lint --prefix backend && npm run lint --prefix frontend",
-    "format": "npm run format --prefix backend && npm run format --prefix frontend"
+    "lint": "pnpm --dir backend lint && pnpm --dir frontend lint",
+    "format": "pnpm --dir backend format && pnpm --dir frontend format"
   },
   "devDependencies": {
     "husky": "^9.1.5",

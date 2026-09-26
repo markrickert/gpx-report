@@ -10,7 +10,7 @@
 //
 // Needs a Docker daemon reachable from the test runner (the Docker socket
 // mounted in) to start the container — see the "test:integration" script
-// and CLAUDE.md. Excluded from the default `npm test` run (vitest.config.ts)
+// and CLAUDE.md. Excluded from the default `pnpm test` run (vitest.config.ts)
 // for that reason.
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
