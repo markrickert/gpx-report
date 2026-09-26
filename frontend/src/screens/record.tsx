@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { LiveTrackMap } from "@/components/live-track-map";
 import { useActiveRecording } from "@/hooks/use-active-recording";
 import { useTheme } from "@/hooks/use-theme";
@@ -97,119 +98,122 @@ export function RecordScreen({ person }: { person: string | null }) {
   ];
 
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={styles.container}
-      contentInsetAdjustmentBehavior="automatic"
-    >
-      {Platform.OS === "web" && (
-        <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          Browser recording is foreground-only — keep this tab open and the screen on. Use the phone
-          app to record with the screen locked.
-        </Text>
-      )}
-      {!!error && <Text style={styles.error}>{error}</Text>}
-      {note && <Text style={[styles.hint, { color: colors.textSecondary }]}>{note}</Text>}
+    // The native safe area includes the tab bar, so sizing to it (instead of
+    // the scroll view's automatic inset) keeps the controls just above it.
+    <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView contentContainerStyle={styles.container} contentInsetAdjustmentBehavior="never">
+        {Platform.OS === "web" && (
+          <Text style={[styles.hint, { color: colors.textSecondary }]}>
+            Browser recording is foreground-only — keep this tab open and the screen on. Use the
+            phone app to record with the screen locked.
+          </Text>
+        )}
+        {!!error && <Text style={styles.error}>{error}</Text>}
+        {note && <Text style={[styles.hint, { color: colors.textSecondary }]}>{note}</Text>}
 
-      <View style={styles.tiles}>
-        {tiles.map((t) => (
-          <View key={t.label} style={[styles.tile, { backgroundColor: colors.backgroundElement }]}>
-            <Text style={[styles.tileValue, { color: colors.text }]} selectable>
-              {t.value}
-            </Text>
-            <Text style={[styles.tileLabel, { color: colors.textSecondary }]}>{t.label}</Text>
-          </View>
-        ))}
-      </View>
-
-      <LiveTrackMap points={points} follow={status === "recording"} style={styles.map} />
-      {points.length === 0 && (
-        <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          {status === "recording"
-            ? "Waiting for a GPS fix…"
-            : "Start recording to see your live track."}
-        </Text>
-      )}
-
-      {status === "stopped" && (
-        <View style={styles.form}>
-          <Text style={[styles.label, { color: colors.text }]}>Title</Text>
-          <TextInput
-            value={title}
-            onChangeText={setTitle}
-            placeholder={`Recorded ${new Date().toLocaleDateString()}`}
-            placeholderTextColor={colors.textSecondary}
-            style={[styles.input, { color: colors.text, borderColor: colors.backgroundSelected }]}
-          />
-          <Text style={[styles.label, { color: colors.text }]}>Activity type</Text>
-          <View style={styles.chips}>
-            {ACTIVITY_TYPES.map((t) => (
-              <Pressable
-                key={t}
-                onPress={() => setActivityType(t)}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: t === activityType ? "#2563eb" : colors.backgroundElement,
-                  },
-                ]}
-              >
-                <Text style={{ color: t === activityType ? "#fff" : colors.text }}>{t}</Text>
-              </Pressable>
-            ))}
-          </View>
+        <View style={styles.tiles}>
+          {tiles.map((t) => (
+            <View
+              key={t.label}
+              style={[styles.tile, { backgroundColor: colors.backgroundElement }]}
+            >
+              <Text style={[styles.tileValue, { color: colors.text }]} selectable>
+                {t.value}
+              </Text>
+              <Text style={[styles.tileLabel, { color: colors.textSecondary }]}>{t.label}</Text>
+            </View>
+          ))}
         </View>
-      )}
 
-      <View style={styles.controls}>
-        {status === "idle" && (
-          <Button label="Start" color="#16a34a" onPress={handleStart} disabled={busy} />
+        <LiveTrackMap points={points} follow={status === "recording"} style={styles.map} />
+        {points.length === 0 && (
+          <Text style={[styles.hint, { color: colors.textSecondary }]}>
+            {status === "recording"
+              ? "Waiting for a GPS fix…"
+              : "Start recording to see your live track."}
+          </Text>
         )}
-        {status === "recording" && recording && (
-          <>
-            <Button
-              label="Pause"
-              color="#d97706"
-              onPress={() => run(() => pauseRecording(recording))}
-              disabled={busy}
+
+        {status === "stopped" && (
+          <View style={styles.form}>
+            <Text style={[styles.label, { color: colors.text }]}>Title</Text>
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              placeholder={`Recorded ${new Date().toLocaleDateString()}`}
+              placeholderTextColor={colors.textSecondary}
+              style={[styles.input, { color: colors.text, borderColor: colors.backgroundSelected }]}
             />
-            <Button
-              label="Stop"
-              color="#dc2626"
-              onPress={() => run(() => stopRecording(recording))}
-              disabled={busy}
-            />
-          </>
+            <Text style={[styles.label, { color: colors.text }]}>Activity type</Text>
+            <View style={styles.chips}>
+              {ACTIVITY_TYPES.map((t) => (
+                <Pressable
+                  key={t}
+                  onPress={() => setActivityType(t)}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: t === activityType ? "#2563eb" : colors.backgroundElement,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: t === activityType ? "#fff" : colors.text }}>{t}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
         )}
-        {status === "paused" && recording && (
-          <>
-            <Button
-              label="Resume"
-              color="#16a34a"
-              onPress={() => run(() => resumeRecording(recording))}
-              disabled={busy}
-            />
-            <Button
-              label="Stop"
-              color="#dc2626"
-              onPress={() => run(() => stopRecording(recording))}
-              disabled={busy}
-            />
-          </>
-        )}
-        {status === "stopped" && recording && (
-          <>
-            <Button label="Save" color="#16a34a" onPress={handleSave} disabled={busy} />
-            <Button
-              label="Discard"
-              color="#6b7280"
-              onPress={() => run(() => discardRecording(recording))}
-              disabled={busy}
-            />
-          </>
-        )}
-      </View>
-    </ScrollView>
+
+        <View style={styles.controls}>
+          {status === "idle" && (
+            <Button label="Start" color="#16a34a" onPress={handleStart} disabled={busy} />
+          )}
+          {status === "recording" && recording && (
+            <>
+              <Button
+                label="Pause"
+                color="#d97706"
+                onPress={() => run(() => pauseRecording(recording))}
+                disabled={busy}
+              />
+              <Button
+                label="Stop"
+                color="#dc2626"
+                onPress={() => run(() => stopRecording(recording))}
+                disabled={busy}
+              />
+            </>
+          )}
+          {status === "paused" && recording && (
+            <>
+              <Button
+                label="Resume"
+                color="#16a34a"
+                onPress={() => run(() => resumeRecording(recording))}
+                disabled={busy}
+              />
+              <Button
+                label="Stop"
+                color="#dc2626"
+                onPress={() => run(() => stopRecording(recording))}
+                disabled={busy}
+              />
+            </>
+          )}
+          {status === "stopped" && recording && (
+            <>
+              <Button label="Save" color="#16a34a" onPress={handleSave} disabled={busy} />
+              <Button
+                label="Discard"
+                color="#6b7280"
+                onPress={() => run(() => discardRecording(recording))}
+                disabled={busy}
+              />
+            </>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -240,14 +244,21 @@ function Button({
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, gap: 16, width: "100%", maxWidth: 800, alignSelf: "center" },
+  container: {
+    flexGrow: 1,
+    padding: 16,
+    gap: 16,
+    width: "100%",
+    maxWidth: 800,
+    alignSelf: "center",
+  },
   hint: { fontSize: 14 },
   error: { color: "#dc2626", fontSize: 14 },
   tiles: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   tile: { flexGrow: 1, flexBasis: "40%", padding: 12, borderRadius: 12, borderCurve: "continuous" },
   tileValue: { fontSize: 22, fontWeight: "600", fontVariant: ["tabular-nums"] },
   tileLabel: { fontSize: 13 },
-  map: { height: 360, borderRadius: 12, overflow: "hidden" },
+  map: { flex: 1, minHeight: 240, borderRadius: 12, overflow: "hidden" },
   form: { gap: 8 },
   label: { fontSize: 15, fontWeight: "600" },
   input: { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 16 },
