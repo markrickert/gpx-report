@@ -1,9 +1,11 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useQuery } from "@apollo/client";
 import { Stack } from "expo-router";
 import { LiveTrackMap } from "@/components/live-track-map";
 import { GET_ACTIVITY_SUMMARY } from "@/graphql/queries";
 import { useTheme } from "@/hooks/use-theme";
+import { apiOrigin } from "@/lib/apollo";
+import { DEFAULT_PERSON, usePerson } from "@/lib/person";
 import { formatDuration } from "@/utils/geo";
 import { formatDistance, formatElevation, formatSpeed, useUnits } from "@/utils/units";
 
@@ -12,6 +14,7 @@ import { formatDistance, formatElevation, formatSpeed, useUnits } from "@/utils/
 export function ActivitySummaryScreen({ id }: { id: string }) {
   const colors = useTheme();
   const { unit } = useUnits();
+  const person = usePerson() ?? DEFAULT_PERSON;
   const { data, error } = useQuery(GET_ACTIVITY_SUMMARY, { variables: { id } });
   const activity = data?.activity;
 
@@ -48,6 +51,13 @@ export function ActivitySummaryScreen({ id }: { id: string }) {
           </View>
         ))}
       </View>
+      <Pressable
+        accessibilityRole="link"
+        onPress={() => Linking.openURL(`${apiOrigin()}/${person}/activities/${id}`)}
+        style={({ pressed }) => [styles.button, { opacity: pressed ? 0.8 : 1 }]}
+      >
+        <Text style={styles.buttonText}>Edit on the web</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -60,4 +70,11 @@ const styles = StyleSheet.create({
   tile: { flexGrow: 1, flexBasis: "40%", padding: 12, borderRadius: 12, borderCurve: "continuous" },
   value: { fontSize: 20, fontWeight: "600", fontVariant: ["tabular-nums"] },
   meta: { fontSize: 13 },
+  button: {
+    backgroundColor: "#2563eb",
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  buttonText: { color: "#fff", fontSize: 18, fontWeight: "600" },
 });
