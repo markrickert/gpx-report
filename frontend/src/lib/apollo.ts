@@ -20,7 +20,7 @@ export function setGraphqlUrl(url: string) {
 
 /**
  * No X-GPX-Person header, so the server treats it as its default person.
- * Used where no person applies (web people picker, Code page).
+ * Used where no person applies (web people picker).
  */
 export const apolloClient = new ApolloClient({
   link: new HttpLink({ uri: () => getGraphqlUrl() }),

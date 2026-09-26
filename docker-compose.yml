@@ -34,16 +34,12 @@ services:
       - "4000:4000"
     volumes:
       - ./data/gpx:/gpx-files
-      # Shared with code-server's home volume so setCodeServerTheme can write
-      # its settings.json (theme toggle sync, see resolvers.js).
-      - code_server_data:/code-server-home
 
   frontend:
     build:
       context: ./frontend
       args:
         EXPO_PUBLIC_GRAPHQL_URL: ${EXPO_PUBLIC_GRAPHQL_URL}
-        EXPO_PUBLIC_CODE_SERVER_URL: ${EXPO_PUBLIC_CODE_SERVER_URL}
     container_name: gpx-report-frontend
     restart: unless-stopped
     mem_limit: 512m
@@ -52,27 +48,5 @@ services:
     ports:
       - "3000:3000"
 
-  code-server:
-    image: codercom/code-server:latest
-    container_name: gpx-report-code-server
-    restart: unless-stopped
-    user: "0:0" # repo bind mount is root-owned on the host; run as root so the
-    # editor (uid 1000 "coder" by default) can actually write/delete files.
-    # No built-in auth (--auth none): this container has full read/write
-    # access to the repo (and a shell) via the browser. Reachable via a
-    # Caddy site (gpx-report-code.example.com), same Tailscale-only
-    # trust boundary as the GraphQL API site. See
-    # docs/SETUP.md.
-    command: --auth none --bind-addr 0.0.0.0:8080 /opt/gpx-report
-    volumes:
-      - ./:/opt/gpx-report
-      # user: "0:0" means $HOME is /root, not the image's default
-      # /home/coder — mount here or code-server's user settings (extensions,
-      # workbench.colorTheme, ...) never actually persist across recreates.
-      - code_server_data:/root/.local
-    ports:
-      - "8443:8080"
-
 volumes:
   db_data:
-  code_server_data:

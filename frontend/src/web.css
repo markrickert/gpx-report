@@ -138,22 +138,6 @@ select {
   width: 100%;
 }
 
-.content-full {
-  padding: 0;
-  max-width: none;
-  margin: 0;
-  flex: 1;
-  display: flex;
-}
-
-.code-editor-frame {
-  display: block;
-  width: 100%;
-  border: none;
-  flex: 1;
-  background: var(--bg-elevated);
-}
-
 .activity-map {
   width: 100%;
   height: min(400px, 60vh);

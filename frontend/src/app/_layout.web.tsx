@@ -22,17 +22,13 @@ const PERSON_NAV = [
 
 function Shell() {
   const pathname = usePathname();
-  // Pages outside /<person>/ (the picker, Code) keep linking to whoever was
-  // viewed last.
+  // Pages outside /<person>/ (the picker) keep linking to whoever was viewed
+  // last.
   const { person: routePerson } = useGlobalSearchParams<{ person?: string }>();
   const [lastPerson, setLastPerson] = useState(DEFAULT_PERSON);
   if (routePerson && routePerson !== lastPerson) setLastPerson(routePerson);
   const person = routePerson ?? lastPerson;
-  const nav = [
-    ...PERSON_NAV.map(({ path, label }) => ({ href: `/${person}${path}`, label })),
-    { href: "/code", label: "Code" },
-  ];
-  const isCode = pathname === "/code";
+  const nav = PERSON_NAV.map(({ path, label }) => ({ href: `/${person}${path}`, label }));
   const { unit, setUnit } = useUnits();
   const { theme, toggleTheme } = useTheme();
   useUploadQueueTriggers();
@@ -58,7 +54,7 @@ function Shell() {
           {theme === "dark" ? "☀️" : "🌙"}
         </button>
       </nav>
-      <main className={isCode ? "content content-full" : "content"}>
+      <main className="content">
         <Slot />
       </main>
     </div>

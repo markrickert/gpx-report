@@ -8,16 +8,8 @@ import { readdir } from "node:fs/promises";
 export const DEFAULT_PERSON = process.env.DEFAULT_PERSON || "mark";
 
 // Names that would collide with web routes (/<person>/... sits beside
-// /stats, /code, etc.) or with writer.ts's _backups/ folders.
-const RESERVED = new Set([
-  "activities",
-  "record",
-  "settings",
-  "stats",
-  "heatmap",
-  "code",
-  "backups",
-]);
+// /stats, /heatmap, etc.) or with writer.ts's _backups/ folders.
+const RESERVED = new Set(["activities", "record", "settings", "stats", "heatmap", "backups"]);
 
 export function slugifyPerson(name) {
   if (typeof name !== "string") return null;

@@ -8,10 +8,10 @@
 # hot-reload dev setup: source is bind-mounted in, and each runs its dev
 # server (`tsx watch`, Expo's Metro web dev server) instead of the production
 # command, so edits under backend/src or frontend/src take effect without a
-# rebuild. `db`/`code-server` are untouched — dev containers talk
+# rebuild. `db` is untouched — dev containers talk
 # to the same live Postgres.
 #
-# The frontend dev server reads EXPO_PUBLIC_GRAPHQL_URL/EXPO_PUBLIC_CODE_SERVER_URL
+# The frontend dev server reads EXPO_PUBLIC_GRAPHQL_URL
 # from the container env when Metro bundles, not baked in at image build time
 # via the build arg like the production image — see `.env`.
 #
@@ -33,6 +33,5 @@ services:
     command: pnpm exec expo start --web --port 3000
     environment:
       EXPO_PUBLIC_GRAPHQL_URL: ${EXPO_PUBLIC_GRAPHQL_URL}
-      EXPO_PUBLIC_CODE_SERVER_URL: ${EXPO_PUBLIC_CODE_SERVER_URL}
     volumes:
       - ./frontend/src:/app/src
