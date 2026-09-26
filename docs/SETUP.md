@@ -4,7 +4,7 @@ Fastest path: `cp .env.example .env && docker compose up --build` (see "Running 
 
 ## Prerequisites
 
-*   **Docker & Docker Compose:** The primary way to run everything (Postgres/PostGIS, backend, web frontend, code-server) — see `docker-compose.yml` at the repo root.
+*   **Docker & Docker Compose:** The primary way to run everything (Postgres/PostGIS, backend, web frontend) — see `docker-compose.yml` at the repo root.
 *   **Node.js & pnpm:** Only needed for running the backend or frontend outside Docker (`tsx watch` / Expo dev server), and for building the phone app (Node 20+).
 *   **Git:** For version control.
 
@@ -15,7 +15,7 @@ There is no Python anywhere in this stack — GPX parsing is done in Node via th
 ```
 gpx-report/
 ├── .env.example
-├── docker-compose.yml       # db (postgis), backend, frontend, code-server services
+├── docker-compose.yml       # db (postgis), backend, frontend services
 ├── data/gpx/                # GPX drop directory, bind-mounted into backend
 ├── frontend/                 # Universal Expo app: iOS/Android recorder + web analysis UI
 │   ├── app.json              # Expo config (background location, SQLite plugins); app.config.ts adds the Google Maps key
@@ -97,7 +97,7 @@ Use this to iterate on the live LXC host without a production rebuild (~8–10 m
 
 How it works: `docker-compose.dev.yml` is an override file. It bind-mounts `./backend/src` and `./frontend/src` into the running containers and replaces their production command with `tsx watch src/index.ts` (backend, built from `backend/Dockerfile.dev` — a lightweight image with the full `pnpm install`, no `tsc` build step, since `tsx` runs the TypeScript source directly) and Expo's Metro web dev server via `pnpm exec expo start --web --port 3000` (frontend, built from `frontend/Dockerfile.dev` — a lightweight image that skips the `expo export` production stage entirely).
 
-The frontend dev server reads `EXPO_PUBLIC_GRAPHQL_URL`/`EXPO_PUBLIC_CODE_SERVER_URL` from the container environment when Metro bundles, rather than from the image build arg the production image bakes in — same values from `.env`, different mechanism.
+The frontend dev server reads `EXPO_PUBLIC_GRAPHQL_URL` from the container environment when Metro bundles, rather than from the image build arg the production image bakes in — same values from `.env`, different mechanism.
 
 This only activates when you pass both `-f` flags. A plain `docker compose up`/`up --build` is untouched and keeps using the production Dockerfiles.
 
@@ -146,18 +146,7 @@ The web frontend is a static bundle — `expo export` inlines `EXPO_PUBLIC_GRAPH
     Apollo Server doesn't do `Host`-header validation, so no header rewrite is needed. The phone app uses this same URL.
 *   **Any time `EXPO_PUBLIC_GRAPHQL_URL` changes, the frontend image must be rebuilt** (`docker compose up -d --build frontend`) — restarting the existing container alone won't pick up a new build arg, since it's compiled into the static JS, not read from the environment at runtime.
 
-## 7. Browser-Based Editing (code-server)
-
-`docker-compose.yml` includes a `code-server` service (`codercom/code-server`) — a full VS Code instance in the browser, with a terminal, bind-mounted read-write at the repo root (`./:/opt/gpx-report`).
-
-*   **Start it:** `docker compose up -d code-server`, then open `http://<server-ip>:8443` (or `http://localhost:8443` if you're on the same machine).
-*   **No login.** It's started with `--auth none`, so anyone who can reach it has a shell and write access to the whole repo — no password, no prompt. This is intentional: the domain (`gpx-report-code.example.com`, via a Caddy site same as §6) only resolves/routes within Tailscale on this deployment — there's no real public exposure, and it shares the same trust boundary as the unauthenticated Postgres port and GraphQL API. If this deployment ever becomes reachable from an untrusted network, set a real password instead (`PASSWORD=...` env var in place of `--auth none` in the `command:`) before relying on that assumption.
-*   **Editor state (extensions, settings) persists** in the `code_server_data` named volume, mounted at `/root/.local` (the container runs as `user: "0:0"`, so `$HOME` is `/root`, not the image's default `/home/coder`) — separate from the repo bind mount, so `docker compose down`/`up` doesn't lose installed extensions.
-*   Changes made through it land directly on the host filesystem (it's a bind mount, not a copy) — `git status` on the host will show them immediately, same as editing the files directly.
-*   **The web UI's "Code" tab (`frontend/src/screens/web/code-editor.tsx`) iframes `EXPO_PUBLIC_CODE_SERVER_URL`** (`https://gpx-report-code.example.com`, a Caddy site `reverse_proxy localhost:8443`, read from gitignored `.env` same as `EXPO_PUBLIC_GRAPHQL_URL` — see §6), baked in at frontend image build time. Changing it needs `docker compose up -d --build frontend`.
-*   **The Code tab follows the dashboard's light/dark toggle.** `code_server_data` is also mounted read-write into the `backend` container at `/code-server-home`; toggling the app's theme calls the `setCodeServerTheme` mutation (`resolvers.js`), which writes `workbench.colorTheme` into code-server's `settings.json`, and `code-editor.tsx` then reloads the iframe so the new theme takes effect.
-
-## 8. Testing
+## 7. Testing
 
 Unit tests (`backend/src/**/*.test.ts`, `frontend/src/**/*.test.{ts,tsx}`) run via `pnpm test` (Vitest) in each subproject — no live stack needed, see `.agents/docs/workflow.md`. `frontend/vitest.config.mts` resolves `.web.ts(x)` files first, the way Metro does for web, so recorder tests run against the in-memory `store.web.ts` rather than native SQLite.
 
@@ -168,7 +157,7 @@ A Playwright E2E smoke suite (`frontend/e2e/`, `frontend/playwright.config.ts`) 
 *   Runs with a single Playwright worker (`workers: 1` in `playwright.config.ts`) — several concurrent headless Chromium instances reliably crash each other on a small (4 CPU/4GB) host already running the full compose stack.
 *   Needs Node 20+ (this host's default `node` is 18) — see the Node version note in `.agents/docs/workflow.md` for backend/frontend unit tests; the same applies here.
 
-## 9. Deployment Notes (Proxmox LXC)
+## 8. Deployment Notes (Proxmox LXC)
 
 Running this in a Proxmox LXC container (as opposed to a full VM) has a couple of quirks worth knowing before you deploy:
 

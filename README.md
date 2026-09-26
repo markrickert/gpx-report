@@ -19,7 +19,7 @@ The goal is to create a private, self-hosted alternative to services like Strava
 *   **Data Ownership:** All your data is stored locally, giving you complete control.
 *   **Customizable Re-analysis:** Ability to trigger re-analysis of data from the settings page (e.g., last week, last month, all time).
 *   **Responsive UI:** Usable on both desktop and mobile — the dashboard is designed to be checked from a phone.
-*   **Dark/Light Mode:** Toggleable theme, synced to the embedded code-server editor as well.
+*   **Dark/Light Mode:** Toggleable theme.
 *   **Technology Stack:**
     *   Frontend: Expo + Expo Router (one codebase for iOS, Android, and web); web uses `react-leaflet` for maps and `recharts` for charts, native uses Apple Maps (iOS) / Google Maps (Android) via `expo-maps`
     *   Backend API: GraphQL (Apollo Server), plain Node/ESM, no ORM

@@ -112,12 +112,7 @@ This document details the features of gpx-report, and reflects what is actually 
 
 *   **km/miles Toggle:** A nav-bar toggle switches all distance/speed/elevation display between metric (km, km/h, m) and imperial (mi, mph, ft), backend by a React context persisted to `localStorage`. Defaults to imperial.
 
-## 8. Code Tab
-
-*   **Embedded Editor:** A nav tab iframes a `code-server` (browser VS Code) instance bind-mounted read-write at the repo root, for making and committing changes to gpx-report from the same UI. Reachable only within the deployment's Tailscale network — see `docs/SETUP.md` §7.
-*   **Theme sync:** Toggling the dashboard's light/dark mode also flips code-server's VS Code theme (`setCodeServerTheme` mutation writes `workbench.colorTheme` to its `settings.json`), and the iframe reloads to pick it up.
-
-## 9. Recording (Phone App + Web Record Page)
+## 8. Recording (Phone App + Web Record Page)
 
 *   **Phone app:** The iOS/Android build of `frontend/` has three tabs — History, Record, Settings. It's the primary way new activities are created.
 *   **Background recording:** Record uses `expo-location` background updates (`startLocationUpdatesAsync`, BestForNavigation, every ~5 m / 2 s), so recording continues with the screen locked. Android shows a foreground-service notification while recording. Each location batch is written straight to on-device SQLite by a module-scope TaskManager task, so a killed or relaunched JS runtime loses nothing.
@@ -128,7 +123,7 @@ This document details the features of gpx-report, and reflects what is actually 
 *   **Settings:** "Your name" (who this phone records as — recording is blocked until it's set; each recording keeps the name it was started with); server GraphQL URL (overrides the build-time default, since Tailscale hostnames can change), with a connection test; units; current location permission with a link to system settings.
 *   **Web Record page:** The same Record screen runs in the browser at `/<person>/record`, recording as that person, via `watchPositionAsync`. It's foreground-only (the tab must stay open with the screen on), keeps points in memory, and reports the first upload attempt's result right after Save.
 
-## 10. Accounts & Sharing
+## 9. Accounts & Sharing
 
 *   **Separate accounts, name only:** Each person has their own activities, dashboard, stats, PRs, streaks, and heatmap. There's no password — the phone sends the name from its Settings, the web uses the person in the URL, and Tailscale is the access boundary.
 *   **Per-person folders:** A person's files live in `data/gpx/<person>/`; files at the top of `data/gpx/` belong to the default person (`mark`). Creating the folder (or a first phone upload) adds a person.
@@ -136,7 +131,7 @@ This document details the features of gpx-report, and reflects what is actually 
 *   **"Did this with…":** On an activity they own, a person can tick others to share it with. A shared activity fully counts for the recipient — list, totals, PRs, streaks, heatmap — and shows "Shared by <owner>" on its detail page.
 *   **Recipient permissions:** A recipient can view a shared activity and remove it from their own activities ("Remove from my activities"), which leaves the file and the owner's copy untouched. Only the owner can edit, trim, clean, or delete it. Immich settings stay one shared config.
 
-## 11. Data Management
+## 10. Data Management
 
 *   **Self-Hosted:** All data is stored locally, ensuring user privacy and control.
 *   **Activity sources:** New activities come from the phone app's uploads (see above) or from files dropped manually into the monitored directory (`.gpx`, `.igc`, `.skiz`). Both go through the same directory-watch pipeline.

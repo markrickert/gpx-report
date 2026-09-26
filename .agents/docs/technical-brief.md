@@ -11,9 +11,9 @@
 
 ## Operating Model
 
-- The stack runs with Docker Compose on one Proxmox LXC host behind Caddy. It is reachable only inside Tailscale. The services are the database, the backend, the web frontend, and a browser-based code editor.
+- The stack runs with Docker Compose on one Proxmox LXC host behind a Pangolin reverse proxy. It is reachable only inside Tailscale. The services are the database, the backend, and the web frontend.
 - The production images contain the source code, and no source folder is mounted into them. A code change takes effect only after an image rebuild. A container restart keeps the old code.
-- The web frontend stores the API address and the code-editor address in its bundle when the image is built. A change to those addresses also needs a rebuild.
+- The web frontend stores the API address in its bundle when the image is built. A change to that address also needs a rebuild.
 - An optional development override mounts the source folders and runs the backend and the web frontend in watch mode.
 - The phone app reaches the server over Tailscale. The server address can be changed in the app settings without a new build.
 - An initialization script creates the schema only on a new database volume. There is no migration tool. For a schema change on a running deployment, apply the change manually, or rebuild the volume and then run reanalysis.
