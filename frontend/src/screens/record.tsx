@@ -16,8 +16,10 @@ import { ACTIVITY_TYPES } from "@/utils/activity-types";
 import { formatDuration, trackDistanceMeters } from "@/utils/geo";
 import { formatDistance, formatElevation, useUnits } from "@/utils/units";
 
-// `person` is who the recording belongs to: the phone's Settings name, or
-// the /<person>/ of the web page. Null blocks recording until it's set.
+/**
+ * `person` is who the recording belongs to: the phone's Settings name, or
+ * the /<person>/ of the web page. Null blocks recording until it's set.
+ */
 export function RecordScreen({ person }: { person: string | null }) {
   const colors = useTheme();
   const { unit } = useUnits();
@@ -106,7 +108,7 @@ export function RecordScreen({ person }: { person: string | null }) {
           app to record with the screen locked.
         </Text>
       )}
-      {error && <Text style={styles.error}>{error}</Text>}
+      {!!error && <Text style={styles.error}>{error}</Text>}
       {note && <Text style={[styles.hint, { color: colors.textSecondary }]}>{note}</Text>}
 
       <View style={styles.tiles}>
