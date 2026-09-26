@@ -5,7 +5,7 @@ This document details the features of gpx-report, and reflects what is actually 
 ## 1. Data Ingestion and Processing
 
 *   **Automatic Detection:** A `chokidar` file watcher (Node) monitors `GPX_FILES_DIRECTORY` for new `.gpx`, `.igc`, `.skiz` files, and fires for every pre-existing file on startup too.
-*   **GPX Parsing:** Uses the `gpxparser` npm package to extract track points, timestamps, and metadata from GPX files (not Python/`gpxpy` — this is a plain Node backend, see `CLAUDE.md`).
+*   **GPX Parsing:** Uses the `gpxparser` npm package to extract track points, timestamps, and metadata from GPX files (not Python/`gpxpy` — this is a plain Node backend, see `.agents/docs/technical-brief.md`).
 *   **IGC Parsing:** Paragliding flight-recorder logs (`.igc`) are parsed directly via regex against the fixed-width `B`-record/`HFDTE` format (no third-party IGC library) — see `backend/src/igc/parser.ts`.
 *   **Ski Tracks Parsing:** Ski-tracking exports from the Ski Tracks app (`.skiz`) are unzipped via `adm-zip` and their `Nodes.csv` payload parsed directly, with title/activity type regex-extracted from the bundled `Track.xml` — see `backend/src/skiz/parser.ts`.
 *   **Metric Calculation:** Computes key metrics for all formats:
@@ -114,7 +114,7 @@ This document details the features of gpx-report, and reflects what is actually 
 
 ## 8. Code Tab
 
-*   **Embedded Editor:** A nav tab iframes a `code-server` (browser VS Code) instance bind-mounted read-write at the repo root, for making and committing changes to gpx-report from the same UI. Reachable only within the deployment's Tailscale network — see `CLAUDE.md` deployment notes.
+*   **Embedded Editor:** A nav tab iframes a `code-server` (browser VS Code) instance bind-mounted read-write at the repo root, for making and committing changes to gpx-report from the same UI. Reachable only within the deployment's Tailscale network — see `docs/SETUP.md` §7.
 *   **Theme sync:** Toggling the dashboard's light/dark mode also flips code-server's VS Code theme (`setCodeServerTheme` mutation writes `workbench.colorTheme` to its `settings.json`), and the iframe reloads to pick it up.
 
 ## 9. Recording (Phone App + Web Record Page)

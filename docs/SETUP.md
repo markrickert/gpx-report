@@ -158,14 +158,14 @@ The web frontend is a static bundle — `expo export` inlines `EXPO_PUBLIC_GRAPH
 
 ## 8. Testing
 
-Unit tests (`backend/src/**/*.test.ts`, `frontend/src/**/*.test.{ts,tsx}`) run via `pnpm test` (Vitest) in each subproject — no live stack needed, see CLAUDE.md. `frontend/vitest.config.mts` resolves `.web.ts(x)` files first, the way Metro does for web, so recorder tests run against the in-memory `store.web.ts` rather than native SQLite.
+Unit tests (`backend/src/**/*.test.ts`, `frontend/src/**/*.test.{ts,tsx}`) run via `pnpm test` (Vitest) in each subproject — no live stack needed, see `.agents/docs/workflow.md`. `frontend/vitest.config.mts` resolves `.web.ts(x)` files first, the way Metro does for web, so recorder tests run against the in-memory `store.web.ts` rather than native SQLite.
 
 A Playwright E2E smoke suite (`frontend/e2e/`, `frontend/playwright.config.ts`) runs against the *actual running docker-compose stack* instead — `pnpm test:e2e` inside `frontend/`, with the stack already up (`docker compose up`). It's read-only for the real dataset (Dashboard load, opening a real activity, the Stats page) and creates/destroys its own disposable synthetic activity for the edit/trim/delete flow (dropped into and cleaned back out of the real `data/gpx/` — see `frontend/e2e/gpxFixture.ts`), so it's safe to run against a live deployment's real data. Every spec runs under both a desktop and a Chromium-based mobile-device emulation profile (`devices["Pixel 5"]` — not `devices["iPhone 13"]`/other WebKit-default profiles, since this host only has Chromium installed, not WebKit).
 
 *   `E2E_BASE_URL` (default `http://localhost:3000`) and `E2E_GRAPHQL_URL` (default `http://localhost:4000/graphql`) point the suite at a non-default host/port.
 *   `E2E_CHROMIUM_PATH` (default `/usr/bin/chromium`) points at a different browser binary — this suite deliberately uses an already-installed system Chromium via `launchOptions.executablePath` rather than `@playwright/test`'s own downloaded browsers, since a fresh `npx playwright install` needs a ~300MB download this host's network access can't always do (same reasoning as the TypeScript-conversion verification note in `docs/TODO.md`'s Done section).
 *   Runs with a single Playwright worker (`workers: 1` in `playwright.config.ts`) — several concurrent headless Chromium instances reliably crash each other on a small (4 CPU/4GB) host already running the full compose stack.
-*   Needs Node 20+ (this host's default `node` is 18) — see CLAUDE.md's Node version note for backend/frontend unit tests; the same applies here.
+*   Needs Node 20+ (this host's default `node` is 18) — see the Node version note in `.agents/docs/workflow.md` for backend/frontend unit tests; the same applies here.
 
 ## 9. Deployment Notes (Proxmox LXC)
 

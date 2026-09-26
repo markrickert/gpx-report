@@ -39,7 +39,7 @@ docker compose up --build
 - Phone app: build it from `frontend/` — see `docs/SETUP.md` §6.
 - Drop `.gpx`, `.igc`, or `.skiz` files into `data/gpx/` — they're picked up automatically and ingested.
 
-See `docs/SETUP.md` for full setup/deployment details, `CLAUDE.md` for architecture and dev workflow notes.
+See `docs/SETUP.md` for full setup/deployment details, `.agents/docs/` for architecture and dev workflow notes.
 
 ## Future Considerations
 
