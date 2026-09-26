@@ -1,22 +1,49 @@
 import { useEffect, useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Location from "expo-location";
-import { GET_SERVER_CHECK } from "@/graphql/queries";
 import { useTheme } from "@/hooks/use-theme";
-import { useApolloClient } from "@apollo/client";
 import { getGraphqlUrl, setGraphqlUrl } from "@/lib/apollo";
 import { getPerson, setPerson } from "@/lib/person";
 import { drainUploadQueue } from "@/recording/upload-queue";
 import { useUnits } from "@/utils/units";
 
+type ServerStatus =
+  | { state: "idle" }
+  | { state: "testing" }
+  | { state: "ok"; activities: number }
+  | { state: "error"; message: string };
+
+// Tests the typed URL with a plain request instead of the Apollo client:
+// saving a URL resets Apollo's store, which cancels any query in flight.
+async function testServer(url: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "{ activitySummary { totalActivities } }" }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const body = await res.json();
+    if (body.errors?.length) throw new Error(body.errors[0].message);
+    return body.data.activitySummary.totalActivities as number;
+  } catch (err) {
+    throw new Error(controller.signal.aborted ? "Timed out after 10 s" : (err as Error).message);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export function SettingsScreen() {
   const colors = useTheme();
   const { unit, setUnit } = useUnits();
-  const apolloClient = useApolloClient();
   const [url, setUrl] = useState(getGraphqlUrl);
+  const [savedUrl, setSavedUrl] = useState(getGraphqlUrl);
+  const [status, setStatus] = useState<ServerStatus>({ state: "idle" });
   const [name, setName] = useState(() => getPerson() ?? "");
   const [nameSaved, setNameSaved] = useState(false);
-  const [check, setCheck] = useState<string | null>(null);
   const [permission, setPermission] = useState<string>("…");
 
   useEffect(() => {
@@ -28,20 +55,25 @@ export function SettingsScreen() {
     );
   }, []);
 
-  async function saveAndTest() {
+  function saveUrl() {
     setGraphqlUrl(url);
-    setCheck("Checking…");
+    setUrl(getGraphqlUrl());
+    setSavedUrl(getGraphqlUrl());
+    void drainUploadQueue();
+  }
+
+  async function testAndSave() {
+    setStatus({ state: "testing" });
     try {
-      const { data } = await apolloClient.query({
-        query: GET_SERVER_CHECK,
-        fetchPolicy: "network-only",
-      });
-      setCheck(`Connected — ${data.activitySummary.totalActivities} activities on the server.`);
-      void drainUploadQueue();
+      const activities = await testServer(url.trim());
+      saveUrl();
+      setStatus({ state: "ok", activities });
     } catch (err) {
-      setCheck(`Couldn't connect: ${(err as Error).message}`);
+      setStatus({ state: "error", message: (err as Error).message });
     }
   }
+
+  const dirty = url.trim() !== savedUrl;
 
   const text = { color: colors.text };
   const secondary = { color: colors.textSecondary };
@@ -87,16 +119,42 @@ export function SettingsScreen() {
         </Text>
         <TextInput
           value={url}
-          onChangeText={setUrl}
+          onChangeText={(value) => {
+            setUrl(value);
+            setStatus({ state: "idle" });
+          }}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
           style={[styles.input, text, { borderColor: colors.backgroundSelected }]}
         />
-        <Pressable onPress={saveAndTest}>
-          <Text style={styles.link}>Save & test connection</Text>
+        <Pressable onPress={testAndSave} disabled={status.state === "testing"}>
+          <Text style={styles.link}>Test & save</Text>
         </Pressable>
-        {check && <Text style={[styles.meta, secondary]}>{check}</Text>}
+        {status.state === "idle" && dirty && (
+          <Text style={[styles.meta, styles.pending]}>Unsaved changes — not tested yet.</Text>
+        )}
+        {status.state === "testing" && <Text style={[styles.meta, secondary]}>Testing…</Text>}
+        {status.state === "ok" && (
+          <Text style={[styles.meta, styles.success]}>
+            {`✓ Connected and saved — ${status.activities} activities on the server.`}
+          </Text>
+        )}
+        {status.state === "error" && (
+          <>
+            <Text style={[styles.meta, styles.failure]}>
+              {`✗ Couldn't connect: ${status.message}. Not saved.`}
+            </Text>
+            <Pressable
+              onPress={() => {
+                saveUrl();
+                setStatus({ state: "idle" });
+              }}
+            >
+              <Text style={styles.link}>Save anyway</Text>
+            </Pressable>
+          </>
+        )}
       </View>
 
       <View style={[styles.section, { backgroundColor: colors.backgroundElement }]}>
@@ -128,4 +186,7 @@ const styles = StyleSheet.create({
   meta: { fontSize: 13 },
   input: { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 15 },
   link: { color: "#2563eb", fontSize: 15, fontWeight: "600" },
+  pending: { color: "#d97706" },
+  success: { color: "#16a34a" },
+  failure: { color: "#dc2626" },
 });

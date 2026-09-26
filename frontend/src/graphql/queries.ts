@@ -457,14 +457,6 @@ export const GET_ACTIVITY_SUMMARY = gql`
   }
 `;
 
-export const GET_SERVER_CHECK = gql`
-  query GetServerCheck {
-    activitySummary {
-      totalActivities
-    }
-  }
-`;
-
 export const GET_PEOPLE = gql`
   query GetPeople {
     people
