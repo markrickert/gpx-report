@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Location from "expo-location";
 import { useTheme } from "@/hooks/use-theme";
-import { getGraphqlUrl, setGraphqlUrl } from "@/lib/apollo";
+import { getGraphqlUrl, normalizeGraphqlUrl, setGraphqlUrl } from "@/lib/apollo";
 import { getPerson, setPerson } from "@/lib/person";
 import { drainUploadQueue } from "@/recording/upload-queue";
 import { useUnits } from "@/utils/units";
@@ -65,7 +65,7 @@ export function SettingsScreen() {
   async function testAndSave() {
     setStatus({ state: "testing" });
     try {
-      const activities = await testServer(url.trim());
+      const activities = await testServer(normalizeGraphqlUrl(url));
       saveUrl();
       setStatus({ state: "ok", activities });
     } catch (err) {
@@ -73,7 +73,7 @@ export function SettingsScreen() {
     }
   }
 
-  const dirty = url.trim() !== savedUrl;
+  const dirty = normalizeGraphqlUrl(url) !== savedUrl;
 
   const text = { color: colors.text };
   const secondary = { color: colors.textSecondary };

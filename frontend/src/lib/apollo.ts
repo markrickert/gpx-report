@@ -15,8 +15,16 @@ export function getGraphqlUrl(): string {
   return localStorage.getItem(SERVER_URL_KEY) || DEFAULT_URL;
 }
 
+/** Accepts a bare server address and adds the /graphql path it's missing. */
+export function normalizeGraphqlUrl(url: string): string {
+  const trimmed = url.trim().replace(/\/+$/, "");
+  if (!trimmed || /\/graphql$/.test(trimmed)) return trimmed;
+  return `${trimmed}/graphql`;
+}
+
 export function setGraphqlUrl(url: string) {
-  if (url.trim()) localStorage.setItem(SERVER_URL_KEY, url.trim());
+  url = normalizeGraphqlUrl(url);
+  if (url) localStorage.setItem(SERVER_URL_KEY, url);
   else localStorage.removeItem(SERVER_URL_KEY);
   for (const client of [apolloClient, ...clients.values()]) client.resetStore().catch(() => {});
 }
