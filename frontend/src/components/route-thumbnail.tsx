@@ -13,7 +13,7 @@ export function RouteThumbnail({ routeThumbnail }: { routeThumbnail?: number[][]
   const points = project(routeThumbnail);
 
   return (
-    <View style={[styles.box, { backgroundColor: colors.backgroundSelected }]}>
+    <View style={[styles.box, points && { backgroundColor: colors.backgroundSelected }]}>
       {points?.slice(1).map(([x2, y2], i) => {
         const [x1, y1] = points[i];
         // Overshoot by one stroke width so neighboring segments overlap at the joins.

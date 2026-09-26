@@ -8,7 +8,7 @@ import { useTheme } from "@/hooks/use-theme";
 import * as store from "@/recording/store";
 import { drainUploadQueue, retryNow } from "@/recording/upload-queue";
 import type { Recording } from "@/recording/types";
-import { formatDuration } from "@/utils/geo";
+import { activityTypeLabel } from "@/utils/activity-type-icons";
 import { formatDistance, useUnits } from "@/utils/units";
 
 type ServerActivity = {
@@ -18,8 +18,17 @@ type ServerActivity = {
   startTime: string;
   durationSeconds: number;
   distanceMeters: number;
+  locationName: string | null;
   routeThumbnail: number[][] | null;
+  mediaCount: number;
 };
+
+// Same "1h 23m" format as the web Dashboard list.
+function formatDuration(seconds: number) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
 
 export function HistoryScreen() {
   const colors = useTheme();
@@ -81,27 +90,44 @@ export function HistoryScreen() {
       keyExtractor={(a) => a.id}
       ListHeaderComponent={header}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      renderItem={({ item }) => (
-        <Link href={`/activities/${item.id}`} asChild>
-          <Pressable
-            style={StyleSheet.flatten([
-              styles.row,
-              styles.activityRow,
-              { backgroundColor: colors.backgroundElement },
-            ])}
-          >
-            <RouteThumbnail routeThumbnail={item.routeThumbnail} />
-            <View style={styles.activityText}>
-              <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
-              <Text style={[styles.meta, { color: colors.textSecondary }]}>
-                {item.activityType} · {new Date(item.startTime).toLocaleDateString()} ·{" "}
-                {formatDistance(item.distanceMeters, unit)} ·{" "}
-                {formatDuration(item.durationSeconds * 1000)}
-              </Text>
-            </View>
-          </Pressable>
-        </Link>
-      )}
+      renderItem={({ item }) => {
+        const unknown = item.activityType === "Unknown";
+        return (
+          <Link href={`/activities/${item.id}`} asChild>
+            <Pressable
+              style={StyleSheet.flatten([
+                styles.row,
+                styles.activityRow,
+                unknown
+                  ? { backgroundColor: colors.warningSoft, borderColor: colors.warning }
+                  : { backgroundColor: colors.backgroundElement, borderColor: colors.border },
+              ])}
+            >
+              <RouteThumbnail routeThumbnail={item.routeThumbnail} />
+              <View style={styles.activityText}>
+                <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
+                {unknown && (
+                  <Text style={[styles.badge, { backgroundColor: colors.warning }]}>
+                    Needs review
+                  </Text>
+                )}
+                <Text style={[styles.meta, { color: colors.textSecondary }]}>
+                  {[
+                    activityTypeLabel(item.activityType),
+                    new Date(item.startTime).toLocaleString(),
+                    formatDistance(item.distanceMeters, unit),
+                    formatDuration(item.durationSeconds),
+                    item.locationName,
+                    item.mediaCount > 0 && `📷 ${item.mediaCount}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" — ")}
+                </Text>
+              </View>
+            </Pressable>
+          </Link>
+        );
+      }}
     />
   );
 }
@@ -110,8 +136,18 @@ const styles = StyleSheet.create({
   list: { padding: 16, gap: 8 },
   header: { gap: 8, marginBottom: 8 },
   row: { padding: 12, borderRadius: 12, borderCurve: "continuous", gap: 4 },
-  activityRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  activityText: { flex: 1, gap: 4 },
+  activityRow: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1 },
+  activityText: { flex: 1, gap: 2 },
+  badge: {
+    alignSelf: "flex-start",
+    color: "white",
+    fontSize: 12,
+    fontWeight: "600",
+    paddingHorizontal: 8,
+    paddingVertical: 1,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
   title: { fontSize: 16, fontWeight: "600" },
   meta: { fontSize: 13 },
   link: { color: "#2563eb", fontSize: 14, fontWeight: "600" },
