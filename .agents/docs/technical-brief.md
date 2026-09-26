@@ -6,7 +6,7 @@
 - **Database**: Postgres with PostGIS.
 - **Frontend**: one Expo app with Expo Router. It builds the iOS and Android recorder and the web analysis app from the same codebase. A web-specific file variant replaces a screen on web.
 - **Web analysis pages** are plain DOM pages with Leaflet maps and Recharts charts. They run only on web and are not React Native components.
-- **Native screens** are React Native, with MapLibre maps.
+- **Native screens** are React Native. Their maps are Apple Maps on iOS and Google Maps on Android. Google Maps needs an API key, which stays out of git.
 - The Apollo cache is the only client state store.
 
 ## Operating Model

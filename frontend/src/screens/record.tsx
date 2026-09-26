@@ -122,9 +122,8 @@ export function RecordScreen({ person }: { person: string | null }) {
         ))}
       </View>
 
-      {points.length > 0 ? (
-        <LiveTrackMap points={points} follow={status === "recording"} style={styles.map} />
-      ) : (
+      <LiveTrackMap points={points} follow={status === "recording"} style={styles.map} />
+      {points.length === 0 && (
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
           {status === "recording"
             ? "Waiting for a GPS fix…"

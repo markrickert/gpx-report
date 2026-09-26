@@ -21,7 +21,7 @@ The goal is to create a private, self-hosted alternative to services like Strava
 *   **Responsive UI:** Usable on both desktop and mobile — the dashboard is designed to be checked from a phone.
 *   **Dark/Light Mode:** Toggleable theme, synced to the embedded code-server editor as well.
 *   **Technology Stack:**
-    *   Frontend: Expo + Expo Router (one codebase for iOS, Android, and web); web uses `react-leaflet` for maps and `recharts` for charts, native uses MapLibre
+    *   Frontend: Expo + Expo Router (one codebase for iOS, Android, and web); web uses `react-leaflet` for maps and `recharts` for charts, native uses Apple Maps (iOS) / Google Maps (Android) via `expo-maps`
     *   Backend API: GraphQL (Apollo Server), plain Node/ESM, no ORM
     *   Database: PostgreSQL with PostGIS
 *   **Self-Hosted:** Designed to run on your own infrastructure (e.g. a Debian/Proxmox host behind Caddy, reached over Tailscale).

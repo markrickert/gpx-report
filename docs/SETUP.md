@@ -18,7 +18,7 @@ gpx-report/
 ├── docker-compose.yml       # db (postgis), backend, frontend, code-server services
 ├── data/gpx/                # GPX drop directory, bind-mounted into backend
 ├── frontend/                 # Universal Expo app: iOS/Android recorder + web analysis UI
-│   ├── app.json              # Expo config (background location, MapLibre, SQLite plugins)
+│   ├── app.json              # Expo config (background location, SQLite plugins); app.config.ts adds the Google Maps key
 │   ├── public/index.html     # web SPA HTML template (theme script, manifest)
 │   ├── src/
 │   │   ├── app/              # Expo Router routes; *.web.tsx = web-only variant
@@ -120,12 +120,13 @@ Note: both the file watcher (on startup, when it sees every pre-existing file) a
 
 The same `frontend/` project builds a native recorder app. It records with `expo-location` background updates (the screen can be locked), stores every point in on-device SQLite, and uploads finished activities to this server's `saveRecordedActivity` mutation. The phone reaches the server over Tailscale — nothing is exposed publicly.
 
-1.  **Build a development build** (Expo Go can't do background location): from `frontend/`, `npx expo run:ios --device` / `npx expo run:android --device` with the phone plugged in, or `npx eas-cli@latest build --profile development` (see `frontend/eas.json`) and install the result. Store distribution is not set up yet.
-2.  **Install Tailscale on the phone** and join the same tailnet as the server.
-3.  **Set your name:** app → Settings → Your name → *Save name*. It decides whose folder your recordings upload into and whose activities History shows; recording is blocked until it's set.
-4.  **Point the app at the server:** app → Settings → Server → enter the GraphQL URL (e.g. `https://gpx-report-api.example.com/graphql`) → *Save & test connection*. This overrides the `EXPO_PUBLIC_GRAPHQL_URL` baked into the build, so a changed hostname doesn't need a rebuild. Plain `http://` URLs (e.g. a raw Tailscale IP) are allowed: `app.json` enables cleartext HTTP on both platforms.
-5.  **Grant location "Always"** (iOS) / "Allow all the time" (Android) when prompted. With only "While using", recording can stop once the phone locks; Settings shows the current grant and links to the system settings.
-6.  **Record:** Record tab → Start. Pause/Resume creates a new `<trkseg>`, so pause gaps aren't counted as distance. Stop → title + activity type → Save.
+1.  **Android only: add a Google Maps key.** Create an API key with the Maps SDK for Android enabled, restricted to the `me.markrickert.gpxreport` package and your signing SHA-1, and put it in `frontend/.env` as `GOOGLE_MAPS_API_KEY=...` (gitignored). Without it the Android map is blank. iOS uses Apple Maps and needs no key.
+2.  **Build a development build** (Expo Go can't do background location): from `frontend/`, `npx expo run:ios --device` / `npx expo run:android --device` with the phone plugged in, or `npx eas-cli@latest build --profile development` (see `frontend/eas.json`) and install the result. Store distribution is not set up yet.
+3.  **Install Tailscale on the phone** and join the same tailnet as the server.
+4.  **Set your name:** app → Settings → Your name → *Save name*. It decides whose folder your recordings upload into and whose activities History shows; recording is blocked until it's set.
+5.  **Point the app at the server:** app → Settings → Server → enter the GraphQL URL (e.g. `https://gpx-report-api.example.com/graphql`) → *Save & test connection*. This overrides the `EXPO_PUBLIC_GRAPHQL_URL` baked into the build, so a changed hostname doesn't need a rebuild. Plain `http://` URLs (e.g. a raw Tailscale IP) are allowed: `app.json` enables cleartext HTTP on both platforms.
+6.  **Grant location "Always"** (iOS) / "Allow all the time" (Android) when prompted. With only "While using", recording can stop once the phone locks; Settings shows the current grant and links to the system settings.
+7.  **Record:** Record tab → Start. Pause/Resume creates a new `<trkseg>`, so pause gaps aren't counted as distance. Stop → title + activity type → Save.
 
 **Offline uploads:** Save never needs the server. The recording goes into a local upload queue that retries on app start, on network change, when the app returns to the foreground, and once a minute while open, with exponential backoff (30s doubling, capped at 6h). History shows anything not yet uploaded, with its last error and a *Retry now* button. Each upload sends the recording's UUID as `clientId`, so the server writes `<person>/recorded-<uuid>.gpx` exactly once even if a retry follows a lost response.
 
