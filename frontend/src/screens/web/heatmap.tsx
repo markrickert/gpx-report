@@ -4,7 +4,6 @@ import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet.heat";
 import { GET_HEATMAP_POINTS, GET_RECENT_ACTIVITY_BOUNDS } from "@/graphql/queries";
-import { useTheme } from "@/utils/web-theme";
 
 // Low -> high elevation.
 const ELEVATION_BAND_COLORS = ["#2563eb", "#22c55e", "#f59e0b", "#ef4444"];
@@ -55,7 +54,6 @@ function HeatLayer({ points, gradient = DEFAULT_GRADIENT as Record<number, strin
 }
 
 export default function Heatmap() {
-  const { theme } = useTheme();
   const { data, loading, error } = useQuery(GET_HEATMAP_POINTS);
   const { data: recentBoundsData, loading: recentBoundsLoading } = useQuery(
     GET_RECENT_ACTIVITY_BOUNDS,
@@ -126,18 +124,10 @@ export default function Heatmap() {
         )}
       </div>
       <MapContainer bounds={bounds} boundsOptions={{ padding: [20, 20] }} className="heatmap-map">
-        {theme === "dark" ? (
-          <TileLayer
-            attribution='&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            subdomains="abcd"
-          />
-        ) : (
-          <TileLayer
-            attribution="&copy; OpenStreetMap contributors"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-        )}
+        <TileLayer
+          attribution="&copy; OpenStreetMap contributors"
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
         {byElevation ? (
           bands.map(
             (bandPoints, i) =>

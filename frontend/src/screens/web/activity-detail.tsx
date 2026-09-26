@@ -42,7 +42,6 @@ import {
   distanceUnitLabel,
   elevationUnitLabel,
 } from "@/utils/units";
-import { useTheme } from "@/utils/web-theme";
 import { ACTIVITY_TYPES } from "@/utils/activity-types";
 import { activityTypeIcon, activityTypeLabel } from "@/utils/activity-type-icons";
 import { apiOrigin } from "@/lib/apollo";
@@ -725,7 +724,6 @@ function TrimControls({ activity, pointCount, trimRange, onSaved }) {
 // editing, this supports .igc as well (igc/writer.js can drop B-records).
 function OutlierCleanup({ activity }) {
   const { unit } = useUnits();
-  const { theme } = useTheme();
   const { data, loading, error, refetch } = useQuery(GET_ACTIVITY_OUTLIER_DIFF, {
     variables: { id: activity.id },
   });
@@ -800,18 +798,10 @@ function OutlierCleanup({ activity }) {
           boundsOptions={{ padding: [20, 20] }}
           className="activity-map"
         >
-          {theme === "dark" ? (
-            <TileLayer
-              attribution='&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-              subdomains="abcd"
-            />
-          ) : (
-            <TileLayer
-              attribution="&copy; OpenStreetMap contributors"
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-          )}
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
           <Polyline positions={originalPositions} pathOptions={{ color: "#9ca3af", weight: 2 }} />
           <Polyline positions={cleanedPositions} pathOptions={{ color: "#2563eb", weight: 3 }} />
           {outlierPositions.map((pos, i) => (
@@ -1367,7 +1357,6 @@ function SimilarActivitiesSection({ activity }) {
 export default function ActivityDetail() {
   const { id, person } = useLocalSearchParams<{ id: string; person: string }>();
   const { unit } = useUnits();
-  const { theme } = useTheme();
   const { data, loading, error, refetch } = useQuery(GET_ACTIVITY, { variables: { id } });
   const { data: recordsData } = useQuery(GET_PERSONAL_RECORDS);
   const [editMode, setEditMode] = useState(false);
@@ -1645,18 +1634,10 @@ export default function ActivityDetail() {
           boundsOptions={{ padding: [20, 20] }}
           className="activity-map"
         >
-          {theme === "dark" ? (
-            <TileLayer
-              attribution='&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-              subdomains="abcd"
-            />
-          ) : (
-            <TileLayer
-              attribution="&copy; OpenStreetMap contributors"
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-          )}
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
           {speedMapSegments.map((segment, i) => (
             <Polyline
               key={i}
