@@ -1,8 +1,8 @@
 import type { Recording, RecordingStatus, TrackPoint } from "./types";
 
-// Browser recording is foreground-only (the tab must stay open), so an
-// in-memory store is enough; expo-sqlite on web would need COOP/COEP headers
-// for its wasm build. Same exports as store.ts.
+// In-memory stand-in with the same exports as store.ts. The web app doesn't
+// record, so this only backs the Vitest suite, which resolves .web files
+// first (vitest.config.mts) and so never loads the native expo-sqlite build.
 const recordings = new Map<string, Recording>();
 const points: (TrackPoint & { id: number; recordingId: string })[] = [];
 let nextPointId = 1;

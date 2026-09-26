@@ -1,5 +1,4 @@
 import { randomUUID } from "expo-crypto";
-import { Platform } from "react-native";
 import * as store from "./store";
 import { requestLocationPermissions, startLocation, stopLocation } from "./location-source";
 import { drainUploadQueue } from "./upload-queue";
@@ -23,7 +22,7 @@ export async function startRecording(person: string) {
     if (rec) store.deleteRecording(rec.id);
     return { error: `Couldn't start GPS: ${(err as Error).message}` };
   }
-  return perms.background || Platform.OS === "web"
+  return perms.background
     ? {}
     : {
         warning:

@@ -6,7 +6,7 @@ The recorder records a GPS track and uploads it to the server. Recording continu
 
 ## Concepts
 
-- The recorder runs on the phone with background location. It also runs in a browser, where it records only while the tab is open.
+- The recorder runs only on the phone, with background location. The web app has no recorder, because a browser stops GPS updates when the tab is in the background or the screen locks.
 - Before recording starts, the person must set a name. The recorder stores the name when recording starts, so a later name change does not move a recording to a different person.
 - The recording states are: recording, paused, stopped, pending, uploaded, and failed.
 - Each resume starts a new track segment, so the time in a pause does not count as distance.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LiveTrackMap } from "@/components/live-track-map";
 import { useActiveRecording } from "@/hooks/use-active-recording";
@@ -78,10 +78,6 @@ export function RecordScreen({ person }: { person: string | null }) {
         setNote(
           "Uploaded. It'll show up in your activities once the server finishes processing it.",
         );
-      } else if (Platform.OS === "web") {
-        setError(
-          `Upload failed: ${saved?.lastError}. Keep this tab open — it retries automatically.`,
-        );
       } else {
         setNote(
           "Saved on this phone. It uploads automatically once the server is reachable — see History.",
@@ -102,12 +98,6 @@ export function RecordScreen({ person }: { person: string | null }) {
     // the scroll view's automatic inset) keeps the controls just above it.
     <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={styles.container} contentInsetAdjustmentBehavior="never">
-        {Platform.OS === "web" && (
-          <Text style={[styles.hint, { color: colors.textSecondary }]}>
-            Browser recording is foreground-only — keep this tab open and the screen on. Use the
-            phone app to record with the screen locked.
-          </Text>
-        )}
         {!!error && <Text style={styles.error}>{error}</Text>}
         {note && <Text style={[styles.hint, { color: colors.textSecondary }]}>{note}</Text>}
 

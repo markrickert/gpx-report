@@ -112,7 +112,7 @@ This document details the features of gpx-report, and reflects what is actually 
 
 *   **km/miles Toggle:** A nav-bar toggle switches all distance/speed/elevation display between metric (km, km/h, m) and imperial (mi, mph, ft), backend by a React context persisted to `localStorage`. Defaults to imperial.
 
-## 8. Recording (Phone App + Web Record Page)
+## 8. Recording (Phone App)
 
 *   **Phone app:** The iOS/Android build of `frontend/` has three tabs — History, Record, Settings — each with a native title bar. It's the primary way new activities are created.
 *   **Background recording:** Record uses `expo-location` background updates (`startLocationUpdatesAsync`, BestForNavigation, every ~5 m / 2 s), so recording continues with the screen locked. Android shows a foreground-service notification while recording. Each location batch is written straight to on-device SQLite by a module-scope TaskManager task, so a killed or relaunched JS runtime loses nothing.
@@ -121,7 +121,7 @@ This document details the features of gpx-report, and reflects what is actually 
 *   **Offline upload queue:** Saving never requires the server. Unsent recordings retry with exponential backoff on app start, network change, foreground, and a 1-minute timer. Each upload carries the recording's UUID as `clientId`, which the server uses as the filename (`recorded-<uuid>.gpx`, written with an exclusive-create flag) so retries are idempotent. The backend writes the file into the recorder's folder, `GPX_FILES_DIRECTORY/<person>/`, and the directory watcher ingests it through the normal `processFile()` pipeline.
 *   **History:** The phone's person's server activities, including ones shared with them (newest 50, pull to refresh, each with the same route-shape thumbnail as the web Dashboard) plus any local recordings still waiting to upload or failed, with the last error and a *Retry now* action. Tapping an activity opens a light summary (route map + distance/duration/elevation/moving speed); full analysis stays on the web UI.
 *   **Settings:** "Your name" (who this phone records as — recording is blocked until it's set; each recording keeps the name it was started with); server GraphQL URL (overrides the build-time default, since Tailscale hostnames can change), with a connection test; units; current location permission with a link to system settings.
-*   **Web Record page:** The same Record screen runs in the browser at `/<person>/record`, recording as that person, via `watchPositionAsync`. It's foreground-only (the tab must stay open with the screen on), keeps points in memory, and reports the first upload attempt's result right after Save.
+*   **No web recording:** The web app doesn't record — a browser stops delivering GPS once the tab is backgrounded or the screen locks. Recording is phone-only.
 
 ## 9. Accounts & Sharing
 

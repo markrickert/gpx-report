@@ -5,7 +5,6 @@ import { useState } from "react";
 import { ApolloProvider } from "@apollo/client";
 import { Slot, useGlobalSearchParams, usePathname } from "expo-router";
 import { Link } from "@/components/web-link";
-import { useUploadQueueTriggers } from "@/hooks/use-upload-queue-triggers";
 import { apolloClient } from "@/lib/apollo";
 import { DEFAULT_PERSON } from "@/lib/person";
 import { NotificationsProvider } from "@/utils/notifications";
@@ -15,7 +14,6 @@ import { ThemeProvider, useTheme } from "@/utils/web-theme";
 const PERSON_NAV = [
   { path: "", label: "Dashboard" },
   { path: "/heatmap", label: "Heatmap" },
-  { path: "/record", label: "Record" },
   { path: "/stats", label: "Stats" },
   { path: "/settings", label: "Settings" },
 ];
@@ -31,7 +29,6 @@ function Shell() {
   const nav = PERSON_NAV.map(({ path, label }) => ({ href: `/${person}${path}`, label }));
   const { unit, setUnit } = useUnits();
   const { theme, toggleTheme } = useTheme();
-  useUploadQueueTriggers();
 
   return (
     <div className="app-shell">
