@@ -15,7 +15,7 @@ type ServerStatus =
 
 // Tests the typed URL with a plain request instead of the Apollo client:
 // saving a URL resets Apollo's store, which cancels any query in flight.
-async function testServer(url: string) {
+export async function testServer(url: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {

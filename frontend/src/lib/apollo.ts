@@ -1,4 +1,5 @@
 import { ApolloClient, InMemoryCache, HttpLink } from "@apollo/client";
+import { useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 
 const SERVER_URL_KEY = "gpx-report-server-url";
@@ -22,10 +23,24 @@ export function normalizeGraphqlUrl(url: string): string {
   return `${trimmed}/graphql`;
 }
 
+const listeners = new Set<() => void>();
+
+/** Phone: whether a server URL has been saved, rather than the build default. */
+export function useHasSavedGraphqlUrl() {
+  return useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    () => localStorage.getItem(SERVER_URL_KEY) !== null,
+  );
+}
+
 export function setGraphqlUrl(url: string) {
   url = normalizeGraphqlUrl(url);
   if (url) localStorage.setItem(SERVER_URL_KEY, url);
   else localStorage.removeItem(SERVER_URL_KEY);
+  listeners.forEach((l) => l());
   for (const client of [apolloClient, ...clients.values()]) client.resetStore().catch(() => {});
 }
 
