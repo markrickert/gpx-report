@@ -82,7 +82,7 @@ export function getRecording(id: string): Recording | null {
   return row ? toRecording(row) : null;
 }
 
-// The one recording not yet handed to the upload queue, if any.
+/** The one recording not yet handed to the upload queue, if any. */
 export function getActiveRecording(): Recording | null {
   const row = db.getFirstSync(
     "SELECT * FROM recordings WHERE status IN ('recording', 'paused', 'stopped') ORDER BY started_at DESC LIMIT 1",
@@ -126,8 +126,10 @@ export function appendPoints(recordingId: string, points: TrackPoint[]) {
   });
 }
 
-// `afterId` lets the live Record screen fetch only points added since its
-// last poll instead of re-reading the whole track every second.
+/**
+ * `afterId` lets the live Record screen fetch only points added since its
+ * last poll instead of re-reading the whole track every second.
+ */
 export function getPoints(recordingId: string, afterId = 0): (TrackPoint & { id: number })[] {
   return db.getAllSync(
     "SELECT id, segment, lat, lon, elevation, timestamp FROM points WHERE recording_id = ? AND id > ? ORDER BY id",

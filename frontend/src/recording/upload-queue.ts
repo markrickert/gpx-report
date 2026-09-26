@@ -11,11 +11,13 @@ export function retryDelayMs(attempts: number) {
 
 let draining: Promise<void> | null = null;
 
-// Uploads every pending/failed recording whose backoff has elapsed. Safe to
-// call from anywhere (app start, network regained, app foregrounded, after a
-// save): concurrent calls share one run, and the recording id is sent as
-// clientId so a retry after a lost response never duplicates on the server.
-export function drainUploadQueue(now = Date.now()): Promise<void> {
+/**
+ * Uploads every pending/failed recording whose backoff has elapsed. Safe to
+ * call from anywhere (app start, network regained, app foregrounded, after a
+ * save): concurrent calls share one run, and the recording id is sent as
+ * clientId so a retry after a lost response never duplicates on the server.
+ */
+export function drainUploadQueue(now = Date.now()) {
   draining ??= drain(now).finally(() => {
     draining = null;
   });

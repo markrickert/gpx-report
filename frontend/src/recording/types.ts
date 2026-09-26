@@ -3,8 +3,10 @@ export type TrackPoint = {
   lon: number;
   elevation: number | null;
   timestamp: number;
-  // Incremented on every resume, so each pause/resume stretch becomes its
-  // own <trkseg> and the pause gap isn't counted as distance while recording.
+  /**
+   * Incremented on every resume, so each pause/resume stretch becomes its
+   * own <trkseg> and the pause gap isn't counted as distance while recording.
+   */
   segment: number;
 };
 
@@ -13,8 +15,10 @@ export type RecordingStatus =
 
 export type Recording = {
   id: string;
-  // Who recorded it, captured at Start so a later name change in Settings
-  // doesn't reassign an in-flight recording; sent as X-GPX-Person on upload.
+  /**
+   * Who recorded it, captured at Start so a later name change in Settings
+   * doesn't reassign an in-flight recording; sent as X-GPX-Person on upload.
+   */
   person: string;
   status: RecordingStatus;
   title: string | null;

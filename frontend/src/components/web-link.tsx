@@ -1,9 +1,11 @@
 import type { AnchorHTMLAttributes } from "react";
 import { router, type Href } from "expo-router";
 
-// Web-only drop-in for react-router's <Link to>: a real <a> (so web.css and
-// middle/cmd-click keep working) that does client-side navigation on a plain
-// left click.
+/**
+ * Web-only drop-in for react-router's <Link to>: a real <a> (so web.css and
+ * middle/cmd-click keep working) that does client-side navigation on a plain
+ * left click.
+ */
 export function Link({
   to,
   onClick,

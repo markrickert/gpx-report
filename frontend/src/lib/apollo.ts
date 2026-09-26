@@ -18,8 +18,10 @@ export function setGraphqlUrl(url: string) {
   for (const client of [apolloClient, ...clients.values()]) client.resetStore().catch(() => {});
 }
 
-// No X-GPX-Person header, so the server treats it as its default person.
-// Used where no person applies (web people picker, Code page).
+/**
+ * No X-GPX-Person header, so the server treats it as its default person.
+ * Used where no person applies (web people picker, Code page).
+ */
 export const apolloClient = new ApolloClient({
   link: new HttpLink({ uri: () => getGraphqlUrl() }),
   cache: new InMemoryCache(),
@@ -27,8 +29,10 @@ export const apolloClient = new ApolloClient({
 
 const clients = new Map<string, typeof apolloClient>();
 
-// One client per person, each sending X-GPX-Person, so one person's cached
-// activities lists never show up while viewing another's.
+/**
+ * One client per person, each sending X-GPX-Person, so one person's cached
+ * activities lists never show up while viewing another's.
+ */
 export function clientFor(person: string) {
   let client = clients.get(person);
   if (!client) {

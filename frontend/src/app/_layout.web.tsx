@@ -12,7 +12,6 @@ import { NotificationsProvider } from "@/utils/notifications";
 import { UnitsProvider, useUnits } from "@/utils/units";
 import { ThemeProvider, useTheme } from "@/utils/web-theme";
 
-// Paths under /<person>/; Code is global.
 const PERSON_NAV = [
   { path: "", label: "Dashboard" },
   { path: "/heatmap", label: "Heatmap" },

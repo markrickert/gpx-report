@@ -10,9 +10,7 @@ import type { Recording } from "./types";
 // see the same recording; these functions are the only writers of `status`
 // before upload.
 
-export async function startRecording(
-  person: string,
-): Promise<{ error?: string; warning?: string }> {
+export async function startRecording(person: string) {
   const perms = await requestLocationPermissions();
   if (!perms.granted) {
     return { error: "Location permission was denied. Enable it in Settings to record." };
@@ -72,9 +70,11 @@ export function elapsedMs(rec: Recording, now = Date.now()) {
   );
 }
 
-// Hands the recording to the upload queue and resolves after the first
-// upload attempt. The GPX is built at upload time from the stored points, so
-// an offline save costs nothing extra; a failed attempt just stays queued.
+/**
+ * Hands the recording to the upload queue and resolves after the first
+ * upload attempt. The GPX is built at upload time from the stored points, so
+ * an offline save costs nothing extra; a failed attempt just stays queued.
+ */
 export async function finishRecording(rec: Recording, title: string, activityType: string) {
   store.updateRecording(rec.id, {
     status: "pending",
