@@ -1,7 +1,7 @@
 import "leaflet/dist/leaflet.css";
 import "@/web.css";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApolloProvider } from "@apollo/client";
 import { Slot, useGlobalSearchParams, usePathname } from "expo-router";
 import { Link } from "@/components/web-link";
@@ -22,6 +22,10 @@ function Shell() {
   // The phone app shows activity pages in a WebView with ?embed=1, where its
   // own title bar replaces this nav. Read once so it survives in-page links.
   const [embedded] = useState(() => new URLSearchParams(window.location.search).has("embed"));
+  // Lets web.css hide page chrome the phone replaces (e.g. Previous/Next).
+  useEffect(() => {
+    if (embedded) document.documentElement.setAttribute("data-embedded", "");
+  }, [embedded]);
   const pathname = usePathname();
   // Pages outside /<person>/ (the picker) keep linking to whoever was viewed
   // last.

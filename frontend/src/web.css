@@ -1327,3 +1327,9 @@ select {
   font-size: 0.8rem;
   margin-top: 0.25rem;
 }
+
+/* In the phone app's WebView (?embed=1) the native back button handles
+   navigation, so the Previous/Next row is hidden. */
+:root[data-embedded] .activity-nav {
+  display: none;
+}
