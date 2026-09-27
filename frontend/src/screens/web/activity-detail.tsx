@@ -1907,7 +1907,7 @@ export default function ActivityDetail() {
                 xAxisId="idx"
                 x={trimStart}
                 y={elevationMid}
-                shape={TrimHandleShape}
+                shape={(props) => <TrimHandleShape {...props} />}
                 isFront
                 style={{ cursor: "ew-resize" }}
                 onMouseDown={() => setDragging("start")}
@@ -1934,7 +1934,7 @@ export default function ActivityDetail() {
                 xAxisId="idx"
                 x={trimEnd}
                 y={elevationMid}
-                shape={TrimHandleShape}
+                shape={(props) => <TrimHandleShape {...props} />}
                 isFront
                 style={{ cursor: "ew-resize" }}
                 onMouseDown={() => setDragging("end")}
