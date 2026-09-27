@@ -4,7 +4,7 @@ import { constants } from "node:fs";
 import { writeFile, mkdir, copyFile, rm, unlink, readFile, mkdtemp } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { pool } from "../db.js";
-import { backupFile, findOriginalBackup } from "../backup.js";
+import { backupFile, findOriginalBackup, sameTrackPoints } from "../backup.js";
 import {
   reanalyzeAll,
   reanalyzeByDateRange,
@@ -1200,8 +1200,16 @@ export const resolvers = {
   },
 
   Activity: {
-    originalSaved: async (parent) =>
-      (await findOriginalBackup(path.join(GPX_FILES_DIRECTORY, parent.gpxFilename))) != null,
+    trackEdited: async (parent) => {
+      const filePath = path.join(GPX_FILES_DIRECTORY, parent.gpxFilename);
+      const original = await findOriginalBackup(filePath);
+      if (!original) return false;
+      const [before, after] = await Promise.all([
+        parseActivityFile(original, filePath),
+        parseActivityFile(filePath),
+      ]);
+      return !sameTrackPoints(before.points, after.points);
+    },
 
     sharedWith: async (parent) => {
       const { rows } = await pool.query(

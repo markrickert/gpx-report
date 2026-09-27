@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, writeFile, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { backupFile, findOriginalBackup } from "./backup.js";
+import { backupFile, findOriginalBackup, sameTrackPoints } from "./backup.js";
 
 describe("backupFile", () => {
   let dir;
@@ -67,5 +67,21 @@ describe("findOriginalBackup", () => {
 
     const original = await findOriginalBackup(filePath);
     expect(await readFile(original, "utf-8")).toBe("v1");
+  });
+});
+
+describe("sameTrackPoints", () => {
+  const point = (lat, elevation = 100, timestamp = 0) => ({ lat, lon: -105, elevation, timestamp });
+
+  it("matches identical points", () => {
+    expect(sameTrackPoints([point(39), point(39.1)], [point(39), point(39.1)])).toBe(true);
+  });
+
+  it("differs after a trim", () => {
+    expect(sameTrackPoints([point(39), point(39.1)], [point(39.1)])).toBe(false);
+  });
+
+  it("differs after an elevation fix", () => {
+    expect(sameTrackPoints([point(39), point(39.1)], [point(39), point(39.1, 90)])).toBe(false);
   });
 });

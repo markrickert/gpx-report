@@ -1338,8 +1338,9 @@ function SharingSection({ activity }) {
 // requires the same window.confirm guard used by the other destructive
 // action on this page (OutlierCleanup's "Clean & Save"). For a share
 // recipient the same mutation only removes them from the share.
-// Shown once the source file has been edited: the server keeps the file as
-// first uploaded (backend/src/backup.ts), and this puts it back.
+// Shown once the track itself has been edited (trim, cleanup, elevation fix),
+// not for title or type edits: the server keeps the file as first uploaded
+// (backend/src/backup.ts), and this puts it back.
 function RestoreOriginal({ activity, onRestored }) {
   const [restore, { loading }] = useMutation(RESTORE_ACTIVITY_ORIGINAL);
   const [error, setError] = useState(null);
@@ -1364,7 +1365,7 @@ function RestoreOriginal({ activity, onRestored }) {
   return (
     <div className="trim-controls">
       <p className="chart-hint">
-        This activity has been edited. The original file is saved on the server.
+        The track has been edited. The original file is saved on the server.
       </p>
       <button onClick={handleRestore} disabled={loading}>
         {loading ? "Restoring…" : "Restore original"}
@@ -2015,7 +2016,7 @@ export default function ActivityDetail() {
         />
       )}
 
-      {isOwner && activity.originalSaved && !trimActive && (
+      {isOwner && activity.trackEdited && !trimActive && (
         <RestoreOriginal activity={activity} onRestored={refetch} />
       )}
 

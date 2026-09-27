@@ -557,12 +557,27 @@ describe("original file", () => {
     processFile.mockReset();
   });
 
-  it("reports originalSaved only once the file has a backup", async () => {
+  it("reports trackEdited only once the points change, not for a title edit", async () => {
+    const gpx = (name, points) =>
+      `<?xml version="1.0"?><gpx version="1.1" creator="test"><trk><name>${name}</name><trkseg>${points
+        .map(([lat, lon]) => `<trkpt lat="${lat}" lon="${lon}"><ele>100</ele></trkpt>`)
+        .join("")}</trkseg></trk></gpx>`;
     const filePath = path.join(dir(), "fresh.gpx");
-    writeFileSync(filePath, "v1");
-    expect(await resolvers.Activity.originalSaved({ gpxFilename: "fresh.gpx" })).toBe(false);
+    const points = [
+      [39.0, -105.0],
+      [39.001, -105.001],
+      [39.002, -105.002],
+    ];
+    writeFileSync(filePath, gpx("Walk", points));
+    expect(await resolvers.Activity.trackEdited({ gpxFilename: "fresh.gpx" })).toBe(false);
+
     await backupFile(filePath);
-    expect(await resolvers.Activity.originalSaved({ gpxFilename: "fresh.gpx" })).toBe(true);
+    writeFileSync(filePath, gpx("Renamed walk", points));
+    expect(await resolvers.Activity.trackEdited({ gpxFilename: "fresh.gpx" })).toBe(false);
+
+    await backupFile(filePath);
+    writeFileSync(filePath, gpx("Renamed walk", points.slice(1)));
+    expect(await resolvers.Activity.trackEdited({ gpxFilename: "fresh.gpx" })).toBe(true);
   });
 
   it("restores the first version after two edits and backs up the current one first", async () => {

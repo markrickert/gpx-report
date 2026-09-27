@@ -42,7 +42,7 @@ export const GET_ACTIVITY = gql`
     activity(id: $id) {
       id
       gpxFilename
-      originalSaved
+      trackEdited
       owner
       sharedWith
       title

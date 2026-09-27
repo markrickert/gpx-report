@@ -14,8 +14,10 @@ function toLineStringWkt(points) {
   return `LINESTRING(${coords})`;
 }
 
-export function parseActivityFile(filePath) {
-  const lower = filePath.toLowerCase();
+// `formatPath` picks the parser when filePath's own name doesn't say, as for
+// a _backups/ copy ending in .bak.
+export function parseActivityFile(filePath, formatPath = filePath) {
+  const lower = formatPath.toLowerCase();
   if (lower.endsWith(".igc")) return parseIgcFile(filePath);
   if (lower.endsWith(".skiz")) return parseSkizFile(filePath);
   return parseGpxFile(filePath);

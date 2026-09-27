@@ -33,8 +33,8 @@ export const typeDefs = `#graphql
     suggestedActivityTypes: [String!]!
     mediaCount: Int!
     media: [ActivityMedia!]!
-    "True once the source file has been edited and its original is saved in _backups/."
-    originalSaved: Boolean!
+    "True once the track's points have been edited (trimmed, cleaned, or elevation-fixed) since the original saved in _backups/. Title and type edits don't count."
+    trackEdited: Boolean!
   }
 
   type ActivityMedia {

@@ -16,6 +16,7 @@ This domain covers the web analysis of activities and the edits that change an a
 - Title, activity type, and trim rewrite the source file. They work for GPX and Ski Tracks files, not for IGC files.
 - The database is the only storage for notes.
 - Before an edit rewrites a file, the edit keeps a backup copy of the original file beside it. Ingestion ignores these backup copies.
+- The page offers to restore the original only when the track's points differ from it (a trim, outlier cleanup, or elevation fix). Title and type edits keep a backup but do not show the offer.
 - Only the owner can edit an activity.
 
 ## Cleanup Tools

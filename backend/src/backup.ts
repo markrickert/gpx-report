@@ -47,3 +47,19 @@ export async function findOriginalBackup(filePath) {
     .sort();
   return backups.length ? path.join(backupsDir, backups[0]) : null;
 }
+
+// Whether two parsed tracks have the same points. Title and type edits
+// rewrite the file (and back it up) without touching the points, so this
+// tells those apart from a trim, outlier cleanup, or elevation fix.
+export function sameTrackPoints(a, b) {
+  return (
+    a.length === b.length &&
+    a.every(
+      (p, i) =>
+        p.lat === b[i].lat &&
+        p.lon === b[i].lon &&
+        p.elevation === b[i].elevation &&
+        p.timestamp === b[i].timestamp,
+    )
+  );
+}
