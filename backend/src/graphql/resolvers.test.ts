@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import AdmZip from "adm-zip";
 
 vi.mock("../db.js", () => ({ pool: { query: vi.fn(), connect: vi.fn() } }));
 vi.mock("../track/outliers.js", () => ({ detectOutliers: vi.fn() }));
@@ -610,5 +611,148 @@ describe("original file", () => {
     );
     expect(copies).toHaveLength(1);
     expect(readFileSync(path.join(dir(), "_backups", copies[0]), "utf-8")).toBe("keep me");
+  });
+});
+
+describe("importActivityFile", () => {
+  const { importActivityFile } = resolvers.Mutation;
+  const dir = () => process.env.GPX_FILES_DIRECTORY;
+  const b64 = (content: string | Buffer) => Buffer.from(content).toString("base64");
+  const gpx = (name: string, start = "2021-05-01T10:00:00Z", withTimes = true) => {
+    const t0 = Date.parse(start);
+    const pts = [0, 1, 2]
+      .map(
+        (i) =>
+          `<trkpt lat="${40 + i * 0.001}" lon="${-110 + i * 0.001}"><ele>${1000 + i}</ele>${
+            withTimes ? `<time>${new Date(t0 + i * 60_000).toISOString()}</time>` : ""
+          }</trkpt>`,
+      )
+      .join("");
+    return `<?xml version="1.0"?><gpx version="1.1" creator="test"><trk><name>${name}</name><trkseg>${pts}</trkseg></trk></gpx>`;
+  };
+  const leftoverTempDirs = () => readdirSync(tmpdir()).filter((d) => d.startsWith("gpx-import-"));
+
+  let tempDirsBefore: string[];
+  beforeEach(() => {
+    pool.query.mockReset();
+    processFile.mockReset();
+    tempDirsBefore = leftoverTempDirs();
+  });
+  afterEach(() => {
+    expect(leftoverTempDirs()).toEqual(tempDirsBefore);
+  });
+
+  // No existing activity at that start, then the row processFile created.
+  const freshImport = (id: number, title: string) =>
+    pool.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ id, title }] });
+
+  it("places a GPX in the person's folder under its cleaned name and processes it", async () => {
+    freshImport(11, "Garmin hike");
+    const result = await importActivityFile(
+      null,
+      { filename: "../Garmin hike?.gpx", contentBase64: b64(gpx("Garmin hike")) },
+      kristin,
+    );
+
+    expect(result).toEqual({ status: "IMPORTED", activityId: 11, title: "Garmin hike" });
+    const dest = path.join(dir(), "kristin", "Garmin hike_.gpx");
+    expect(readFileSync(dest, "utf-8")).toContain("Garmin hike");
+    expect(processFile).toHaveBeenCalledWith(dest);
+    expect(pool.query.mock.calls[0][1][0]).toBe("kristin");
+  });
+
+  it("imports a .skiz file", async () => {
+    const zip = new AdmZip();
+    zip.addFile("Track.xml", Buffer.from(`<track name="Powder" activity="skiing"></track>`));
+    zip.addFile(
+      "Nodes.csv",
+      Buffer.from(
+        ["1704067200,45.0,7.0,1000,0,0,5,5", "1704067260,45.001,7.0,1050,0,0,5,5"].join("\n"),
+      ),
+    );
+    freshImport(12, "Powder");
+    const result = await importActivityFile(
+      null,
+      { filename: "powder.skiz", contentBase64: zip.toBuffer().toString("base64") },
+      mark,
+    );
+    expect(result.status).toBe("IMPORTED");
+    expect(existsSync(path.join(dir(), "mark", "powder.skiz"))).toBe(true);
+  });
+
+  it("numbers a different file that has the same name", async () => {
+    freshImport(13, "First");
+    await importActivityFile(
+      null,
+      { filename: "activity.gpx", contentBase64: b64(gpx("First")) },
+      mark,
+    );
+    freshImport(14, "Second");
+    await importActivityFile(
+      null,
+      { filename: "activity.gpx", contentBase64: b64(gpx("Second", "2021-06-01T10:00:00Z")) },
+      mark,
+    );
+    expect(readFileSync(path.join(dir(), "mark", "activity-2.gpx"), "utf-8")).toContain("Second");
+  });
+
+  it.each([
+    ["notes.txt", "hello", /Not a GPX/],
+    ["empty.gpx", "", /empty/],
+    ["broken.gpx", "not xml at all", /Couldn't read/],
+    ["route.gpx", gpx("Planned route", undefined, false), /no timestamps/],
+  ])("rejects %s without writing anything", async (filename, content, reason) => {
+    const result: any = await importActivityFile(
+      null,
+      { filename, contentBase64: b64(content) },
+      mark,
+    );
+    expect(result.status).toBe("REJECTED");
+    expect(result.reason).toMatch(reason);
+    expect(existsSync(path.join(dir(), "mark", filename))).toBe(false);
+    expect(processFile).not.toHaveBeenCalled();
+  });
+
+  it("rejects a file over 20 MB", async () => {
+    const result = await importActivityFile(
+      null,
+      {
+        filename: "huge.gpx",
+        contentBase64: Buffer.alloc(20 * 1024 * 1024 + 1).toString("base64"),
+      },
+      mark,
+    );
+    expect(result).toEqual({ status: "REJECTED", reason: "The file is larger than 20 MB" });
+  });
+
+  it("reports DUPLICATE for another file of an activity you already have", async () => {
+    writeFileSync(path.join(dir(), "watch-export.gpx"), gpx("From my watch"));
+    pool.query.mockResolvedValueOnce({
+      rows: [{ id: 20, title: "From my watch", gpx_filename: "watch-export.gpx" }],
+    });
+    const result = await importActivityFile(
+      null,
+      { filename: "phone-export.gpx", contentBase64: b64(gpx("From my phone")) },
+      mark,
+    );
+    expect(result).toEqual({ status: "DUPLICATE", activityId: 20, title: "From my watch" });
+    expect(existsSync(path.join(dir(), "mark", "phone-export.gpx"))).toBe(false);
+    // Only this person's activities count as duplicates.
+    expect(pool.query.mock.calls[0][0]).toMatch(/owner = \$1/);
+  });
+
+  it("reports ALREADY_IMPORTED when the same bytes are already on the server", async () => {
+    const content = gpx("Same file");
+    writeFileSync(path.join(dir(), "same.gpx"), content);
+    pool.query.mockResolvedValueOnce({
+      rows: [{ id: 21, title: "Same file", gpx_filename: "same.gpx" }],
+    });
+    const result = await importActivityFile(
+      null,
+      { filename: "same.gpx", contentBase64: b64(content) },
+      mark,
+    );
+    expect(result).toEqual({ status: "ALREADY_IMPORTED", activityId: 21, title: "Same file" });
+    expect(processFile).not.toHaveBeenCalled();
   });
 });

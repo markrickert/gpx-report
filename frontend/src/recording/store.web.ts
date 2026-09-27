@@ -1,4 +1,4 @@
-import type { Recording, RecordingStatus, TrackPoint } from "./types";
+import type { ImportStatus, QueuedImport, Recording, RecordingStatus, TrackPoint } from "./types";
 
 // In-memory stand-in with the same exports as store.ts. The web app doesn't
 // record, so this only backs the Vitest suite, which resolves .web files
@@ -6,6 +6,7 @@ import type { Recording, RecordingStatus, TrackPoint } from "./types";
 const recordings = new Map<string, Recording>();
 const points: (TrackPoint & { id: number; recordingId: string })[] = [];
 let nextPointId = 1;
+const imports = new Map<string, QueuedImport>();
 
 export function createRecording(id: string, now: number, person: string) {
   recordings.set(id, {
@@ -62,4 +63,34 @@ export function deleteRecording(id: string) {
   recordings.delete(id);
   for (let i = points.length - 1; i >= 0; i--)
     if (points[i].recordingId === id) points.splice(i, 1);
+}
+
+export function createImport(
+  imp: Pick<QueuedImport, "id" | "person" | "name" | "localUri">,
+  now: number,
+) {
+  imports.set(imp.id, {
+    ...imp,
+    status: "pending",
+    createdAt: now,
+    uploadAttempts: 0,
+    nextAttemptAt: null,
+    lastError: null,
+  });
+}
+
+export function listImports(statuses: ImportStatus[]): QueuedImport[] {
+  return [...imports.values()]
+    .filter((i) => statuses.includes(i.status))
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map((i) => ({ ...i }));
+}
+
+export function updateImport(id: string, fields: Partial<Omit<QueuedImport, "id">>) {
+  const imp = imports.get(id);
+  if (imp) imports.set(id, { ...imp, ...fields });
+}
+
+export function deleteImport(id: string) {
+  imports.delete(id);
 }

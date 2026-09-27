@@ -34,3 +34,26 @@ export type Recording = {
   lastError: string | null;
   uploadedFilename: string | null;
 };
+
+export type ImportStatus = "pending" | "failed" | "rejected";
+
+/** A file picked for import, copied into the app so the queue survives restarts. */
+export type QueuedImport = {
+  id: string;
+  person: string;
+  name: string;
+  localUri: string;
+  status: ImportStatus;
+  createdAt: number;
+  uploadAttempts: number;
+  nextAttemptAt: number | null;
+  /** The network error for "failed", or the server's reason for "rejected". */
+  lastError: string | null;
+};
+
+export type ImportResult = {
+  status: "IMPORTED" | "ALREADY_IMPORTED" | "DUPLICATE" | "REJECTED";
+  activityId: string | null;
+  title: string | null;
+  reason: string | null;
+};

@@ -21,6 +21,7 @@ import { ACTIVITY_TYPES } from "@/utils/activity-types";
 import { activityTypeLabel } from "@/utils/activity-type-icons";
 import { downloadCsv } from "@/utils/csv";
 import { usePersonHref } from "@/lib/person";
+import { ImportFiles } from "@/screens/web/import-files";
 
 const PAGE_SIZE = 50;
 
@@ -360,6 +361,8 @@ export default function Dashboard() {
         />
         {loading && data && <span className="filter-loading">Searching…</span>}
       </div>
+
+      <ImportFiles onImported={refetch} />
 
       <div className="button-row">
         <button type="button" onClick={exportCsv} disabled={activities.length === 0}>

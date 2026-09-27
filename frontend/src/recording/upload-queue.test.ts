@@ -11,11 +11,16 @@ vi.mock("@/lib/apollo", () => {
   };
 });
 vi.mock("expo-crypto", () => ({ randomUUID: () => "unused" }));
+vi.mock("./import-files", () => ({
+  readBase64: vi.fn(async (uri: string) => `base64-of-${uri}`),
+  removeFile: vi.fn(),
+}));
 
 const { clientFor } = (await import("@/lib/apollo")) as any;
 const apolloClient = clientFor("kristin");
 const store = await import("./store");
-const { drainUploadQueue, retryDelayMs } = await import("./upload-queue");
+const { drainUploadQueue, retryDelayMs, takeImportResult } = await import("./upload-queue");
+const { removeFile } = (await import("./import-files")) as any;
 
 function pendingRecording(id: string, person = "kristin") {
   store.createRecording(id, 1_000, person);
@@ -98,5 +103,86 @@ describe("retryDelayMs", () => {
     expect(retryDelayMs(1)).toBe(30_000);
     expect(retryDelayMs(2)).toBe(60_000);
     expect(retryDelayMs(20)).toBe(6 * 60 * 60 * 1000);
+  });
+});
+
+describe("drainUploadQueue imports", () => {
+  const queue = (id: string, name = "hike.gpx") =>
+    store.createImport(
+      { id, person: "kristin", name, localUri: `file:///imports/${id}.gpx` },
+      5_000,
+    );
+
+  beforeEach(() => {
+    apolloClient.mutate.mockReset();
+    removeFile.mockReset();
+    for (const i of store.listImports(["pending", "failed", "rejected"])) store.deleteImport(i.id);
+  });
+
+  it("sends the file as base64 through the importer's client, then drops it from the queue", async () => {
+    queue("imp-1");
+    const result = { status: "IMPORTED", activityId: "42", title: "Morning Hike", reason: null };
+    apolloClient.mutate.mockResolvedValue({ data: { importActivityFile: result } });
+
+    await drainUploadQueue(10_000);
+
+    expect(apolloClient.mutate.mock.calls[0][0].variables).toEqual({
+      filename: "hike.gpx",
+      contentBase64: "base64-of-file:///imports/imp-1.gpx",
+    });
+    expect(store.listImports(["pending", "failed", "rejected"])).toEqual([]);
+    expect(removeFile).toHaveBeenCalledWith("file:///imports/imp-1.gpx");
+    expect(takeImportResult("imp-1")).toEqual(result);
+    expect(takeImportResult("imp-1")).toBeUndefined();
+  });
+
+  it("treats a duplicate as done", async () => {
+    queue("imp-2");
+    apolloClient.mutate.mockResolvedValue({
+      data: {
+        importActivityFile: { status: "DUPLICATE", activityId: "7", title: "Hike", reason: null },
+      },
+    });
+    await drainUploadQueue(10_000);
+    expect(store.listImports(["pending", "failed", "rejected"])).toEqual([]);
+  });
+
+  it("stops retrying a file the server refused", async () => {
+    queue("imp-3", "route.gpx");
+    apolloClient.mutate.mockResolvedValue({
+      data: {
+        importActivityFile: {
+          status: "REJECTED",
+          activityId: null,
+          title: null,
+          reason: "No timestamps",
+        },
+      },
+    });
+
+    await drainUploadQueue(10_000);
+    await drainUploadQueue(10_000_000);
+
+    expect(apolloClient.mutate).toHaveBeenCalledTimes(1);
+    expect(store.listImports(["rejected"])[0]).toMatchObject({
+      id: "imp-3",
+      lastError: "No timestamps",
+    });
+    expect(removeFile).toHaveBeenCalledWith("file:///imports/imp-3.gpx");
+  });
+
+  it("keeps the file and backs off when the server can't be reached", async () => {
+    queue("imp-4");
+    apolloClient.mutate.mockRejectedValue(new Error("Network request failed"));
+
+    await drainUploadQueue(10_000);
+
+    expect(store.listImports(["failed"])[0]).toMatchObject({
+      id: "imp-4",
+      uploadAttempts: 1,
+      nextAttemptAt: 10_000 + retryDelayMs(1),
+      lastError: "Network request failed",
+    });
+    expect(removeFile).not.toHaveBeenCalled();
   });
 });

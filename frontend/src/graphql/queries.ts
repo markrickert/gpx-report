@@ -260,6 +260,17 @@ export const GET_ACTIVITY_DATES = gql`
   }
 `;
 
+export const IMPORT_ACTIVITY_FILE = gql`
+  mutation ImportActivityFile($filename: String!, $contentBase64: String!) {
+    importActivityFile(filename: $filename, contentBase64: $contentBase64) {
+      status
+      activityId
+      title
+      reason
+    }
+  }
+`;
+
 export const SAVE_RECORDED_ACTIVITY = gql`
   mutation SaveRecordedActivity($gpxContent: String!, $clientId: String) {
     saveRecordedActivity(gpxContent: $gpxContent, clientId: $clientId) {

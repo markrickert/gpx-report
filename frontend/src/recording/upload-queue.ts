@@ -1,7 +1,9 @@
 import { clientFor } from "@/lib/apollo";
-import { SAVE_RECORDED_ACTIVITY } from "@/graphql/queries";
+import { IMPORT_ACTIVITY_FILE, SAVE_RECORDED_ACTIVITY } from "@/graphql/queries";
 import { buildGpxXml } from "./gpx";
+import { readBase64, removeFile } from "./import-files";
 import * as store from "./store";
+import type { ImportResult } from "./types";
 
 const MAX_RETRY_DELAY_MS = 6 * 60 * 60 * 1000;
 
@@ -10,6 +12,16 @@ export function retryDelayMs(attempts: number) {
 }
 
 let draining: Promise<void> | null = null;
+
+// Finished imports leave the queue right away; their outcome waits here until
+// History shows it in the import summary.
+const importResults = new Map<string, ImportResult>();
+
+export function takeImportResult(id: string) {
+  const result = importResults.get(id);
+  importResults.delete(id);
+  return result;
+}
 
 /**
  * Uploads every pending/failed recording whose backoff has elapsed. Safe to
@@ -56,7 +68,40 @@ async function drain(now: number) {
       });
     }
   }
-  for (const person of new Set(due.map((r) => r.person)))
+  const dueImports = store
+    .listImports(["pending", "failed"])
+    .filter((i) => i.nextAttemptAt == null || i.nextAttemptAt <= now);
+  for (const imp of dueImports) {
+    try {
+      const { data } = await clientFor(imp.person).mutate({
+        mutation: IMPORT_ACTIVITY_FILE,
+        variables: { filename: imp.name, contentBase64: await readBase64(imp.localUri) },
+      });
+      const result: ImportResult = data.importActivityFile;
+      importResults.set(imp.id, result);
+      // A refusal (not a track, no timestamps, too big) won't change on retry.
+      if (result.status === "REJECTED") {
+        store.updateImport(imp.id, {
+          status: "rejected",
+          lastError: result.reason,
+          nextAttemptAt: null,
+        });
+      } else {
+        store.deleteImport(imp.id);
+      }
+      removeFile(imp.localUri);
+    } catch (err) {
+      const attempts = imp.uploadAttempts + 1;
+      store.updateImport(imp.id, {
+        status: "failed",
+        uploadAttempts: attempts,
+        nextAttemptAt: now + retryDelayMs(attempts),
+        lastError: (err as Error).message,
+      });
+    }
+  }
+
+  for (const person of new Set([...due, ...dueImports].map((r) => r.person)))
     clientFor(person)
       .refetchQueries({ include: "active" })
       .catch(() => {});
@@ -64,5 +109,6 @@ async function drain(now: number) {
 
 export function retryNow(id: string) {
   store.updateRecording(id, { nextAttemptAt: null });
+  store.updateImport(id, { nextAttemptAt: null });
   return drainUploadQueue();
 }

@@ -148,6 +148,14 @@ export const typeDefs = `#graphql
     filename: String!
   }
 
+  "IMPORTED, ALREADY_IMPORTED (same bytes are already on the server), DUPLICATE (another file with the same start), or REJECTED."
+  type ImportActivityFileResult {
+    status: String!
+    activityId: ID
+    title: String
+    reason: String
+  }
+
   type OutlierSummary {
     activityId: ID!
     title: String!
@@ -246,6 +254,7 @@ export const typeDefs = `#graphql
     trimActivity(id: ID!, startIndex: Int!, endIndex: Int!): Activity!
     restoreActivityOriginal(id: ID!): Activity!
     saveRecordedActivity(gpxContent: String!, clientId: String): SaveRecordedActivityResult!
+    importActivityFile(filename: String!, contentBase64: String!): ImportActivityFileResult!
     cleanActivityOutliers(id: ID!): Activity!
     fixActivityElevationSpikes(id: ID!): Activity!
     deleteActivity(id: ID!): Boolean!

@@ -1000,7 +1000,39 @@ select {
   margin-bottom: 1rem;
 }
 
-.button-row button {
+.import-files {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.import-results {
+  flex-basis: 100%;
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.9rem;
+}
+
+.import-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  font-size: 1.25rem;
+  color: #fff;
+  background: rgba(37, 99, 235, 0.85);
+  border: 4px dashed #fff;
+  pointer-events: none;
+}
+
+.button-row button,
+.import-files button {
   padding: 0.5rem 1rem;
   border: none;
   border-radius: 6px;
@@ -1009,11 +1041,13 @@ select {
   cursor: pointer;
 }
 
-.button-row button:hover:not(:disabled) {
+.button-row button:hover:not(:disabled),
+.import-files button:hover:not(:disabled) {
   background: var(--accent-hover);
 }
 
-.button-row button:disabled {
+.button-row button:disabled,
+.import-files button:disabled {
   background: var(--accent-disabled);
   cursor: not-allowed;
 }

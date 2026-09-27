@@ -1,5 +1,5 @@
 import * as SQLite from "expo-sqlite";
-import type { Recording, RecordingStatus, TrackPoint } from "./types";
+import type { ImportStatus, QueuedImport, Recording, RecordingStatus, TrackPoint } from "./types";
 
 // Opened synchronously at import so the background location task (which can
 // run headless on Android, before any screen mounts) can write points without
@@ -32,6 +32,17 @@ db.execSync(`
     timestamp INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS points_recording ON points (recording_id, id);
+  CREATE TABLE IF NOT EXISTS imports (
+    id TEXT PRIMARY KEY NOT NULL,
+    person TEXT NOT NULL,
+    name TEXT NOT NULL,
+    local_uri TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    upload_attempts INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at INTEGER,
+    last_error TEXT
+  );
 `);
 // Added after the first release; CREATE TABLE IF NOT EXISTS won't add it to
 // an existing install, and the ALTER throws once the column exists.
@@ -150,4 +161,67 @@ export function deleteRecording(id: string) {
     db.runSync("DELETE FROM points WHERE recording_id = ?", id);
     db.runSync("DELETE FROM recordings WHERE id = ?", id);
   });
+}
+
+const IMPORT_COLUMNS: Record<keyof Omit<QueuedImport, "id">, string> = {
+  person: "person",
+  name: "name",
+  localUri: "local_uri",
+  status: "status",
+  createdAt: "created_at",
+  uploadAttempts: "upload_attempts",
+  nextAttemptAt: "next_attempt_at",
+  lastError: "last_error",
+};
+
+function toImport(row: any): QueuedImport {
+  return {
+    id: row.id,
+    person: row.person,
+    name: row.name,
+    localUri: row.local_uri,
+    status: row.status,
+    createdAt: row.created_at,
+    uploadAttempts: row.upload_attempts,
+    nextAttemptAt: row.next_attempt_at,
+    lastError: row.last_error,
+  };
+}
+
+export function createImport(
+  imp: Pick<QueuedImport, "id" | "person" | "name" | "localUri">,
+  now: number,
+) {
+  db.runSync(
+    "INSERT INTO imports (id, person, name, local_uri, status, created_at) VALUES (?, ?, ?, ?, 'pending', ?)",
+    imp.id,
+    imp.person,
+    imp.name,
+    imp.localUri,
+    now,
+  );
+}
+
+export function listImports(statuses: ImportStatus[]): QueuedImport[] {
+  const placeholders = statuses.map(() => "?").join(", ");
+  return db
+    .getAllSync(
+      `SELECT * FROM imports WHERE status IN (${placeholders}) ORDER BY created_at`,
+      ...statuses,
+    )
+    .map(toImport);
+}
+
+export function updateImport(id: string, fields: Partial<Omit<QueuedImport, "id">>) {
+  const keys = Object.keys(fields) as (keyof typeof IMPORT_COLUMNS)[];
+  if (keys.length === 0) return;
+  db.runSync(
+    `UPDATE imports SET ${keys.map((k) => `${IMPORT_COLUMNS[k]} = ?`).join(", ")} WHERE id = ?`,
+    ...keys.map((k) => fields[k] ?? null),
+    id,
+  );
+}
+
+export function deleteImport(id: string) {
+  db.runSync("DELETE FROM imports WHERE id = ?", id);
 }

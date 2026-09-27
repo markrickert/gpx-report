@@ -1,6 +1,7 @@
 import path from "node:path";
 import os from "node:os";
-import { writeFile, mkdir, copyFile, rm, unlink } from "node:fs/promises";
+import { constants } from "node:fs";
+import { writeFile, mkdir, copyFile, rm, unlink, readFile, mkdtemp } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { pool } from "../db.js";
 import { backupFile, findOriginalBackup } from "../backup.js";
@@ -117,6 +118,41 @@ async function requireOwnedActivity(id, context) {
 // that writes an arbitrary client-submitted string to a file on disk, and a
 // client-controlled filename/path would be a traversal/overwrite risk.
 const MAX_RECORDED_GPX_BYTES = 10 * 1024 * 1024;
+
+// Files picked on the phone or dropped on the web Dashboard. Same formats the
+// watcher ingests (gpx/watcher.ts).
+const MAX_IMPORT_BYTES = 20 * 1024 * 1024;
+const IMPORT_EXTENSIONS = [".gpx", ".igc", ".skiz"];
+const DUPLICATE_START_WINDOW_MS = 60_000;
+
+// Keeps the picked name (the title and type guess can fall back to it) but
+// only characters that are safe in a path segment.
+function cleanImportName(filename) {
+  const ext = path.extname(filename).toLowerCase();
+  const stem = path
+    .basename(filename, path.extname(filename))
+    .replace(/[^A-Za-z0-9 ._()-]/g, "_")
+    .replace(/^[.\s]+/, "")
+    .slice(0, 120)
+    .trim();
+  return `${stem || "imported"}${ext}`;
+}
+
+// COPYFILE_EXCL never overwrites; a different file with the same name gets
+// -2, -3, ... instead.
+async function placeImport(tmpPath, dir, name) {
+  const ext = path.extname(name);
+  const stem = path.basename(name, ext);
+  for (let n = 1; ; n++) {
+    const candidate = n === 1 ? name : `${stem}-${n}${ext}`;
+    try {
+      await copyFile(tmpPath, path.join(dir, candidate), constants.COPYFILE_EXCL);
+      return candidate;
+    } catch (err) {
+      if (err.code !== "EEXIST") throw err;
+    }
+  }
+}
 
 // Heatmap points are sent to the browser as [lat, lon, elevation] triples
 // for every activity at once, so each route is capped/sampled rather than
@@ -962,6 +998,78 @@ export const resolvers = {
       // path as any synced file. The frontend polls for the resulting
       // activity rather than blocking on it.
       return { filename };
+    },
+
+    // Refusals are REJECTED results rather than errors, so the phone's queue
+    // knows not to retry them; a thrown error means "try again later".
+    importActivityFile: async (_parent, { filename, contentBase64 }, context) => {
+      const person = personOf(context);
+      const reject = (reason) => ({ status: "REJECTED", reason });
+
+      if (!IMPORT_EXTENSIONS.includes(path.extname(filename ?? "").toLowerCase())) {
+        return reject("Not a GPX, IGC, or SKIZ file");
+      }
+      const bytes = Buffer.from(contentBase64 ?? "", "base64");
+      if (bytes.length === 0) return reject("The file is empty");
+      if (bytes.length > MAX_IMPORT_BYTES) return reject("The file is larger than 20 MB");
+
+      const name = cleanImportName(filename);
+      const tmpDir = await mkdtemp(path.join(os.tmpdir(), "gpx-import-"));
+      try {
+        const tmpPath = path.join(tmpDir, name);
+        await writeFile(tmpPath, bytes);
+
+        let parsed;
+        try {
+          parsed = await parseActivityFile(tmpPath);
+        } catch {
+          return reject("Couldn't read this file as a GPS track");
+        }
+        if (!parsed?.startTime || !parsed?.endTime) {
+          return reject("This file has no timestamps, so it can't be an activity");
+        }
+
+        // Same bytes as the matching activity's file means this was already
+        // imported (including a retry after a lost response); different bytes
+        // with the same start is the same activity from another source.
+        const start = parsed.startTime.getTime();
+        const { rows: matches } = await pool.query(
+          `SELECT id, title, gpx_filename FROM activities
+           WHERE owner = $1 AND start_time BETWEEN $2 AND $3
+           ORDER BY abs(extract(epoch FROM start_time) - $4) LIMIT 1`,
+          [
+            person,
+            new Date(start - DUPLICATE_START_WINDOW_MS),
+            new Date(start + DUPLICATE_START_WINDOW_MS),
+            start / 1000,
+          ],
+        );
+        const match = matches[0];
+        if (match) {
+          const existing = await readFile(path.join(GPX_FILES_DIRECTORY, match.gpx_filename)).catch(
+            () => null,
+          );
+          const status = existing?.equals(bytes) ? "ALREADY_IMPORTED" : "DUPLICATE";
+          return { status, activityId: match.id, title: match.title };
+        }
+
+        const dir = path.join(GPX_FILES_DIRECTORY, person);
+        await mkdir(dir, { recursive: true });
+        const placed = await placeImport(tmpPath, dir, name);
+        await processFile(path.join(dir, placed));
+
+        const { rows } = await pool.query(
+          "SELECT id, title FROM activities WHERE gpx_filename = $1",
+          [`${person}/${placed}`],
+        );
+        return {
+          status: "IMPORTED",
+          activityId: rows[0]?.id,
+          title: rows[0]?.title ?? parsed.title,
+        };
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
     },
 
     cleanActivityOutliers: async (_parent, { id }, context) => {

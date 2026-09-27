@@ -5,9 +5,11 @@ import { Link, useFocusEffect } from "expo-router";
 import { RouteThumbnail } from "@/components/route-thumbnail";
 import { GET_DASHBOARD } from "@/graphql/queries";
 import { useTheme } from "@/hooks/use-theme";
+import { DEFAULT_PERSON, usePerson } from "@/lib/person";
+import { pickAndImport } from "@/recording/importer";
 import * as store from "@/recording/store";
 import { drainUploadQueue, retryNow } from "@/recording/upload-queue";
-import type { Recording } from "@/recording/types";
+import type { QueuedImport, Recording } from "@/recording/types";
 import { activityTypeLabel } from "@/utils/activity-type-icons";
 import { formatDistance, useUnits } from "@/utils/units";
 
@@ -36,12 +38,30 @@ export function HistoryScreen() {
   const { data, error, refetch } = useQuery(GET_DASHBOARD, { variables: { limit: 50 } });
   const [unsynced, setUnsynced] = useState<Recording[]>([]);
   const [uploaded, setUploaded] = useState<Recording[]>([]);
+  const [imports, setImports] = useState<QueuedImport[]>([]);
+  const [importing, setImporting] = useState(false);
+  const person = usePerson() ?? DEFAULT_PERSON;
   const [refreshing, setRefreshing] = useState(false);
 
   const loadUnsynced = useCallback(() => {
     setUnsynced(store.listRecordings(["pending", "failed"]));
     setUploaded(store.listRecordings(["uploaded"]));
+    setImports(store.listImports(["pending", "failed", "rejected"]));
   }, []);
+
+  async function importFiles() {
+    setImporting(true);
+    try {
+      const lines = await pickAndImport(person);
+      if (lines) Alert.alert("Import", lines.join("\n\n"));
+    } catch (err) {
+      Alert.alert("Import", `Couldn't import: ${(err as Error).message}`);
+    } finally {
+      setImporting(false);
+      loadUnsynced();
+      refetch().catch(() => {});
+    }
+  }
 
   // The server has the file (and backs up the original before any edit), so
   // the phone's copy is only a safety net until the user clears it.
@@ -81,6 +101,9 @@ export function HistoryScreen() {
 
   const header = (
     <View style={styles.header}>
+      <Pressable onPress={importFiles} disabled={importing}>
+        <Text style={styles.link}>{importing ? "Importing…" : "Import a file"}</Text>
+      </Pressable>
       {error && (
         <Text style={[styles.meta, { color: colors.textSecondary }]}>
           {`Can't reach the server (${error.message}). Recordings stay on this phone until it's back.`}
@@ -95,6 +118,33 @@ export function HistoryScreen() {
           {rec.status === "failed" && (
             <Pressable onPress={() => retryNow(rec.id).then(loadUnsynced)}>
               <Text style={styles.link}>Retry now</Text>
+            </Pressable>
+          )}
+        </View>
+      ))}
+      {imports.map((imp) => (
+        <View key={imp.id} style={[styles.row, { backgroundColor: colors.backgroundElement }]}>
+          <Text style={[styles.title, { color: colors.text }]}>{imp.name}</Text>
+          <Text style={[styles.meta, { color: colors.textSecondary }]}>
+            {imp.status === "pending"
+              ? "Waiting to upload"
+              : imp.status === "failed"
+                ? `Upload failed: ${imp.lastError}`
+                : `Couldn't import: ${imp.lastError}`}
+          </Text>
+          {imp.status === "failed" && (
+            <Pressable onPress={() => retryNow(imp.id).then(loadUnsynced)}>
+              <Text style={styles.link}>Retry now</Text>
+            </Pressable>
+          )}
+          {imp.status === "rejected" && (
+            <Pressable
+              onPress={() => {
+                store.deleteImport(imp.id);
+                loadUnsynced();
+              }}
+            >
+              <Text style={styles.link}>Dismiss</Text>
             </Pressable>
           )}
         </View>
