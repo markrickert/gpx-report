@@ -82,7 +82,7 @@ The repo-root `docker-compose.yml` already defines the `db` service (`postgis/po
 
 ### Hot-reload dev mode (in-Docker)
 
-Use this to iterate on the live LXC host without a production rebuild (~8–10 min for the frontend) after every edit.
+Use this to iterate on the deployment host without a production rebuild (~8–10 min for the frontend) after every edit.
 
 1.  Start dev mode:
     ```
@@ -102,7 +102,7 @@ This only activates when you pass both `-f` flags. A plain `docker compose up`/`
 
 ## 5. Data Ingestion Setup
 
-1.  **Configure GPX Directory:** `GPX_FILES_DIRECTORY` (backend env var) points at the directory to watch. In Docker Compose this is `/gpx-files` inside the container, bind-mounted from `./data/gpx` on the host. Each person's files go in their own subfolder (`data/gpx/kristin/`); files at the top level belong to the default person (`DEFAULT_PERSON` env var, default `mark`). A new subfolder is a new person — create it by hand or let their first phone upload create it. Keep folder names lowercase letters/digits/dashes, and don't use a web route name (`stats`, `heatmap`, `settings`, `record`, `activities`, `code`).
+1.  **Configure GPX Directory:** `GPX_FILES_DIRECTORY` (backend env var) points at the directory to watch. In Docker Compose this is `/gpx-files` inside the container, bind-mounted from `./data/gpx` on the host. Each person's files go in their own subfolder (`data/gpx/alex/`); files at the top level belong to the default person (`DEFAULT_PERSON` env var, default `mark`). A new subfolder is a new person — create it by hand or let their first phone upload create it. Keep folder names lowercase letters/digits/dashes, and don't use a web route name (`stats`, `heatmap`, `settings`, `record`, `activities`, `code`).
 2.  **How ingestion actually runs:** there's no separate script to invoke — `backend/src/index.ts` starts a `chokidar` watcher (`backend/src/gpx/watcher.ts`) on boot, which fires an `add` event for every pre-existing file and then keeps watching for new ones. Each file is parsed (`gpx/parser.js`) and upserted (`gpx/processor.js`) automatically; there's nothing to schedule or trigger manually beyond dropping a `.gpx` file into the directory.
 3.  **Re-analysis:** the `reanalyzeAllActivities` / `reanalyzeActivitiesByDateRange` GraphQL mutations (wired to the Settings page buttons) re-run the same parse+upsert pipeline over files that already have a matching `activities` row.
 
@@ -113,17 +113,17 @@ Note: both the file watcher (on startup, when it sees every pre-existing file) a
 *   **The limit:** Nominatim allows 1 request/sec and temporarily blocks an IP that exceeds it. `processFile()` resolves each activity's start point to a place name through it (`backend/src/geocoding.ts`).
 *   **How ingest stays under it:** the watcher replays an `add` event for every *pre-existing* file on each backend restart. `gpx/watcher.ts` gates live lookups on chokidar's `ready` event, so that replay always passes `{ skipGeocode: true }` and only files added after the initial scan trigger a lookup. `reverseGeocode()` also self-throttles (≥1.1s between any two outbound calls) as a second line of defense.
 *   **Backfill:** existing activities are backfilled by `backend/scripts/backfillLocationNames.js`, strictly sequential with a ~1.1s sleep. Never run it (or anything else hitting Nominatim) concurrently with itself or with a fresh backend restart's initial scan.
-*   **Why this matters:** before the `ready` gate existed, one container restart fired ~500 unthrottled requests in a few seconds. Nominatim answered with 429s and kept this deployment's IP rate-limited well after the app stopped calling it (a plain `curl` still got 429).
+*   **Why this matters:** before the `ready` gate existed, one container restart fired ~500 unthrottled requests in a few seconds. Nominatim answered with 429s and kept the server's IP rate-limited well after the app stopped calling it (a plain `curl` still got 429).
 
 ## 6. Recording From Your Phone (Mobile App)
 
-The same `frontend/` project builds a native recorder app. It records with `expo-location` background updates (the screen can be locked), stores every point in on-device SQLite, and uploads finished activities to this server's `saveRecordedActivity` mutation. The phone reaches the server over Tailscale — nothing is exposed publicly.
+The same `frontend/` project builds a native recorder app. It records with `expo-location` background updates (the screen can be locked), stores every point in on-device SQLite, and uploads finished activities to this server's `saveRecordedActivity` mutation. Keep the server on a private network (a VPN or your LAN) — nothing needs to be exposed publicly.
 
 1.  **Android only: add a Google Maps key.** Create an API key with the Maps SDK for Android enabled, restricted to the `me.markrickert.gpxreport` package and your signing SHA-1, and put it in `frontend/.env` as `GOOGLE_MAPS_API_KEY=...` (gitignored). Without it the Android map is blank. iOS uses Apple Maps and needs no key.
 2.  **Build a development build** (Expo Go can't do background location): from `frontend/`, `npx expo run:ios --device` / `npx expo run:android --device` with the phone plugged in, or `npx eas-cli@latest build --profile development` (see `frontend/eas.json`) and install the result. Store distribution is not set up yet.
-3.  **Install Tailscale on the phone** and join the same tailnet as the server.
+3.  **Put the phone on the server's network**, e.g. the same VPN as the server.
 4.  **Set your name:** the first launch shows a setup screen asking for your name and the server; the tabs stay hidden until both are set. Change the name later in Settings → Your name → *Save name*. It decides whose folder your recordings upload into and whose activities History shows.
-5.  **Point the app at the server:** on the setup screen (or later in Settings → Server), enter the GraphQL URL (e.g. `https://gpx-report.example.com/graphql`) → *Test & continue* (setup) or *Test & save* (Settings). The app checks the URL first and saves it only if the server answers; on failure it shows the error and offers *Continue anyway* / *Save anyway*. This overrides the `EXPO_PUBLIC_GRAPHQL_URL` baked into the build, so a changed hostname doesn't need a rebuild. Plain `http://` URLs (e.g. a raw Tailscale IP) are allowed: `app.json` enables cleartext HTTP on both platforms.
+5.  **Point the app at the server:** on the setup screen (or later in Settings → Server), enter the GraphQL URL (e.g. `https://gpx-report.example.com/graphql`) → *Test & continue* (setup) or *Test & save* (Settings). The app checks the URL first and saves it only if the server answers; on failure it shows the error and offers *Continue anyway* / *Save anyway*. This overrides the `EXPO_PUBLIC_GRAPHQL_URL` baked into the build, so a changed hostname doesn't need a rebuild. Plain `http://` URLs (e.g. a raw IP address) are allowed: `app.json` enables cleartext HTTP on both platforms.
 6.  **Grant location "Always"** (iOS) / "Allow all the time" (Android) when prompted. With only "While using", recording can stop once the phone locks; Settings shows the current grant and links to the system settings.
 7.  **Record:** Record tab → Start. Pause/Resume creates a new `<trkseg>`, so pause gaps aren't counted as distance. Stop → title + activity type → Save.
 
@@ -133,7 +133,7 @@ The same `frontend/` project builds a native recorder app. It records with `expo
 
 ### Exposing the App Through a Reverse Proxy
 
-One hostname serves everything: point a proxy at the frontend container's port 3000, and its Caddy routes `/graphql` and `/api/*` to the backend itself. On this deployment that's a Pangolin resource (HTTP target = the container's Tailscale IP, port 3000, SSO off so the phone app can reach the API). With Caddy instead:
+One hostname serves everything: point a proxy at the frontend container's port 3000, and its Caddy routes `/graphql` and `/api/*` to the backend itself. If the proxy has its own login or SSO, turn it off for this host so the phone app can reach the API. With Caddy:
 
 ```
 gpx-report.example.com {
@@ -147,22 +147,22 @@ The phone app uses `https://<that-host>/graphql` as its server URL.
 
 Unit tests (`backend/src/**/*.test.ts`, `frontend/src/**/*.test.{ts,tsx}`) run via `pnpm test` (Vitest) in each subproject — no live stack needed, see `.agents/docs/workflow.md`. `frontend/vitest.config.mts` resolves `.web.ts(x)` files first, the way Metro does for web, so recorder tests run against the in-memory `store.web.ts` rather than native SQLite.
 
-A Playwright E2E smoke suite (`frontend/e2e/`, `frontend/playwright.config.ts`) runs against the *actual running docker-compose stack* instead — `pnpm test:e2e` inside `frontend/`, with the stack already up (`docker compose up`). It's read-only for the real dataset (Dashboard load, opening a real activity, the Stats page) and creates/destroys its own disposable synthetic activity for the edit/trim/delete flow (dropped into and cleaned back out of the real `data/gpx/` — see `frontend/e2e/gpxFixture.ts`), so it's safe to run against a live deployment's real data. Every spec runs under both a desktop and a Chromium-based mobile-device emulation profile (`devices["Pixel 5"]` — not `devices["iPhone 13"]`/other WebKit-default profiles, since this host only has Chromium installed, not WebKit).
+A Playwright E2E smoke suite (`frontend/e2e/`, `frontend/playwright.config.ts`) runs against the *actual running docker-compose stack* instead — `pnpm test:e2e` inside `frontend/`, with the stack already up (`docker compose up`). It's read-only for the real dataset (Dashboard load, opening a real activity, the Stats page) and creates/destroys its own disposable synthetic activity for the edit/trim/delete flow (dropped into and cleaned back out of the real `data/gpx/` — see `frontend/e2e/gpxFixture.ts`), so it's safe to run against a live deployment's real data. Every spec runs under both a desktop and a Chromium-based mobile-device emulation profile (`devices["Pixel 5"]` — not `devices["iPhone 13"]`/other WebKit-default profiles, for hosts that have only Chromium installed, not WebKit).
 
 *   `E2E_BASE_URL` (default `http://localhost:3000`) and `E2E_GRAPHQL_URL` (default `http://localhost:4000/graphql`) point the suite at a non-default host/port.
-*   `E2E_CHROMIUM_PATH` (default `/usr/bin/chromium`) points at a different browser binary — this suite deliberately uses an already-installed system Chromium via `launchOptions.executablePath` rather than `@playwright/test`'s own downloaded browsers, since a fresh `npx playwright install` needs a ~300MB download this host's network access can't always do (same reasoning as the TypeScript-conversion verification note in `docs/TODO.md`'s Done section).
-*   Runs with a single Playwright worker (`workers: 1` in `playwright.config.ts`) — several concurrent headless Chromium instances reliably crash each other on a small (4 CPU/4GB) host already running the full compose stack.
-*   Needs Node 20+ (this host's default `node` is 18) — see the Node version note in `.agents/docs/workflow.md` for backend/frontend unit tests; the same applies here.
+*   `E2E_CHROMIUM_PATH` (default `/usr/bin/chromium`) points at a different browser binary — this suite deliberately uses an already-installed system Chromium via `launchOptions.executablePath` rather than `@playwright/test`'s own downloaded browsers, since a fresh `npx playwright install` needs a ~300MB download a restricted host can't always do (same reasoning as the TypeScript-conversion verification note in `docs/TODO.md`'s Done section).
+*   Runs with a single Playwright worker (`workers: 1` in `playwright.config.ts`) — several concurrent headless Chromium instances reliably crash each other on a small host already running the full compose stack.
+*   Needs Node 20+ — see the Node version note in `.agents/docs/workflow.md` for backend/frontend unit tests; the same applies here.
 
-## 8. Deployment Notes (Proxmox LXC)
+## 8. Deployment Notes
 
-Running this in a Proxmox LXC container (as opposed to a full VM) has a couple of quirks worth knowing before you deploy:
+A few things worth knowing before you deploy to a small Docker host:
 
-*   **Surviving a power cycle needs no extra systemd unit.** Every service in `docker-compose.yml` already has `restart: unless-stopped`. As long as the Docker daemon itself is enabled at the systemd level (`systemctl enable docker` — check with `systemctl is-enabled docker`), a reboot brings the daemon back up, and Docker restarts every container that wasn't manually `docker compose down`'d beforehand. No cron job, no custom `.service` file, no `@reboot` entry needed — this was verified working on the actual deployment host.
+*   **Surviving a power cycle needs no extra systemd unit.** Every service in `docker-compose.yml` already has `restart: unless-stopped`. As long as the Docker daemon itself is enabled at the systemd level (`systemctl enable docker` — check with `systemctl is-enabled docker`), a reboot brings the daemon back up, and Docker restarts every container that wasn't manually `docker compose down`'d beforehand. No cron job, no custom `.service` file, no `@reboot` entry needed.
 *   **`.env` isn't committed** (it's gitignored) — after cloning onto a fresh host, `cp .env.example .env` and replace the placeholder `POSTGRES_PASSWORD` with a real generated value (e.g. `openssl rand -hex 16`) before the first `docker compose up`. The example password is a placeholder, not something to run with.
 *   **The frontend image build is the slow step** — its multi-stage Dockerfile runs `pnpm install` and then `expo export -p web` for the production bundle. A first `docker compose up -d --build` on a fresh host can take 8–10 minutes total; don't assume a hung terminal is a stuck build.
-*   **Docker isn't guaranteed to be preinstalled on a fresh LXC** — check with `docker --version` before assuming it's there; on Debian-based LXCs it's a standard `apt-get install docker.io docker-compose-plugin` (or Docker's official convenience script) away.
-*   **A small LXC disk fills up fast from Docker build cache.** Rebuilding the frontend/backend images repeatedly (each `docker compose up -d --build`) leaves behind dangling image layers and BuildKit cache, which grows unbounded and isn't reclaimed automatically. `docker/disk-cleanup.sh` (`docker builder prune -af`, `docker image prune -af`, `apt-get clean`, `journalctl --vacuum-time=7d`) runs weekly via a root crontab entry (`crontab -l` to view; `17 4 * * 0` — Sunday 4:17am, logs to `/var/log/disk-cleanup.log`) to keep this in check. Everything it removes is regenerable (build cache, package download cache, old log history) — safe to also run manually if `df -h /` looks tight before the next scheduled run.
+*   **Docker isn't guaranteed to be preinstalled on a fresh host** — check with `docker --version` before assuming it's there; on Debian-based hosts it's a standard `apt-get install docker.io docker-compose-plugin` (or Docker's official convenience script) away.
+*   **A small disk fills up fast from Docker build cache.** Rebuilding the frontend/backend images repeatedly (each `docker compose up -d --build`) leaves behind dangling image layers and BuildKit cache, which grows unbounded and isn't reclaimed automatically. `docker/disk-cleanup.sh` (`docker builder prune -af`, `docker image prune -af`, `apt-get clean`, `journalctl --vacuum-time=7d`) can run weekly from a root crontab entry (e.g. `17 4 * * 0`, logging to `/var/log/disk-cleanup.log`) to keep this in check. Everything it removes is regenerable (build cache, package download cache, old log history) — safe to also run manually if `df -h /` looks tight before the next scheduled run.
 
 ## Running the Application
 

@@ -4,7 +4,7 @@ Operating rules for agents that work in this repository.
 
 ## Getting Code Changes Live
 
-`/opt/gpx-report` on the LXC host is the live deployment, not a development checkout. There is no separate deploy step. The default images have no source bind mount. Thus an edit on disk does not change the running code.
+The checkout on the deployment host is the live deployment, not a development checkout. There is no separate deploy step. The default images have no source bind mount. Thus an edit on disk does not change the running code.
 
 - **Backend** (`backend/src/**`): run `docker compose up -d --build backend`. Do not use `docker compose restart backend`, because it runs the old image and keeps stale code.
 - **Frontend** (`frontend/src/**`): run `docker compose up -d --build frontend`. The build takes about 8–10 minutes.
@@ -26,7 +26,7 @@ Operating rules for agents that work in this repository.
 
 ## Temporary Work
 
-- The `.mark` folder is globally gitignored. Use it for temporary files that must not be committed, such as branch context, private notes, plans, and task lists. Create it when it does not exist.
+- The `.mark` folder is gitignored. Use it for temporary files that must not be committed, such as branch context, private notes, plans, and task lists. Create it when it does not exist.
 
 ## Operating Rules
 
@@ -38,7 +38,7 @@ Operating rules for agents that work in this repository.
 - **Amend consecutive TODO-only commits.** When you add a `docs/TODO.md` item and the previous commit was also only a TODO addition (check `git show --stat HEAD`), amend that commit. Otherwise make a new commit.
 - **Yes/no confirmations use `AskUserQuestion`.** When a turn would end with a yes/no question, use `AskUserQuestion` with Yes/No options, because the user often answers from a phone. Use its multi-option form for other clarifications when useful.
 - **New backend logic ships with tests.** When you add or change a pure or near-pure `backend/src/**` module (parsers, writers, `track/*`, scalars, resolver-side computation), add or extend a Vitest `*.test.ts` file in the same commit. Follow the fixture-file and tmpdir conventions in `backend/src/gpx/writer.test.ts` and `backend/src/track/geo.test.ts`. Skip this for resolver or processor logic that cannot be separated from a live Postgres call; the integration suite and `docs/TODO.md`'s "Test coverage gaps" section cover those.
-- **Node version on the LXC host.** The host `node` is v18, and Vitest needs v20 or later. Run the backend tests there with `docker run --rm -v $(pwd)/backend:/app -w /app node:22 sh -c "npm install -g pnpm@11.0.9 && pnpm install --silent && pnpm test"`.
+- **Node version.** Vitest needs Node v20 or later. On a host with an older `node`, run the backend tests with `docker run --rm -v $(pwd)/backend:/app -w /app node:22 sh -c "npm install -g pnpm@11.0.9 && pnpm install --silent && pnpm test"`.
 
 ## Caveman Mode
 
