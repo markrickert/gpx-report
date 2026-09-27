@@ -4,6 +4,7 @@ import "@/recording/task";
 import { ApolloProvider } from "@apollo/client";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import { useColorScheme } from "react-native";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import { useTheme } from "@/hooks/use-theme";
 import { useUploadQueueTriggers } from "@/hooks/use-upload-queue-triggers";
 import { apolloClient, clientFor, useHasSavedGraphqlUrl } from "@/lib/apollo";
@@ -19,26 +20,28 @@ export default function RootLayout() {
   useUploadQueueTriggers();
 
   return (
-    <ApolloProvider client={person ? clientFor(person) : apolloClient}>
-      <UnitsProvider>
-        <ThemeProvider value={scheme === "dark" ? DarkTheme : DefaultTheme}>
-          {person && hasServer ? (
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="activities/[id]"
-                options={{
-                  title: "Activity",
-                  headerBackTitle: "Back",
-                  headerTintColor: colors.text,
-                }}
-              />
-            </Stack>
-          ) : (
-            <OnboardingScreen />
-          )}
-        </ThemeProvider>
-      </UnitsProvider>
-    </ApolloProvider>
+    <KeyboardProvider>
+      <ApolloProvider client={person ? clientFor(person) : apolloClient}>
+        <UnitsProvider>
+          <ThemeProvider value={scheme === "dark" ? DarkTheme : DefaultTheme}>
+            {person && hasServer ? (
+              <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="activities/[id]"
+                  options={{
+                    title: "Activity",
+                    headerBackTitle: "Back",
+                    headerTintColor: colors.text,
+                  }}
+                />
+              </Stack>
+            ) : (
+              <OnboardingScreen />
+            )}
+          </ThemeProvider>
+        </UnitsProvider>
+      </ApolloProvider>
+    </KeyboardProvider>
   );
 }

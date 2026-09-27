@@ -32,6 +32,18 @@ export function usePerson() {
   }, getPerson);
 }
 
+/**
+ * The name as the server stores it in `owner` and /<person>/ URLs: same as
+ * slugifyPerson in backend/src/people.ts, so "Mark" matches "mark".
+ */
+export function personSlug(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+}
+
 /** Web: prefixes an app path with the /<person>/ the current page is under. */
 export function usePersonHref() {
   const { person } = useLocalSearchParams<{ person: string }>();

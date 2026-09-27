@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { ActivityTypePicker } from "@/components/activity-type-picker";
 import { LiveTrackMap } from "@/components/live-track-map";
 import { useActiveRecording } from "@/hooks/use-active-recording";
 import { useTheme } from "@/hooks/use-theme";
@@ -14,7 +15,6 @@ import {
   stopRecording,
 } from "@/recording/recorder";
 import { suggestActivityTypes } from "@/recording/suggest-type";
-import { ACTIVITY_TYPES } from "@/utils/activity-types";
 import { formatDuration, trackDistanceMeters } from "@/utils/geo";
 import { formatDistance, formatElevation, useUnits } from "@/utils/units";
 
@@ -49,7 +49,6 @@ export function RecordScreen({ person }: { person: string | null }) {
   );
   const chosenType = activityType ?? suggestions[0] ?? "Unknown";
   const shownTitle = title ?? (recording ? defaultTitle(recording.startedAt, chosenType) : "");
-  const typeChoices = [...suggestions, ...ACTIVITY_TYPES.filter((t) => !suggestions.includes(t))];
 
   function resetForm() {
     setTitle(null);
@@ -156,25 +155,11 @@ export function RecordScreen({ person }: { person: string | null }) {
                 Outlined types are suggested from your speed and elevation.
               </Text>
             )}
-            <View style={styles.chips} accessibilityRole="radiogroup">
-              {typeChoices.map((t) => (
-                <Pressable
-                  key={t}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: t === chosenType }}
-                  onPress={() => setActivityType(t)}
-                  style={[
-                    styles.chip,
-                    {
-                      backgroundColor: t === chosenType ? "#2563eb" : colors.backgroundElement,
-                      borderColor: suggestions.includes(t) ? "#2563eb" : "transparent",
-                    },
-                  ]}
-                >
-                  <Text style={{ color: t === chosenType ? "#fff" : colors.text }}>{t}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <ActivityTypePicker
+              value={chosenType}
+              onChange={setActivityType}
+              suggestions={suggestions}
+            />
             <Text style={[styles.label, { color: colors.text }]}>Note</Text>
             <TextInput
               value={notes}
@@ -316,8 +301,6 @@ const styles = StyleSheet.create({
   label: { fontSize: 15, fontWeight: "600" },
   input: { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 16 },
   noteInput: { minHeight: 88, textAlignVertical: "top" },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1.5 },
   controls: { flexDirection: "row", gap: 12 },
   button: { flex: 1, paddingVertical: 16, borderRadius: 12, alignItems: "center" },
   buttonText: { color: "#fff", fontSize: 18, fontWeight: "600" },

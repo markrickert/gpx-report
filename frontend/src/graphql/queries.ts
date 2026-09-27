@@ -133,6 +133,20 @@ export const SEARCH_ACTIVITIES_FOR_COMPARE = gql`
   }
 `;
 
+// Just what the phone's "needs review" form edits, without the track.
+export const GET_ACTIVITY_REVIEW = gql`
+  query GetActivityReview($id: ID!) {
+    activity(id: $id) {
+      id
+      owner
+      title
+      activityType
+      notes
+      suggestedActivityTypes
+    }
+  }
+`;
+
 export const UPDATE_ACTIVITY_TITLE = gql`
   mutation UpdateActivityTitle($id: ID!, $title: String!) {
     updateActivityTitle(id: $id, title: $title) {
