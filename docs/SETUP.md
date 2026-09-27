@@ -129,6 +129,8 @@ The same `frontend/` project builds a native recorder app. It records with `expo
 
 **Offline uploads:** Save never needs the server. The recording goes into a local upload queue that retries on app start, on network change, when the app returns to the foreground, and once a minute while open, with exponential backoff (30s doubling, capped at 6h). History shows anything not yet uploaded, with its last error and a *Retry now* button. Each upload sends the recording's UUID as `clientId`, so the server writes `<person>/recorded-<uuid>.gpx` exactly once even if a retry follows a lost response.
 
+**Letting a coding agent drive the app:** development builds include [react-native-agent-jet](https://github.com/noahkurz/react-native-agent-jet), and the repository's `.mcp.json` registers its `jet` MCP server, so Claude Code can read the running app's screens, press, type, and navigate on the iOS Simulator or a plugged-in Android phone. The app connects to `ws://localhost:8765`; the server forwards that port to an Android phone over USB with `adb reverse`. Release builds leave it out.
+
 **Platform behavior worth knowing:** Android keeps recording via a foreground-service notification even if you swipe the app away. On iOS, swiping the app away from the app switcher stops location updates (an OS rule); being suspended or terminated by the system does not.
 
 ### Exposing the App Through a Reverse Proxy

@@ -1,0 +1,28 @@
+---
+name: agent-jet
+description: See and drive the running React Native / Expo app in the iOS Simulator or Android emulator through the jet MCP tools. Use whenever verifying a UI change in the real app, navigating its screens, reproducing a bug, or checking what the app renders, logs, or requests.
+---
+
+# Driving the app with react-native-agent-jet
+
+The `jet` MCP server is connected to the running app. Reach for it whenever you would otherwise guess from a screenshot.
+
+- Call `tree` once to see everything on screen: text, labels, testIDs, inputs and pressables. Use it instead of guessing from screenshots.
+- Prefer `press`, `type_text` and `navigate` with targets over coordinate taps.
+- After an action, call `tree` with `changesSince:true` to see only what changed (cheap), and `logs` for errors.
+- Use `interactive:true` on busy screens, and only ask for `frames:true` or `screenshot` when you need coordinates or a visual.
+- `screenshot` is half size by default (a quarter of the tokens; layout, not text). `target` crops to one element at full detail; `scale:1` when you must read rendered text. Its reply says how to convert coordinates for `tap`.
+- Real touches (`tap`, `swipe`, `press` with `via:"touch"`) take seconds on iOS and ~100ms on Android; `press` through React is instant.
+- `nav_state` gives the focused route path; `navigate` jumps to a screen by route name (React Navigation) or path (Expo Router) from anywhere.
+- `state` reads values the app exposes; `network` shows HTTP traffic; Fast Refresh applies JS edits, `reload` restarts the bundle.
+
+## Loop
+
+1. `status` — confirm an app is connected (and which platform).
+2. `tree` — read the current screen.
+3. Act: `press` / `type_text` / `navigate` with a target.
+4. `tree` with `changesSince:true` — confirm just what changed; `logs`/`network` if something looks wrong.
+
+## Targets
+
+A string matches a testID exactly, or text/label/placeholder/value by case-insensitive substring, or `#id` from the tree. An object narrows: `{ testID }`, `{ text, exact:true }`, `{ type:"TextInput", index:1 }`.

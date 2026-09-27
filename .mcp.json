@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "jet": {
+      "command": "node",
+      "args": ["frontend/node_modules/react-native-agent-jet/dist/host/mcp.js"]
+    }
+  }
+}

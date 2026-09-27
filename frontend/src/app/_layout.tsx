@@ -2,8 +2,16 @@ import "expo-sqlite/localStorage/install";
 import "@/recording/task";
 
 import { ApolloProvider } from "@apollo/client";
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
+import {
+  DarkTheme,
+  DefaultTheme,
+  router,
+  Stack,
+  ThemeProvider,
+  useNavigationContainerRef,
+} from "expo-router";
 import { useColorScheme } from "react-native";
+import { type ExpoRouterLike, useAgentJet } from "react-native-agent-jet";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { useTheme } from "@/hooks/use-theme";
 import { useUploadQueueTriggers } from "@/hooks/use-upload-queue-triggers";
@@ -18,6 +26,14 @@ export default function RootLayout() {
   const person = usePerson();
   const hasServer = useHasSavedGraphqlUrl();
   useUploadQueueTriggers();
+  const navigationRef = useNavigationContainerRef();
+  useAgentJet({
+    navigationRef,
+    router: router as ExpoRouterLike,
+    appName: "gpx-report",
+    // The default Android host (10.0.2.2) only reaches the Mac from an emulator; the MCP server's adb reverse makes localhost work on physical devices too.
+    url: "ws://localhost:8765",
+  });
 
   return (
     <KeyboardProvider>
