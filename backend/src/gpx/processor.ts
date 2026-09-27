@@ -85,8 +85,8 @@ export async function processFile(
       `INSERT INTO activities (
          gpx_filename, owner, title, activity_type, start_time, end_time, duration_seconds,
          distance_meters, avg_speed_mps, moving_avg_speed_mps, max_speed_mps, total_elevation_gain, total_elevation_loss, elevation_gain_excluding_lift_meters, location_name,
-         best_1km_seconds, best_5km_seconds, best_10km_seconds, avg_hr, max_hr, updated_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20, NOW())
+         best_1km_seconds, best_5km_seconds, best_10km_seconds, avg_hr, max_hr, notes, updated_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21, NOW())
        ON CONFLICT (gpx_filename) DO UPDATE SET
          owner = EXCLUDED.owner,
          title = EXCLUDED.title,
@@ -107,6 +107,7 @@ export async function processFile(
          best_10km_seconds = EXCLUDED.best_10km_seconds,
          avg_hr = EXCLUDED.avg_hr,
          max_hr = EXCLUDED.max_hr,
+         notes = COALESCE(activities.notes, EXCLUDED.notes),
          updated_at = NOW()
        RETURNING id`,
       [
@@ -130,6 +131,7 @@ export async function processFile(
         bestEfforts[10000],
         parsed.avgHr ?? null,
         parsed.maxHr ?? null,
+        parsed.description ?? null,
       ],
     );
     const activityId = activityResult.rows[0].id;

@@ -23,6 +23,8 @@ export type Recording = {
   status: RecordingStatus;
   title: string | null;
   activityType: string;
+  /** Sent as the GPX <trk><desc>, which the server reads into the activity's notes. */
+  note: string | null;
   startedAt: number;
   elapsedMs: number;
   segmentStartedAt: number | null;

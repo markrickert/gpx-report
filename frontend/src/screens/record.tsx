@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LiveTrackMap } from "@/components/live-track-map";
@@ -13,6 +13,7 @@ import {
   startRecording,
   stopRecording,
 } from "@/recording/recorder";
+import { suggestActivityTypes } from "@/recording/suggest-type";
 import { ACTIVITY_TYPES } from "@/utils/activity-types";
 import { formatDuration, trackDistanceMeters } from "@/utils/geo";
 import { formatDistance, formatElevation, useUnits } from "@/utils/units";
@@ -28,8 +29,11 @@ export function RecordScreen({ person }: { person: string | null }) {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [title, setTitle] = useState("");
-  const [activityType, setActivityType] = useState("Unknown");
+  // Null until the person edits them, so the title follows the chosen type
+  // and the type follows the suggestion.
+  const [title, setTitle] = useState<string | null>(null);
+  const [activityType, setActivityType] = useState<string | null>(null);
+  const [notes, setNotes] = useState("");
   const [now, setNow] = useState(() => Date.now());
 
   const status = recording?.status ?? "idle";
@@ -38,6 +42,20 @@ export function RecordScreen({ person }: { person: string | null }) {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [status]);
+
+  const suggestions = useMemo(
+    () => (status === "stopped" ? suggestActivityTypes(points).slice(0, 3) : []),
+    [status, points],
+  );
+  const chosenType = activityType ?? suggestions[0] ?? "Unknown";
+  const shownTitle = title ?? (recording ? defaultTitle(recording.startedAt, chosenType) : "");
+  const typeChoices = [...suggestions, ...ACTIVITY_TYPES.filter((t) => !suggestions.includes(t))];
+
+  function resetForm() {
+    setTitle(null);
+    setActivityType(null);
+    setNotes("");
+  }
 
   async function run(action: () => Promise<unknown> | unknown) {
     setBusy(true);
@@ -71,9 +89,8 @@ export function RecordScreen({ person }: { person: string | null }) {
         setError("Not enough GPS points recorded to save an activity.");
         return;
       }
-      const saved = await finishRecording(recording, title, activityType);
-      setTitle("");
-      setActivityType("Unknown");
+      const saved = await finishRecording(recording, shownTitle, chosenType, notes);
+      resetForm();
       if (saved?.status === "uploaded") {
         setNote(
           "Uploaded. It'll show up in your activities once the server finishes processing it.",
@@ -128,29 +145,49 @@ export function RecordScreen({ person }: { person: string | null }) {
           <View style={styles.form}>
             <Text style={[styles.label, { color: colors.text }]}>Title</Text>
             <TextInput
-              value={title}
+              value={shownTitle}
               onChangeText={setTitle}
-              placeholder={`Recorded ${new Date().toLocaleDateString()}`}
               placeholderTextColor={colors.textSecondary}
               style={[styles.input, { color: colors.text, borderColor: colors.backgroundSelected }]}
             />
             <Text style={[styles.label, { color: colors.text }]}>Activity type</Text>
-            <View style={styles.chips}>
-              {ACTIVITY_TYPES.map((t) => (
+            {suggestions.length > 0 && (
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                Outlined types are suggested from your speed and elevation.
+              </Text>
+            )}
+            <View style={styles.chips} accessibilityRole="radiogroup">
+              {typeChoices.map((t) => (
                 <Pressable
                   key={t}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: t === chosenType }}
                   onPress={() => setActivityType(t)}
                   style={[
                     styles.chip,
                     {
-                      backgroundColor: t === activityType ? "#2563eb" : colors.backgroundElement,
+                      backgroundColor: t === chosenType ? "#2563eb" : colors.backgroundElement,
+                      borderColor: suggestions.includes(t) ? "#2563eb" : "transparent",
                     },
                   ]}
                 >
-                  <Text style={{ color: t === activityType ? "#fff" : colors.text }}>{t}</Text>
+                  <Text style={{ color: t === chosenType ? "#fff" : colors.text }}>{t}</Text>
                 </Pressable>
               ))}
             </View>
+            <Text style={[styles.label, { color: colors.text }]}>Note</Text>
+            <TextInput
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="How did it go?"
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              style={[
+                styles.input,
+                styles.noteInput,
+                { color: colors.text, borderColor: colors.backgroundSelected },
+              ]}
+            />
           </View>
         )}
 
@@ -194,9 +231,20 @@ export function RecordScreen({ person }: { person: string | null }) {
             <>
               <Button label="Save" color="#16a34a" onPress={handleSave} disabled={busy} />
               <Button
+                label="Resume"
+                color="#d97706"
+                onPress={() => run(() => resumeRecording(recording))}
+                disabled={busy}
+              />
+              <Button
                 label="Discard"
                 color="#6b7280"
-                onPress={() => run(() => discardRecording(recording))}
+                onPress={() =>
+                  run(() => {
+                    resetForm();
+                    discardRecording(recording);
+                  })
+                }
                 disabled={busy}
               />
             </>
@@ -205,6 +253,21 @@ export function RecordScreen({ person }: { person: string | null }) {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function defaultTitle(startedAt: number, activityType: string) {
+  const hour = new Date(startedAt).getHours();
+  const partOfDay =
+    hour < 5
+      ? "Night"
+      : hour < 12
+        ? "Morning"
+        : hour < 17
+          ? "Afternoon"
+          : hour < 21
+            ? "Evening"
+            : "Night";
+  return `${partOfDay} ${activityType === "Unknown" ? "Activity" : activityType}`;
 }
 
 function Button({
@@ -252,8 +315,9 @@ const styles = StyleSheet.create({
   form: { gap: 8 },
   label: { fontSize: 15, fontWeight: "600" },
   input: { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 16 },
+  noteInput: { minHeight: 88, textAlignVertical: "top" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16 },
+  chip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1.5 },
   controls: { flexDirection: "row", gap: 12 },
   button: { flex: 1, paddingVertical: 16, borderRadius: 12, alignItems: "center" },
   buttonText: { color: "#fff", fontSize: 18, fontWeight: "600" },

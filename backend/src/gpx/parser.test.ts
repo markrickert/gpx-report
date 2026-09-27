@@ -66,6 +66,24 @@ describe("parseGpxFile", () => {
     expect(result.points).toHaveLength(2);
   });
 
+  it("reads the track <desc> as unescaped text, and null when absent", async () => {
+    const points = [
+      trkpt(0, 0, 100, "2024-01-01T00:00:00Z"),
+      trkpt(0, 0.001, 110, "2024-01-01T00:01:00Z"),
+    ];
+    const withDesc = await writeGpx(
+      "desc.gpx",
+      gpx({ name: "Walk", trkpts: points }).replace(
+        "<trkseg>",
+        "<desc> Rain &amp; wind &lt;3 </desc><trkseg>",
+      ),
+    );
+    const withoutDesc = await writeGpx("no-desc.gpx", gpx({ name: "Walk", trkpts: points }));
+
+    expect((await parseGpxFile(withDesc)).description).toBe("Rain & wind <3");
+    expect((await parseGpxFile(withoutDesc)).description).toBeNull();
+  });
+
   it("falls back to the filename stem when <name> is missing", async () => {
     const filePath = await writeGpx(
       "unnamed-hike.gpx",

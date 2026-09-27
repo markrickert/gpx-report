@@ -13,7 +13,12 @@ function escapeXml(value: string) {
 // backend/src/gpx/parser.ts reads: <trk><name>/<type> + <trkpt><ele>/<time>.
 // <type> is picked up by the parser's resolveActivityType(), so the chosen
 // activity type lands at ingest with no follow-up mutation.
-export function buildGpxXml(points: TrackPoint[], title: string, activityType: string) {
+export function buildGpxXml(
+  points: TrackPoint[],
+  title: string,
+  activityType: string,
+  note: string | null = null,
+) {
   const segments = new Map<number, TrackPoint[]>();
   for (const p of points) {
     if (!segments.has(p.segment)) segments.set(p.segment, []);
@@ -32,10 +37,11 @@ export function buildGpxXml(points: TrackPoint[], title: string, activityType: s
     })
     .join("\n");
   const type = activityType !== "Unknown" ? `\n  <type>${escapeXml(activityType)}</type>` : "";
+  const desc = note ? `\n  <desc>${escapeXml(note)}</desc>` : "";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx creator="gpx-report" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
  <trk>
-  <name>${escapeXml(title)}</name>${type}
+  <name>${escapeXml(title)}</name>${desc}${type}
 ${trksegs}
  </trk>
 </gpx>

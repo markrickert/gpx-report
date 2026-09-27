@@ -47,6 +47,10 @@ Audited 2026-08-08: pure-logic modules (`track/geo.js`, `track/outliers.js`, `tr
 
 ## Done
 
+- [x] **Fixed the crash when trimming an activity on the web** (2026-09-27) — React Compiler memoizes `TrimHandleShape` with a hook, and recharts' `ReferenceDot` called it as a plain function, so opening Trim threw React error #321. The chart now renders it as an element.
+
+- [x] **Phone save form: suggested type, prefilled title, and a note** (2026-09-27) — Stop opens a form with single-select type pills. Up to 3 types are suggested on the phone from the track's speed and elevation (`recording/suggest-type.ts`, a copy of `track/suggestType.ts`'s profiles, so it works offline), and the top one is preselected. The title is prefilled ("Morning Hiking") and follows the type until edited. The note goes in the GPX `<trk><desc>`, which ingest reads into `activities.notes` while they are empty. Resume from the form continues the recording.
+
 - [x] **Removed the embedded code-server editor and the web Code tab** (2026-09-26) — dropped the `code-server` compose service and its volume, the `setCodeServerTheme` mutation, the `EXPO_PUBLIC_CODE_SERVER_URL` build arg, and the `/code` route. Editing now happens in a normal dev checkout; the deployment only runs db, backend, and frontend.
 
 - [x] **Switched from npm to pnpm** (2026-09-25) — root, `backend/`, and `frontend/` each have their own `pnpm-lock.yaml` (imported from the old `package-lock.json`s with `pnpm import`, so resolved versions didn't move); `packageManager: pnpm@11.0.9` everywhere; Dockerfiles install that pnpm and use `pnpm install --frozen-lockfile`. `frontend/.npmrc`'s `legacy-peer-deps` is gone, replaced by `nodeLinker: hoisted` in `frontend/pnpm-workspace.yaml`. Install-script allowlists (`allowBuilds`): `esbuild` (backend), `unrs-resolver` (frontend). Verified locally: backend tsc/lint/tests, frontend tsc/lint/tests, web + iOS export. Docker image builds not yet verified (no Docker on the dev Mac).

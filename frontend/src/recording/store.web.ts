@@ -14,6 +14,7 @@ export function createRecording(id: string, now: number, person: string) {
     status: "recording",
     title: null,
     activityType: "Unknown",
+    note: null,
     startedAt: now,
     elapsedMs: 0,
     segmentStartedAt: now,

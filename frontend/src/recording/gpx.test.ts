@@ -22,6 +22,13 @@ describe("buildGpxXml", () => {
     expect(buildGpxXml([pt(40, 0)], "A", "Unknown")).not.toContain("<type>");
   });
 
+  it("writes the note as an escaped <desc> and omits it when empty", () => {
+    expect(buildGpxXml([pt(40, 0)], "A", "Hiking", "Rain & <wind>")).toContain(
+      "<desc>Rain &amp; &lt;wind&gt;</desc>",
+    );
+    expect(buildGpxXml([pt(40, 0)], "A", "Hiking", null)).not.toContain("<desc>");
+  });
+
   it("escapes the title and skips <ele> for points without elevation", () => {
     const xml = buildGpxXml([pt(40, 0, null)], `Tom & Jerry's <ride>`, "Unknown");
     expect(xml).toContain("<name>Tom &amp; Jerry&apos;s &lt;ride&gt;</name>");

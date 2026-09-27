@@ -74,11 +74,17 @@ export function elapsedMs(rec: Recording, now = Date.now()) {
  * upload attempt. The GPX is built at upload time from the stored points, so
  * an offline save costs nothing extra; a failed attempt just stays queued.
  */
-export async function finishRecording(rec: Recording, title: string, activityType: string) {
+export async function finishRecording(
+  rec: Recording,
+  title: string,
+  activityType: string,
+  note: string,
+) {
   store.updateRecording(rec.id, {
     status: "pending",
     title: title.trim() || `Recorded ${new Date(rec.startedAt).toLocaleString()}`,
     activityType,
+    note: note.trim() || null,
     nextAttemptAt: null,
   });
   await drainUploadQueue();

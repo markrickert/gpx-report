@@ -33,12 +33,18 @@ db.execSync(`
   );
   CREATE INDEX IF NOT EXISTS points_recording ON points (recording_id, id);
 `);
+// Added after the first release; CREATE TABLE IF NOT EXISTS won't add it to
+// an existing install, and the ALTER throws once the column exists.
+try {
+  db.execSync("ALTER TABLE recordings ADD COLUMN note TEXT");
+} catch {}
 
 const COLUMNS: Record<keyof Omit<Recording, "id">, string> = {
   person: "person",
   status: "status",
   title: "title",
   activityType: "activity_type",
+  note: "note",
   startedAt: "started_at",
   elapsedMs: "elapsed_ms",
   segmentStartedAt: "segment_started_at",
@@ -56,6 +62,7 @@ function toRecording(row: any): Recording {
     status: row.status,
     title: row.title,
     activityType: row.activity_type,
+    note: row.note,
     startedAt: row.started_at,
     elapsedMs: row.elapsed_ms,
     segmentStartedAt: row.segment_started_at,

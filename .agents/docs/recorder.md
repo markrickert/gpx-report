@@ -14,6 +14,8 @@ The recorder records a GPS track and uploads it to the server. Recording continu
 ## Workflow
 
 - A background task writes each location point directly to an on-device database. The recording does not depend on the UI. The record screen reads new points from the database.
+- Stop opens the save form. Resume from the form continues the same recording.
+- The save form suggests activity types from the track on the phone, so it works offline. The title is prefilled. The note travels in the GPX `<trk><desc>`, and the server reads it into the activity notes only when the notes are empty.
 - Save puts the recording in an upload queue and does not need the server. At upload time, the queue builds the GPX file from the stored points.
 - The queue retries at app start, on a network change, when the app comes back to the foreground, and on a timer. It uses exponential backoff with an upper limit.
 - Each upload sends the recording id. The server writes the file only one time for each id, so a retry after a lost response does not make a duplicate.

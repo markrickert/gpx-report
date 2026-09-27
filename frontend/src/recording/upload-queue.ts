@@ -34,6 +34,7 @@ async function drain(now: number) {
         store.getPoints(rec.id),
         rec.title ?? "Recorded activity",
         rec.activityType,
+        rec.note,
       );
       const { data } = await clientFor(rec.person).mutate({
         mutation: SAVE_RECORDED_ACTIVITY,

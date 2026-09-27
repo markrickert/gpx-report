@@ -87,6 +87,13 @@ function resolveTitle(track, metadata, filePath) {
   return stem || "Untitled";
 }
 
+// Read from the DOM rather than gpxparser's track.desc, which comes from
+// innerHTML and so keeps XML escapes ("&amp;") in the text.
+function resolveDescription(gpx) {
+  const text = gpx.xmlSource.querySelector("trk > desc")?.textContent?.trim();
+  return text || null;
+}
+
 // gpxparser (via jsdom-global) parses the file into a full DOM but drops
 // Garmin's <gpxtpx:TrackPointExtension> (hr/cad/atemp) when building
 // track.points — it only reads lat/lon/ele/time. Pull those back out
@@ -189,6 +196,7 @@ export async function parseGpxFile(filePath) {
   return {
     title: resolveTitle(primaryTrack, gpx.metadata, filePath),
     activityType: resolveActivityType(primaryTrack?.type, filePath),
+    description: resolveDescription(gpx),
     startTime,
     endTime,
     durationSeconds,
