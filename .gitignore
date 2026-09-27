@@ -16,6 +16,3 @@ data/gpx/*
 .agents/settings.local.json
 .agents/scheduled_tasks.lock
 skills-lock.json
-
-# Claude scratch dir (per CLAUDE.md)
-.mark/

@@ -53,12 +53,14 @@ export function HistoryScreen() {
   const [importing, setImporting] = useState(false);
   const person = usePerson() ?? DEFAULT_PERSON;
   // The title bar button takes an SF Symbol name on iOS but only an image on
-  // Android, so the Material Symbol is rendered to one first.
+  // Android, so the Material Symbol is rendered to one first; the button waits
+  // for it rather than showing up without an icon.
   const [androidImportIcon, setAndroidImportIcon] = useState<ImageSourcePropType | null>(null);
   useEffect(() => {
     if (Platform.OS !== "android") return;
     unstable_getMaterialSymbolSourceAsync("note_add", 24, colors.text).then(setAndroidImportIcon);
   }, [colors.text]);
+  const importIcon = Platform.OS === "ios" ? "doc.badge.plus" : androidImportIcon;
   const [refreshing, setRefreshing] = useState(false);
 
   const loadUnsynced = useCallback(() => {
@@ -179,17 +181,19 @@ export function HistoryScreen() {
 
   return (
     <>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button
-          icon={Platform.OS === "ios" ? "doc.badge.plus" : (androidImportIcon ?? undefined)}
-          tintColor={colors.text}
-          onPress={importFiles}
-          disabled={importing}
-          accessibilityLabel="Import a file"
-        >
-          Import
-        </Stack.Toolbar.Button>
-      </Stack.Toolbar>
+      {importIcon && (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button
+            icon={importIcon}
+            tintColor={colors.text}
+            onPress={importFiles}
+            disabled={importing}
+            accessibilityLabel="Import a file"
+          >
+            Import
+          </Stack.Toolbar.Button>
+        </Stack.Toolbar>
+      )}
       <FlatList<ServerActivity>
         style={{ backgroundColor: colors.background }}
         contentContainerStyle={styles.list}
