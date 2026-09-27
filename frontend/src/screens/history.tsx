@@ -1,7 +1,18 @@
-import { useCallback, useState } from "react";
-import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import {
+  Alert,
+  FlatList,
+  type ImageSourcePropType,
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useQuery } from "@apollo/client";
-import { Link, useFocusEffect } from "expo-router";
+import { Link, Stack, useFocusEffect } from "expo-router";
+import { unstable_getMaterialSymbolSourceAsync } from "expo-symbols";
 import { RouteThumbnail } from "@/components/route-thumbnail";
 import { GET_DASHBOARD } from "@/graphql/queries";
 import { useTheme } from "@/hooks/use-theme";
@@ -41,6 +52,13 @@ export function HistoryScreen() {
   const [imports, setImports] = useState<QueuedImport[]>([]);
   const [importing, setImporting] = useState(false);
   const person = usePerson() ?? DEFAULT_PERSON;
+  // The title bar button takes an SF Symbol name on iOS but only an image on
+  // Android, so the Material Symbol is rendered to one first.
+  const [androidImportIcon, setAndroidImportIcon] = useState<ImageSourcePropType | null>(null);
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    unstable_getMaterialSymbolSourceAsync("note_add", 24, colors.text).then(setAndroidImportIcon);
+  }, [colors.text]);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadUnsynced = useCallback(() => {
@@ -101,9 +119,6 @@ export function HistoryScreen() {
 
   const header = (
     <View style={styles.header}>
-      <Pressable onPress={importFiles} disabled={importing}>
-        <Text style={styles.link}>{importing ? "Importing…" : "Import a file"}</Text>
-      </Pressable>
       {error && (
         <Text style={[styles.meta, { color: colors.textSecondary }]}>
           {`Can't reach the server (${error.message}). Recordings stay on this phone until it's back.`}
@@ -163,53 +178,66 @@ export function HistoryScreen() {
   );
 
   return (
-    <FlatList<ServerActivity>
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={styles.list}
-      contentInsetAdjustmentBehavior="automatic"
-      data={data?.activities ?? []}
-      keyExtractor={(a) => a.id}
-      ListHeaderComponent={header}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      renderItem={({ item }) => {
-        const unknown = item.activityType === "Unknown";
-        return (
-          <Link href={`/activities/${item.id}`} asChild>
-            <Pressable
-              style={StyleSheet.flatten([
-                styles.row,
-                styles.activityRow,
-                unknown
-                  ? { backgroundColor: colors.warningSoft, borderColor: colors.warning }
-                  : { backgroundColor: colors.backgroundElement, borderColor: colors.border },
-              ])}
-            >
-              <RouteThumbnail routeThumbnail={item.routeThumbnail} />
-              <View style={styles.activityText}>
-                <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
-                {unknown && (
-                  <Text style={[styles.badge, { backgroundColor: colors.warning }]}>
-                    Needs review
+    <>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          icon={Platform.OS === "ios" ? "doc.badge.plus" : (androidImportIcon ?? undefined)}
+          tintColor={colors.text}
+          onPress={importFiles}
+          disabled={importing}
+          accessibilityLabel="Import a file"
+        >
+          Import
+        </Stack.Toolbar.Button>
+      </Stack.Toolbar>
+      <FlatList<ServerActivity>
+        style={{ backgroundColor: colors.background }}
+        contentContainerStyle={styles.list}
+        contentInsetAdjustmentBehavior="automatic"
+        data={data?.activities ?? []}
+        keyExtractor={(a) => a.id}
+        ListHeaderComponent={header}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        renderItem={({ item }) => {
+          const unknown = item.activityType === "Unknown";
+          return (
+            <Link href={`/activities/${item.id}`} asChild>
+              <Pressable
+                style={StyleSheet.flatten([
+                  styles.row,
+                  styles.activityRow,
+                  unknown
+                    ? { backgroundColor: colors.warningSoft, borderColor: colors.warning }
+                    : { backgroundColor: colors.backgroundElement, borderColor: colors.border },
+                ])}
+              >
+                <RouteThumbnail routeThumbnail={item.routeThumbnail} />
+                <View style={styles.activityText}>
+                  <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
+                  {unknown && (
+                    <Text style={[styles.badge, { backgroundColor: colors.warning }]}>
+                      Needs review
+                    </Text>
+                  )}
+                  <Text style={[styles.meta, { color: colors.textSecondary }]}>
+                    {[
+                      activityTypeLabel(item.activityType),
+                      new Date(item.startTime).toLocaleString(),
+                      formatDistance(item.distanceMeters, unit),
+                      formatDuration(item.durationSeconds),
+                      item.locationName,
+                      item.mediaCount > 0 && `📷 ${item.mediaCount}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" — ")}
                   </Text>
-                )}
-                <Text style={[styles.meta, { color: colors.textSecondary }]}>
-                  {[
-                    activityTypeLabel(item.activityType),
-                    new Date(item.startTime).toLocaleString(),
-                    formatDistance(item.distanceMeters, unit),
-                    formatDuration(item.durationSeconds),
-                    item.locationName,
-                    item.mediaCount > 0 && `📷 ${item.mediaCount}`,
-                  ]
-                    .filter(Boolean)
-                    .join(" — ")}
-                </Text>
-              </View>
-            </Pressable>
-          </Link>
-        );
-      }}
-    />
+                </View>
+              </Pressable>
+            </Link>
+          );
+        }}
+      />
+    </>
   );
 }
 
