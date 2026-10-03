@@ -1,4 +1,22 @@
-import { haversineMeters, bearingDegrees, bearingDiffDegrees } from "./geo.js";
+import { bearingDegrees, bearingDiffDegrees, haversineMeters } from "@/utils/geo";
+
+// The same detector as backend/src/track/liftDetection.ts, run on the phone
+// so the record screen can leave lift rides out of the live distance. Keep
+// the two in sync.
+
+type Point = { lat: number; lon: number; elevation: number | null; timestamp: number };
+
+export type LiftSegment = {
+  startIndex: number;
+  endIndex: number;
+  durationSeconds: number;
+  /** Negative for a ride down. */
+  elevationGainMeters: number;
+  avgSpeedMps: number;
+  distanceMeters: number;
+};
+
+type Ride = Omit<LiftSegment, "distanceMeters"> & { lengthMeters: number };
 
 // Chairlifts/gondolas run along one straight cable, at roughly constant speed,
 // with stops that can last minutes, and climb (or descend) steadily rather
@@ -39,22 +57,22 @@ const DOWNLOAD_SPEED_RATIO = [0.7, 1.4];
 
 const METERS_PER_DEGREE = 111320;
 
-function mean(values) {
+function mean(values: number[]) {
   return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
-function stddev(values, avg) {
+function stddev(values: number[], avg: number) {
   return Math.sqrt(mean(values.map((v) => (v - avg) ** 2)));
 }
 
 // Returns a function giving the perpendicular distance in meters from a point
 // to the straight line through a and b.
-function lineDeviationFrom(a, b) {
+function lineDeviationFrom(a: Point, b: Point) {
   const lonScale = Math.cos((a.lat * Math.PI) / 180) * METERS_PER_DEGREE;
   const bx = (b.lon - a.lon) * lonScale;
   const by = (b.lat - a.lat) * METERS_PER_DEGREE;
   const length = Math.hypot(bx, by);
-  return (p) => {
+  return (p: Point) => {
     const px = (p.lon - a.lon) * lonScale;
     const py = (p.lat - a.lat) * METERS_PER_DEGREE;
     return length === 0 ? Math.hypot(px, py) : Math.abs(bx * py - by * px) / length;
@@ -62,8 +80,8 @@ function lineDeviationFrom(a, b) {
 }
 
 // Smoothed speed at each point, or null where it can't be measured.
-function smoothedSpeeds(points) {
-  const speeds = new Array(points.length).fill(null);
+function smoothedSpeeds(points: Point[]) {
+  const speeds = new Array<number | null>(points.length).fill(null);
   const windowMs = VELOCITY_HALF_WINDOW_SECONDS * 1000;
   let lo = 0;
   let hi = 0;
@@ -95,15 +113,15 @@ function smoothedSpeeds(points) {
 // Splits the track into maximal straight, single-direction stretches,
 // returned as [startIndex, endIndex] pairs. Stops don't split a stretch
 // unless they outlast MAX_STOP_SECONDS.
-function straightStretches(points, speeds) {
-  const stretches = [];
-  const elevation = (i) => points[i].elevation ?? 0;
-  let start = null;
-  let lastMoving = null;
-  let lowest = null;
-  let highest = null;
+function straightStretches(points: Point[], speeds: (number | null)[]) {
+  const stretches: [number, number][] = [];
+  const elevation = (i: number) => points[i].elevation ?? 0;
+  let start: number | null = null;
+  let lastMoving = 0;
+  let lowest = 0;
+  let highest = 0;
 
-  const open = (i) => {
+  const open = (i: number) => {
     start = i;
     lastMoving = i;
     lowest = i;
@@ -113,7 +131,7 @@ function straightStretches(points, speeds) {
     if (start !== null && end > start) stretches.push([start, end]);
     start = null;
   };
-  const fitsLine = (from, to) => {
+  const fitsLine = (from: number, to: number) => {
     const deviation = lineDeviationFrom(points[from], points[to]);
     for (let k = from + 1; k < to; k++) {
       if (deviation(points[k]) > MAX_LINE_DEVIATION_METERS) return false;
@@ -124,11 +142,12 @@ function straightStretches(points, speeds) {
   for (let i = 0; i < points.length; i++) {
     const outOfOrder =
       i > 0 && (!points[i - 1].timestamp || points[i].timestamp <= points[i - 1].timestamp);
-    if (speeds[i] === null || outOfOrder) {
+    const speed = speeds[i];
+    if (speed === null || outOfOrder) {
       close();
       continue;
     }
-    if (speeds[i] < MIN_MOVING_SPEED_MPS) {
+    if (speed < MIN_MOVING_SPEED_MPS) {
       if (
         start !== null &&
         (points[i].timestamp - points[lastMoving].timestamp) / 1000 > MAX_STOP_SECONDS
@@ -159,7 +178,7 @@ function straightStretches(points, speeds) {
     } else {
       const climbed = elevation(highest) - elevation(start) > ELEVATION_REVERSAL_METERS;
       const dropped = elevation(start) - elevation(lowest) > ELEVATION_REVERSAL_METERS;
-      let turn = null;
+      let turn: number | null = null;
       if (climbed && elevation(highest) - elevation(i) > ELEVATION_REVERSAL_METERS) {
         turn = highest;
       } else if (dropped && elevation(i) - elevation(lowest) > ELEVATION_REVERSAL_METERS) {
@@ -184,54 +203,30 @@ function straightStretches(points, speeds) {
   return stretches;
 }
 
-// An activity's distance and elevation totals with its lift rides taken out:
-// a ride isn't the person's own travel, so no stored total counts it.
-export function totalsExcludingLifts({
-  points,
-  distanceMeters,
-  totalElevationGain,
-  totalElevationLoss,
-}) {
-  const lifts = detectLiftSegments(points);
-  const liftTotal = (value) => lifts.reduce((sum, lift) => sum + Math.max(0, value(lift)), 0);
-  return {
-    distanceMeters: distanceMeters - liftTotal((lift) => lift.distanceMeters),
-    totalElevationGain:
-      totalElevationGain != null
-        ? totalElevationGain - liftTotal((lift) => lift.elevationGainMeters)
-        : null,
-    totalElevationLoss:
-      totalElevationLoss != null
-        ? totalElevationLoss - liftTotal((lift) => -lift.elevationGainMeters)
-        : null,
-  };
-}
-
-// Detection only — does not mutate anything. Returns contiguous index ranges
-// of `points` (same {lat, lon, elevation, timestamp} shape as points_data)
-// that look like lift rides, for the frontend to render as a band on the
-// elevation chart. A ride down has a negative elevationGainMeters.
-export function detectLiftSegments(points) {
+/** Contiguous index ranges of `points` that look like lift rides. */
+export function detectLiftSegments(points: Point[]): LiftSegment[] {
   if (points.length < 2) return [];
 
   const speeds = smoothedSpeeds(points);
-  const elevationChange = (start, end) =>
+  const elevationChange = (start: number, end: number) =>
     (points[end].elevation ?? 0) - (points[start].elevation ?? 0);
-  const seconds = (start, end) => (points[end].timestamp - points[start].timestamp) / 1000;
-  const length = (start, end) => haversineMeters(points[start], points[end]);
-  const bearing = (seg) => bearingDegrees(points[seg.startIndex], points[seg.endIndex]);
+  const seconds = (start: number, end: number) =>
+    (points[end].timestamp - points[start].timestamp) / 1000;
+  const length = (start: number, end: number) => haversineMeters(points[start], points[end]);
+  const bearing = (seg: Ride) => bearingDegrees(points[seg.startIndex], points[seg.endIndex]);
 
-  const pieces = [];
+  const pieces: Ride[] = [];
   for (const [start, end] of straightStretches(points, speeds)) {
     const durationSeconds = seconds(start, end);
     if (durationSeconds < MIN_PIECE_DURATION_SECONDS) continue;
 
-    const movingSpeeds = [];
+    const movingSpeeds: number[] = [];
     let movingSeconds = 0;
     for (let i = start + 1; i <= end; i++) {
-      if (speeds[i] < MIN_MOVING_SPEED_MPS) continue;
+      const speed = speeds[i];
+      if (speed === null || speed < MIN_MOVING_SPEED_MPS) continue;
       movingSeconds += seconds(i - 1, i);
-      movingSpeeds.push(speeds[i]);
+      movingSpeeds.push(speed);
     }
     if (movingSpeeds.length === 0) continue;
     if (movingSeconds / durationSeconds < MIN_MOVING_FRACTION) continue;
@@ -269,7 +264,7 @@ export function detectLiftSegments(points) {
 
   // One ride often arrives as several pieces; rejoin the ones that continue
   // the same line in the same direction.
-  const rides = [];
+  const rides: Ride[] = [];
   for (const piece of pieces) {
     const prev = rides[rides.length - 1];
     const joinedLength = prev ? length(prev.startIndex, piece.endIndex) : 0;
@@ -299,8 +294,8 @@ export function detectLiftSegments(points) {
 
   const longRides = rides.filter((r) => r.durationSeconds >= MIN_RIDE_DURATION_SECONDS);
   const uploads = longRides.filter((r) => r.elevationGainMeters > 0);
-  const within = (value, [min, max]) => value >= min && value <= max;
-  const retracesAnUpload = (ride) =>
+  const within = (value: number, [min, max]: number[]) => value >= min && value <= max;
+  const retracesAnUpload = (ride: Ride) =>
     uploads.some((up) => {
       const bottom = points[up.startIndex];
       const top = points[up.endIndex];

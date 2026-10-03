@@ -18,14 +18,11 @@ CREATE TABLE IF NOT EXISTS activities (
   avg_speed_mps         NUMERIC,
   moving_avg_speed_mps  NUMERIC,
   max_speed_mps         NUMERIC,
+  -- distance_meters and the two elevation totals leave out detected chairlift/
+  -- uplift rides (track/liftDetection.ts), so no list, stat, or record counts
+  -- a ride as the person's own travel.
   total_elevation_gain  NUMERIC,
   total_elevation_loss  NUMERIC,
-  -- total_elevation_gain minus the gain attributable to detected chairlift/
-  -- uplift segments (track/liftDetection.js), computed once at ingest so
-  -- "biggest elevation gain" records aren't dominated by lift climb rather
-  -- than actual climbing/skiing effort. Equal to total_elevation_gain when
-  -- no lift segments are detected.
-  elevation_gain_excluding_lift_meters NUMERIC,
   -- Fastest-segment personal records: minimum time (seconds) to cover each
   -- target distance anywhere in the activity, computed once at ingest by
   -- track/personalRecords.js's sliding-window scan over points_data. Null

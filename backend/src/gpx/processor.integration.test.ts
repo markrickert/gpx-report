@@ -35,14 +35,13 @@ function trkpt(lat: number, lon: number, ele: number, timeMs: number) {
 
 // Straight-line, steady-speed, steady-climb points — same shape
 // liftDetection.test.ts uses to model a chairlift ride, since
-// detectLiftSegments() is what elevation_gain_excluding_lift_meters depends
-// on.
+// detectLiftSegments() decides what the stored totals leave out.
 function liftPoints({
   count = 30,
   startLat = 45,
   startLon = 7,
-  stepMeters = 5,
-  climbPerStep = 2,
+  stepMeters = 35,
+  climbPerStep = 8,
   startElevation = 1500,
   startTimeMs = START_TIME,
 }) {
@@ -250,32 +249,31 @@ describe("processFile", () => {
     expect(secondRest).toEqual(firstRest);
   });
 
-  it("computes elevation_gain_excluding_lift_meters, subtracting detected lift-segment gain", async () => {
+  it("leaves a detected lift ride out of the stored distance and elevation gain", async () => {
     const filePath = await writeGpxFile("lift-test.gpx", pointsToGpx(liftPoints({})));
 
     const activityId = await processFile(filePath, { skipGeocode: true });
 
     const { rows } = await pool.query(
-      "SELECT total_elevation_gain, elevation_gain_excluding_lift_meters FROM activities WHERE id = $1",
+      "SELECT distance_meters, total_elevation_gain FROM activities WHERE id = $1",
       [activityId],
     );
-    const { total_elevation_gain, elevation_gain_excluding_lift_meters } = rows[0];
-    expect(Number(total_elevation_gain)).toBeGreaterThan(0);
-    expect(Number(elevation_gain_excluding_lift_meters)).toBeLessThan(Number(total_elevation_gain));
+    // The whole track is one ride: about 1 km and 230 m of climb, all excluded.
+    expect(Number(rows[0].distance_meters)).toBeLessThan(50);
+    expect(Number(rows[0].total_elevation_gain)).toBeLessThan(20);
   });
 
-  it("leaves elevation_gain_excluding_lift_meters equal to total_elevation_gain when no lift segment is detected", async () => {
+  it("stores the full distance and elevation gain when no lift ride is detected", async () => {
     const filePath = await writeGpxFile("no-lift-test.gpx", pointsToGpx(hikerPoints({})));
 
     const activityId = await processFile(filePath, { skipGeocode: true });
 
     const { rows } = await pool.query(
-      "SELECT total_elevation_gain, elevation_gain_excluding_lift_meters FROM activities WHERE id = $1",
+      "SELECT distance_meters, total_elevation_gain FROM activities WHERE id = $1",
       [activityId],
     );
-    expect(Number(rows[0].elevation_gain_excluding_lift_meters)).toBeCloseTo(
-      Number(rows[0].total_elevation_gain),
-    );
+    expect(Number(rows[0].distance_meters)).toBeGreaterThan(50);
+    expect(Number(rows[0].total_elevation_gain)).toBeGreaterThan(20);
   });
 
   it("computes best_1km/5km/10km_seconds for a track long enough to cover them", async () => {

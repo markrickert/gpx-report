@@ -13,7 +13,6 @@ function activity(overrides = {}) {
     best1kmSeconds: 300,
     best5kmSeconds: 1500,
     best10kmSeconds: null,
-    route: { liftSegments: [] },
     ...overrides,
   };
 }
@@ -48,24 +47,8 @@ describe("matchedRecords", () => {
     expect(matchedRecords(activity(), record())).toContain("Longest Distance");
   });
 
-  it("matches biggest elevation gain, excluding lift-segment gain", () => {
-    const act = activity({
-      totalElevationGain: 250,
-      route: { liftSegments: [{ elevationGainMeters: 50 }] },
-    });
-    expect(matchedRecords(act, record({ biggestElevationGainMeters: 200 }))).toContain(
-      "Biggest Elevation Gain",
-    );
-  });
-
-  it("ignores negative lift-segment elevation gain when computing the comparison basis", () => {
-    const act = activity({
-      totalElevationGain: 200,
-      route: { liftSegments: [{ elevationGainMeters: -30 }] },
-    });
-    expect(matchedRecords(act, record({ biggestElevationGainMeters: 200 }))).toContain(
-      "Biggest Elevation Gain",
-    );
+  it("matches biggest elevation gain", () => {
+    expect(matchedRecords(activity(), record())).toContain("Biggest Elevation Gain");
   });
 
   it("matches fastest 1km/5km/10km splits independently", () => {

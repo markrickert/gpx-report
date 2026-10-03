@@ -11,6 +11,22 @@ export function haversineMeters(a: { lat: number; lon: number }, b: { lat: numbe
   return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
+/** Compass bearing in degrees (0-360) from a to b. */
+export function bearingDegrees(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const dLon = ((b.lon - a.lon) * Math.PI) / 180;
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+/** Smallest angle (0-180) between two compass bearings. */
+export function bearingDiffDegrees(a: number, b: number) {
+  const diff = Math.abs(a - b) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}
+
 export function trackDistanceMeters(points: TrackPoint[]) {
   let total = 0;
   for (let i = 1; i < points.length; i++) {

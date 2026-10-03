@@ -28,7 +28,7 @@ import {
 import { removeIgcTrackPoints, fixIgcElevations } from "../igc/writer.js";
 import { activityTypeToRawType } from "../gpx/parser.js";
 import { detectOutliers } from "../track/outliers.js";
-import { detectLiftSegments } from "../track/liftDetection.js";
+import { detectLiftSegments, totalsExcludingLifts } from "../track/liftDetection.js";
 import { detectElevationSpikes, correctElevationSpikes } from "../track/elevationSpikes.js";
 import { haversineMeters, computeTrackStats } from "../track/geo.js";
 import { computeElevationGainLoss } from "../track/elevation.js";
@@ -479,8 +479,7 @@ export const resolvers = {
         SELECT
           activity_type,
           MAX(distance_meters) AS longest_distance_meters,
-          MAX(COALESCE(elevation_gain_excluding_lift_meters, total_elevation_gain))
-            AS biggest_elevation_gain_meters,
+          MAX(total_elevation_gain) AS biggest_elevation_gain_meters,
           MIN(best_1km_seconds) AS best_1km_seconds,
           MIN(best_5km_seconds) AS best_5km_seconds,
           MIN(best_10km_seconds) AS best_10km_seconds
@@ -739,7 +738,7 @@ export const resolvers = {
           const parsed = await parseActivityFile(tempPath);
           cleanedPointCount = parsed.points.length;
           cleanedMaxSpeedMps = parsed.maxSpeedMps;
-          cleanedDistanceMeters = parsed.distanceMeters;
+          cleanedDistanceMeters = totalsExcludingLifts(parsed).distanceMeters;
         } finally {
           await rm(tempPath, { force: true });
         }

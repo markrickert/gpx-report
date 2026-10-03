@@ -20,7 +20,7 @@ Stores the primary information for each recorded activity, one row per source fi
 | `start_time`       | `TIMESTAMPTZ`     | `NOT NULL`                                      | Timestamp of the first track point.                         |
 | `end_time`         | `TIMESTAMPTZ`     | `NOT NULL`                                      | Timestamp of the last track point.                          |
 | `duration_seconds` | `INTEGER`         | `NOT NULL`                                      | `end_time - start_time`, in seconds.                         |
-| `distance_meters`  | `NUMERIC`         | `NOT NULL`                                      | Total distance covered in meters.                            |
+| `distance_meters`  | `NUMERIC`         | `NOT NULL`                                      | Total distance covered in meters, leaving out detected lift rides. |
 | `avg_speed_mps`    | `NUMERIC`         | `NULLABLE`                                      | Average speed in meters per second, `distance_meters / duration_seconds` — includes stopped time (traffic lights, breaks, photo stops). |
 | `moving_avg_speed_mps` | `NUMERIC`     | `NULLABLE`                                      | Average speed in meters per second over only the point-to-point segments at or above a 0.3 m/s "moving" threshold, excluding stopped time. |
 | `max_speed_mps`    | `NUMERIC`         | `NULLABLE`                                      | Maximum speed recorded in meters per second (derived point-to-point). |
@@ -37,7 +37,7 @@ Stores the primary information for each recorded activity, one row per source fi
 
 Indexed on `start_time DESC`, `activity_type`, and `owner`.
 
-`total_elevation_gain`/`total_elevation_loss` are derived by `backend/src/track/elevation.ts`'s `computeElevationGainLoss()`: a centered 5-point moving average smooths the per-point elevation series (falling back to raw deltas when a track has 5 points or fewer, since the window would otherwise flatten the whole thing), then positive/negative deltas between consecutive smoothed values are summed. This only affects the two summary columns — `points_data`/`elevation_profile_data` (below) always store raw, unsmoothed elevation.
+`total_elevation_gain`/`total_elevation_loss` are derived by `backend/src/track/elevation.ts`'s `computeElevationGainLoss()`: a centered 5-point moving average smooths the per-point elevation series (falling back to raw deltas when a track has 5 points or fewer, since the window would otherwise flatten the whole thing), then positive/negative deltas between consecutive smoothed values are summed. This only affects the two summary columns — `points_data`/`elevation_profile_data` (below) always store raw, unsmoothed elevation. Ingestion then subtracts the distance, climb, and descent of detected lift rides (`backend/src/track/liftDetection.ts`'s `totalsExcludingLifts()`) from `distance_meters`, `total_elevation_gain`, and `total_elevation_loss`; the points themselves keep the ride.
 
 `best_1km_seconds`/`best_5km_seconds`/`best_10km_seconds` are derived by `backend/src/track/personalRecords.ts`'s `computeBestEfforts()`: an O(n) two-pointer sliding window over each point's cumulative distance/timestamp finds, for each target distance, the tightest (smallest-time) window that covers it anywhere in the track. Computed once at ingest by `gpx/processor.js`, not live per-query.
 

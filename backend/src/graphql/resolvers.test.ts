@@ -13,7 +13,10 @@ import AdmZip from "adm-zip";
 
 vi.mock("../db.js", () => ({ pool: { query: vi.fn(), connect: vi.fn() } }));
 vi.mock("../track/outliers.js", () => ({ detectOutliers: vi.fn() }));
-vi.mock("../track/liftDetection.js", () => ({ detectLiftSegments: vi.fn() }));
+vi.mock("../track/liftDetection.js", () => ({
+  detectLiftSegments: vi.fn(),
+  totalsExcludingLifts: vi.fn((parsed) => parsed),
+}));
 vi.mock("../gpx/processor.js", async (importOriginal) => {
   const actual = (await importOriginal()) as object;
   return { ...actual, processFile: vi.fn() };
@@ -211,12 +214,9 @@ describe("personalRecordsByType", () => {
     ]);
   });
 
-  // The SQL does COALESCE(elevation_gain_excluding_lift_meters, total_elevation_gain)
-  // before this ever reaches JS, so the fallback itself isn't observable here -
-  // this covers the resolver's own null-vs-number mapping on both sides of it:
-  // an activity type with no elevation data at all (both source columns NULL,
-  // so COALESCE's result is also NULL) still comes back as null rather than NaN,
-  // while distances requiring no fallback still convert normally.
+  // An activity type with no elevation data at all (MAX over all-NULL rows is
+  // NULL) still comes back as null rather than NaN, while distances still
+  // convert normally.
   it("passes through null for fields with no qualifying activity, without fallback error", async () => {
     pool.query.mockResolvedValue({
       rows: [

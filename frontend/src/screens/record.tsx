@@ -14,9 +14,14 @@ import {
   startRecording,
   stopRecording,
 } from "@/recording/recorder";
+import { detectLiftSegments } from "@/recording/lift-detection";
 import { suggestActivityTypes } from "@/recording/suggest-type";
 import { formatDuration, trackDistanceMeters } from "@/utils/geo";
 import { formatDistance, formatElevation, useUnits } from "@/utils/units";
+
+// A stopped lift stops advancing the ride's end; keep showing it this long.
+const ON_LIFT_GRACE_MS = 60_000;
+const LIFT_RECHECK_POINTS = 15;
 
 /**
  * `person` is who the recording belongs to: the phone's Settings name, or
@@ -102,9 +107,25 @@ export function RecordScreen({ person }: { person: string | null }) {
     });
 
   const last = points[points.length - 1];
+  // A ride takes a couple of minutes to recognize, so its distance counts
+  // until then and drops out once it's detected. Detection rescans the whole
+  // track, so it reruns every few points instead of on each one.
+  const liftCheckpoint = Math.floor(points.length / LIFT_RECHECK_POINTS);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const lifts = useMemo(() => detectLiftSegments(points), [recording?.id, liftCheckpoint]);
+  const trackMeters = useMemo(() => trackDistanceMeters(points), [points]);
+  const liftDistanceMeters = lifts.reduce((sum, lift) => sum + lift.distanceMeters, 0);
+  const lastLift = lifts[lifts.length - 1];
+  const onLift =
+    status === "recording" &&
+    !!lastLift &&
+    last.timestamp - points[lastLift.endIndex].timestamp <= ON_LIFT_GRACE_MS;
   const tiles = [
     { label: "Duration", value: recording ? formatDuration(elapsedMs(recording, now)) : "0:00" },
-    { label: "Distance", value: formatDistance(trackDistanceMeters(points), unit) },
+    {
+      label: "Distance",
+      value: formatDistance(trackMeters - liftDistanceMeters, unit),
+    },
     { label: "Elevation", value: last ? formatElevation(last.elevation, unit) : "-" },
     { label: "Points", value: String(points.length) },
   ];
@@ -132,6 +153,11 @@ export function RecordScreen({ person }: { person: string | null }) {
         </View>
 
         <LiveTrackMap points={points} follow={status === "recording"} style={styles.map} />
+        {onLift && (
+          <Text style={[styles.hint, { color: colors.textSecondary }]}>
+            On a lift — this ride is left out of your distance.
+          </Text>
+        )}
         {points.length === 0 && (
           <Text style={[styles.hint, { color: colors.textSecondary }]}>
             {status === "recording"

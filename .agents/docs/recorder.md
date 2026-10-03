@@ -10,6 +10,7 @@ The recorder records a GPS track and uploads it to the server. Recording continu
 - Before recording starts, the person must set a name. The recorder stores the name when recording starts, so a later name change does not move a recording to a different person.
 - The recording states are: recording, paused, stopped, pending, uploaded, and failed.
 - Each resume starts a new track segment, so the time in a pause does not count as distance.
+- The record screen detects lift rides from the track and leaves them out of the live distance. A ride takes about two minutes to recognize, so its distance counts until then.
 
 ## Workflow
 

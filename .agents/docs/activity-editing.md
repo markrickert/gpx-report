@@ -24,7 +24,7 @@ This domain covers the web analysis of activities and the edits that change an a
 - The cleanup tools are optional. They show a preview of the result before they save. The settings page lists the activities that each detector flags.
 - **GPS outlier cleanup** removes points that imply an impossible jump in position. The preview parses a scratch copy with the real parser, so the preview statistics match the saved result. It works for all three formats.
 - **Elevation spike fix** replaces short, sharp elevation errors with values interpolated between the nearest good points. It changes only elevation and keeps every point.
-- **Lift detection** finds chairlift and gondola rides from the shape of the track. It only detects. It stores and changes nothing. The web app uses it to show elevation gain without lift rides.
+- **Lift detection** finds chairlift and gondola rides from the shape of the track. It only detects. It stores and changes nothing. A ride down counts only when it retraces a ride up. Ingestion uses it to leave lift rides out of every stored distance and elevation total.
 
 ## Delete
 

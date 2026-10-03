@@ -75,18 +75,9 @@ export function matchedRecords(activity, record) {
   if (!record) return [];
   const matches = [];
   if (activity.distanceMeters === record.longestDistanceMeters) matches.push("Longest Distance");
-  // The record itself excludes lift-segment gain (see resolvers.js's
-  // personalRecordsByType), so an activity with lift segments has to be
-  // compared on the same lift-excluded basis, not its raw totalElevationGain.
-  const liftGainMeters = activity.route.liftSegments.reduce(
-    (sum, seg) => sum + Math.max(0, seg.elevationGainMeters),
-    0,
-  );
-  const elevationGainForRecord =
-    activity.totalElevationGain != null ? activity.totalElevationGain - liftGainMeters : null;
   if (
-    elevationGainForRecord != null &&
-    elevationGainForRecord === record.biggestElevationGainMeters
+    activity.totalElevationGain != null &&
+    activity.totalElevationGain === record.biggestElevationGainMeters
   ) {
     matches.push("Biggest Elevation Gain");
   }
@@ -1496,15 +1487,7 @@ export default function ActivityDetail() {
   const speedGradientStops = buildSpeedGradientStops(elevationData, activity.maxSpeedMps);
   const restBands = buildRestBands(elevationData);
   const gradeAdjustedSpeedMps = computeGradeAdjustedSpeedMps(activity.route.elevationProfile);
-  const liftElevationGainMeters = activity.route.liftSegments.reduce(
-    (sum, seg) => sum + Math.max(0, seg.elevationGainMeters),
-    0,
-  );
   const runCount = activity.route.liftSegments.filter((seg) => seg.elevationGainMeters > 0).length;
-  const elevationGainExcludingLift =
-    activity.totalElevationGain != null
-      ? activity.totalElevationGain - liftElevationGainMeters
-      : null;
 
   const [trimStart, trimEnd] = trimRange ?? [0, elevationData.length - 1];
   const trimActive = editMode && isEditable(activity, person) && trimRange !== null;
@@ -1675,12 +1658,7 @@ export default function ActivityDetail() {
           </span>
           <span className="metric-body">
             <span className="metric-value">
-              {formatElevation(
-                activity.route.liftSegments.length > 0
-                  ? elevationGainExcludingLift
-                  : activity.totalElevationGain,
-                unit,
-              )}
+              {formatElevation(activity.totalElevationGain, unit)}
             </span>
             <span className="metric-label">Elevation Gain</span>
           </span>
