@@ -32,6 +32,8 @@ import {
   GET_PERSONAL_RECORDS,
   GET_PEOPLE,
   SET_ACTIVITY_SHARED_WITH,
+  GET_IMMICH_SETTINGS,
+  SCAN_ACTIVITY_MEDIA,
 } from "@/graphql/queries";
 import {
   useUnits,
@@ -1366,6 +1368,38 @@ function RestoreOriginal({ activity, onRestored }) {
   );
 }
 
+// Shown only once Immich is set up in Settings; rescans just this activity.
+function RescanMediaSection({ activity, onScanned }) {
+  const { data } = useQuery(GET_IMMICH_SETTINGS);
+  const [scanMedia, { loading: scanning }] = useMutation(SCAN_ACTIVITY_MEDIA);
+  const [status, setStatus] = useState(null);
+
+  if (!data?.immichSettings.configured) return null;
+
+  const handleScan = async () => {
+    setStatus(null);
+    try {
+      const { data: scanData } = await scanMedia({ variables: { activityIds: [activity.id] } });
+      await onScanned();
+      const matched = scanData.scanActivityMedia.matchedAssets;
+      setStatus(
+        `Found ${matched} photo${matched === 1 ? "" : "s"} or video${matched === 1 ? "" : "s"}.`,
+      );
+    } catch (e) {
+      setStatus(`Scan failed: ${e.message}`);
+    }
+  };
+
+  return (
+    <div className="rescan-media-section">
+      <button onClick={handleScan} disabled={scanning}>
+        {scanning ? "Scanning Immich…" : "Rescan Immich for photos and videos"}
+      </button>
+      {status && <p className="chart-hint">{status}</p>}
+    </div>
+  );
+}
+
 function DeleteActivitySection({ activity, isOwner }) {
   const [deleteActivity, { loading: deleting }] = useMutation(DELETE_ACTIVITY);
   const [error, setError] = useState(null);
@@ -2073,6 +2107,8 @@ export default function ActivityDetail() {
       <ComparisonSection activity={activity} />
 
       <SimilarActivitiesSection activity={activity} />
+
+      {isOwner && <RescanMediaSection activity={activity} onScanned={refetch} />}
 
       <DeleteActivitySection activity={activity} isOwner={isOwner} />
     </div>

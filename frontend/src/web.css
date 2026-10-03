@@ -824,6 +824,11 @@ select {
   text-transform: capitalize;
 }
 
+.rescan-media-section {
+  margin-top: 2rem;
+  text-align: center;
+}
+
 .delete-activity-section {
   margin-top: 2rem;
   text-align: center;
