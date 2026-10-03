@@ -186,13 +186,9 @@ function straightStretches(points, speeds) {
 
 // An activity's distance and elevation totals with its lift rides taken out:
 // a ride isn't the person's own travel, so no stored total counts it.
-export function totalsExcludingLifts({
-  points,
-  distanceMeters,
-  totalElevationGain,
-  totalElevationLoss,
-}) {
-  const lifts = detectLiftSegments(points);
+export function totalsExcludingLifts(parsed) {
+  const { distanceMeters, totalElevationGain, totalElevationLoss } = parsed;
+  const lifts = detectLiftSegments(parsed.points);
   const liftTotal = (value) => lifts.reduce((sum, lift) => sum + Math.max(0, value(lift)), 0);
   return {
     distanceMeters: distanceMeters - liftTotal((lift) => lift.distanceMeters),
@@ -299,7 +295,7 @@ export function detectLiftSegments(points) {
 
   const longRides = rides.filter((r) => r.durationSeconds >= MIN_RIDE_DURATION_SECONDS);
   const uploads = longRides.filter((r) => r.elevationGainMeters > 0);
-  const within = (value, [min, max]) => value >= min && value <= max;
+  const within = (value, range) => value >= range[0] && value <= range[1];
   const retracesAnUpload = (ride) =>
     uploads.some((up) => {
       const bottom = points[up.startIndex];
