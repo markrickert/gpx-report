@@ -168,7 +168,7 @@ export async function parseGpxFile(filePath) {
   const elevationProfile = [];
   gpx.tracks.forEach((track) => {
     track.points.forEach((p, i) => {
-      const segmentDistance = i === 0 ? 0 : track.distance.cumul[i] - track.distance.cumul[i - 1];
+      const segmentDistance = segmentDistanceTo(track, i);
       cumulativeDistance += segmentDistance;
       let speedMps = null;
       if (i > 0) {
@@ -224,6 +224,13 @@ export async function parseGpxFile(filePath) {
   };
 }
 
+// Distance from point i-1 to point i. gpxparser's distance.cumul[i] is the
+// distance up to point i+1, not point i, so the entry for point i is cumul[i-1].
+function segmentDistanceTo(track, i) {
+  if (i === 0) return 0;
+  return track.distance.cumul[i - 1] - (i > 1 ? track.distance.cumul[i - 2] : 0);
+}
+
 function computeMaxSpeed(tracks) {
   let maxSpeed = 0;
   for (const track of tracks) {
@@ -233,7 +240,7 @@ function computeMaxSpeed(tracks) {
       if (!prev.time || !curr.time) continue;
       const dtSeconds = (new Date(curr.time).getTime() - new Date(prev.time).getTime()) / 1000;
       if (dtSeconds <= 0) continue;
-      const dDistance = track.distance.cumul[i] - track.distance.cumul[i - 1];
+      const dDistance = segmentDistanceTo(track, i);
       const speed = dDistance / dtSeconds;
       if (speed > maxSpeed) maxSpeed = speed;
     }
@@ -254,7 +261,7 @@ function computeMovingAvgSpeed(tracks) {
       if (!prev.time || !curr.time) continue;
       const dtSeconds = (new Date(curr.time).getTime() - new Date(prev.time).getTime()) / 1000;
       if (dtSeconds <= 0) continue;
-      const dDistance = track.distance.cumul[i] - track.distance.cumul[i - 1];
+      const dDistance = segmentDistanceTo(track, i);
       const speed = dDistance / dtSeconds;
       if (speed >= MOVING_SPEED_THRESHOLD_MPS) {
         movingDistance += dDistance;

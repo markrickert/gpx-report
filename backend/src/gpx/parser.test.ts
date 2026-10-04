@@ -66,6 +66,31 @@ describe("parseGpxFile", () => {
     expect(result.points).toHaveLength(2);
   });
 
+  it("pairs each segment's distance with its own time for max and moving speed", async () => {
+    const filePath = await writeGpx(
+      "uneven.gpx",
+      gpx({
+        trkpts: [
+          trkpt(0, 0, 100, "2024-01-01T00:00:00Z"),
+          trkpt(0, 0.001, 100, "2024-01-01T00:00:10Z"),
+          trkpt(0, 0.0011, 100, "2024-01-01T00:01:50Z"),
+        ],
+      }),
+    );
+
+    const result = await parseGpxFile(filePath);
+    const fastSegmentMeters = (result.distanceMeters * 10) / 11;
+
+    expect(result.maxSpeedMps).toBeCloseTo(fastSegmentMeters / 10);
+    expect(result.movingAvgSpeedMps).toBeCloseTo(fastSegmentMeters / 10);
+    expect(result.elevationProfile.map((e) => e.distanceMeters)).toEqual([
+      0,
+      expect.closeTo(fastSegmentMeters),
+      expect.closeTo(result.distanceMeters),
+    ]);
+    expect(result.elevationProfile[1].speedMps).toBeCloseTo(fastSegmentMeters / 10);
+  });
+
   it("reads the track <desc> as unescaped text, and null when absent", async () => {
     const points = [
       trkpt(0, 0, 100, "2024-01-01T00:00:00Z"),
