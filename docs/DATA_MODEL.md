@@ -78,6 +78,20 @@ A trip someone is training for. Every activity a participant can see between `st
 | `trip_participants` | `trip_id`     | `INTEGER`      | `REFERENCES trips(id) ON DELETE CASCADE`, PK  |                                            |
 | `trip_participants` | `person`      | `VARCHAR(64)`  | `NOT NULL`, PK                                | Someone training for the trip. Indexed.    |
 
+### `trip_manual_entries` Table
+
+Distance a person did toward a trip with no recorded track. `distance_meters` is already equivalent hiking distance, so it adds straight onto that person's total. It counts only while `entry_date` is inside the trip's window. **Not derived data** — included in `GET /export/full` (`trip-manual-entries.json`).
+
+| Column Name       | Data Type     | Constraints                                        | Description                    |
+| :---------------- | :------------ | :------------------------------------------------- | :----------------------------- |
+| `id`              | `SERIAL`      | `PRIMARY KEY`                                      |                                |
+| `trip_id`         | `INTEGER`     | `NOT NULL`, `REFERENCES trips(id) ON DELETE CASCADE` | Indexed.                     |
+| `person`          | `VARCHAR(64)` | `NOT NULL`                                         | Who did it and entered it.     |
+| `entry_date`      | `DATE`        | `NOT NULL`                                         | The day it counts on.          |
+| `distance_meters` | `NUMERIC`     | `NOT NULL`                                         | Counts as entered.             |
+| `note`            | `TEXT`        |                                                    | Optional.                      |
+| `created_at`      | `TIMESTAMPTZ` | `NOT NULL DEFAULT NOW()`                           |                                |
+
 ### `immich_settings` Table
 
 Single-row table (`id` always `1`) holding the optional Immich media integration's connection info. See `backend/src/immich/`.
@@ -229,6 +243,7 @@ input TripInput { name: String!  startDate: String!  endDate: String!  goalMeter
 - `Query.trips` lists the trips the requester is on, soonest end date first. `Query.trip(id)` returns null for a trip they aren't on.
 - `Query.effortFactors` returns the conversion table, so the page can show how the number is made.
 - `Mutation.saveTrip(id: ID, input: TripInput!)` creates a trip (no `id`; the requester is always added) or replaces one the requester is on. `Mutation.deleteTrip(id)` needs the same. Any participant can change anything, including the participants; each must be in `people`.
+- `Trip.myManualEntries: [TripManualEntry!]!` (`id`, `date`, `distanceMeters`, `note`) lists the requester's own manual entries. `Mutation.addTripManualEntry(tripId, date, distanceMeters, note)` adds one for the requester, with a date inside the trip's window; `Mutation.deleteTripManualEntry(id)` removes one of their own. Manual entries are part of `TripParticipant.equivalentMeters`.
 - Other participants only ever see a total. The activities behind it stay under the normal visibility rule.
 
 ### Immich media gallery types

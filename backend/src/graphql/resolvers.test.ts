@@ -884,12 +884,13 @@ describe("trips", () => {
           { id: 2, activity_type: "Cycling", distance_meters: "10000", total_elevation_gain: null },
         ],
       })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [{ id: 9, distance_meters: "2000", note: null }] })
+      .mockResolvedValue({ rows: [] });
 
     const participants = await resolvers.Trip.participants(trip);
 
     expect(participants).toEqual([
-      { person: "kristin", equivalentMeters: 1800 + 3000 },
+      { person: "kristin", equivalentMeters: 1800 + 3000 + 2000 },
       { person: "mark", equivalentMeters: 0 },
     ]);
     const [sql, params] = pool.query.mock.calls[1];
@@ -897,7 +898,52 @@ describe("trips", () => {
       /a\.owner = \$1 OR a\.gpx_filename IN \(SELECT gpx_filename FROM activity_shares/,
     );
     expect(params).toEqual(["kristin", "2026-10-01", "2027-06-30"]);
-    expect(pool.query.mock.calls[2][1][0]).toBe("mark");
+    expect(pool.query.mock.calls[2][1]).toEqual(["3", "kristin", "2026-10-01", "2027-06-30"]);
+    expect(pool.query.mock.calls[3][1][0]).toBe("mark");
+  });
+
+  describe("manual entries", () => {
+    const { addTripManualEntry, deleteTripManualEntry } = resolvers.Mutation;
+    const entry = { tripId: "3", date: "2026-10-05", distanceMeters: 5000, note: " Treadmill " };
+
+    it("adds distance for the requester", async () => {
+      pool.query.mockResolvedValueOnce({ rows: [tripRow] }).mockResolvedValueOnce({
+        rows: [{ id: 9, entry_date: "2026-10-05", distance_meters: "5000", note: "Treadmill" }],
+      });
+
+      expect(await addTripManualEntry(null, entry, kristin)).toEqual({
+        id: "9",
+        date: "2026-10-05",
+        distanceMeters: 5000,
+        note: "Treadmill",
+      });
+      expect(pool.query.mock.calls[1][1]).toEqual([
+        "3",
+        "kristin",
+        "2026-10-05",
+        5000,
+        "Treadmill",
+      ]);
+    });
+
+    it("rejects a date outside the window, a zero distance, and a trip the requester isn't on", async () => {
+      pool.query.mockResolvedValue({ rows: [tripRow] });
+      await expect(
+        addTripManualEntry(null, { ...entry, date: "2026-09-30" }, kristin),
+      ).rejects.toThrow(/outside/);
+      await expect(
+        addTripManualEntry(null, { ...entry, distanceMeters: 0 }, kristin),
+      ).rejects.toThrow(/more than zero/);
+      pool.query.mockResolvedValue({ rows: [] });
+      await expect(addTripManualEntry(null, entry, kristin)).rejects.toThrow(/Trip not found/);
+    });
+
+    it("only deletes the requester's own entry", async () => {
+      pool.query.mockResolvedValueOnce({ rowCount: 0 }).mockResolvedValueOnce({ rowCount: 1 });
+      await expect(deleteTripManualEntry(null, { id: "9" }, mark)).rejects.toThrow(/not found/);
+      expect(await deleteTripManualEntry(null, { id: "9" }, kristin)).toBe(true);
+      expect(pool.query.mock.calls[1][1]).toEqual(["9", "kristin"]);
+    });
   });
 
   it("lists the requester's own activities with their equivalent distance", async () => {

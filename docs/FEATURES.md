@@ -116,6 +116,7 @@ This document details the features of gpx-report, and reflects what is actually 
 *   **Several people, one goal:** A trip can have several people on it. Each gets their own progress bar from their own activities (shared activities count, as everywhere else). People on a trip see each other's totals but not each other's activities. Anyone on the trip can edit it, change who is on it, or delete it; nobody else sees it.
 *   **Pace:** Progress is compared with a straight line from zero at the start date to the goal at the end date: distance ahead of or behind pace, distance needed per week, and days left, plus a chart of the running total against that line.
 *   **Breakdown:** The trip page lists the viewer's contributing activities and a per-type table (distance, elevation gain, factor, what it counts as), and a "How this is calculated" table of the factors.
+*   **Manual entries:** For distance with no recorded track (a treadmill, a forgotten phone), the trip page takes a date, a distance, and an optional note. It counts toward that person's total as entered, with no factor, and shows on the progress chart. A person adds and removes only their own.
 *   **Past trips:** After the end date a trip moves to a Past section with the final result. It is still computed live, so a late-synced file still counts.
 *   **Dashboard card:** The Dashboard shows a "Training For" card with a progress bar for each active trip, hidden when there are none.
 

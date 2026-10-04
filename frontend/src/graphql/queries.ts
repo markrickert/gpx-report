@@ -526,6 +526,12 @@ export const GET_TRIP = gql`
         factor
         equivalentMeters
       }
+      myManualEntries {
+        id
+        date
+        distanceMeters
+        note
+      }
     }
     effortFactors {
       activityType
@@ -546,5 +552,24 @@ export const SAVE_TRIP = gql`
 export const DELETE_TRIP = gql`
   mutation DeleteTrip($id: ID!) {
     deleteTrip(id: $id)
+  }
+`;
+
+export const ADD_TRIP_MANUAL_ENTRY = gql`
+  mutation AddTripManualEntry(
+    $tripId: ID!
+    $date: String!
+    $distanceMeters: Float!
+    $note: String
+  ) {
+    addTripManualEntry(tripId: $tripId, date: $date, distanceMeters: $distanceMeters, note: $note) {
+      id
+    }
+  }
+`;
+
+export const DELETE_TRIP_MANUAL_ENTRY = gql`
+  mutation DeleteTripManualEntry($id: ID!) {
+    deleteTripManualEntry(id: $id)
   }
 `;

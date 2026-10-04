@@ -235,6 +235,14 @@ export const typeDefs = `#graphql
     equivalentMeters: Float!
   }
 
+  "Distance with no recorded track, entered by hand. date is YYYY-MM-DD."
+  type TripManualEntry {
+    id: ID!
+    date: String!
+    distanceMeters: Float!
+    note: String
+  }
+
   "startDate and endDate are YYYY-MM-DD, both inclusive."
   type Trip {
     id: ID!
@@ -245,6 +253,8 @@ export const typeDefs = `#graphql
     participants: [TripParticipant!]!
     "The requesting person's own activities in the window, oldest first."
     myActivities: [TripActivity!]!
+    "The requesting person's own manual entries in the window, oldest first."
+    myManualEntries: [TripManualEntry!]!
   }
 
   input TripInput {
@@ -308,5 +318,12 @@ export const typeDefs = `#graphql
     scanActivityMedia(activityIds: [ID!]): ImmichScanResult!
     saveTrip(id: ID, input: TripInput!): Trip!
     deleteTrip(id: ID!): Boolean!
+    addTripManualEntry(
+      tripId: ID!
+      date: String!
+      distanceMeters: Float!
+      note: String
+    ): TripManualEntry!
+    deleteTripManualEntry(id: ID!): Boolean!
   }
 `;

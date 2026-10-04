@@ -154,6 +154,27 @@ async function tripActivities(trip, person) {
   });
 }
 
+// What `person` entered by hand for the trip, inside its window.
+async function tripManualEntries(trip, person) {
+  const { rows } = await pool.query(
+    `SELECT id, to_char(entry_date, 'YYYY-MM-DD') AS entry_date, distance_meters, note
+     FROM trip_manual_entries
+     WHERE trip_id = $1 AND person = $2 AND entry_date BETWEEN $3 AND $4
+     ORDER BY entry_date, id`,
+    [trip.id, person, trip.startDate, trip.endDate],
+  );
+  return rows.map(mapManualEntryRow);
+}
+
+function mapManualEntryRow(row) {
+  return {
+    id: String(row.id),
+    date: row.entry_date,
+    distanceMeters: Number(row.distance_meters),
+    note: row.note,
+  };
+}
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Only the owner edits/trims/deletes the source file; a share recipient
@@ -1339,6 +1360,33 @@ export const resolvers = {
       await pool.query("DELETE FROM trips WHERE id = $1", [id]);
       return true;
     },
+
+    // Always for the requester: nobody enters distance on someone else's behalf.
+    addTripManualEntry: async (_parent, { tripId, date, distanceMeters, note }, context) => {
+      const trip = await findTrip(tripId, context);
+      if (!trip) throw new Error("Trip not found");
+      if (!DATE_RE.test(date)) throw new Error("Dates must be YYYY-MM-DD");
+      if (date < trip.startDate || date > trip.endDate) {
+        throw new Error("That date is outside the trip's training dates");
+      }
+      if (!(distanceMeters > 0)) throw new Error("The distance must be more than zero");
+      const { rows } = await pool.query(
+        `INSERT INTO trip_manual_entries (trip_id, person, entry_date, distance_meters, note)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, to_char(entry_date, 'YYYY-MM-DD') AS entry_date, distance_meters, note`,
+        [tripId, personOf(context), date, distanceMeters, note?.trim() || null],
+      );
+      return mapManualEntryRow(rows[0]);
+    },
+
+    deleteTripManualEntry: async (_parent, { id }, context) => {
+      const { rowCount } = await pool.query(
+        "DELETE FROM trip_manual_entries WHERE id = $1 AND person = $2",
+        [id, personOf(context)],
+      );
+      if (!rowCount) throw new Error("Entry not found");
+      return true;
+    },
   },
 
   Trip: {
@@ -1352,15 +1400,20 @@ export const resolvers = {
       const participants = [];
       for (const { person } of rows) {
         const activities = await tripActivities(parent, person);
+        const manual = await tripManualEntries(parent, person);
         participants.push({
           person,
-          equivalentMeters: activities.reduce((sum, a) => sum + a.equivalentMeters, 0),
+          equivalentMeters:
+            activities.reduce((sum, a) => sum + a.equivalentMeters, 0) +
+            manual.reduce((sum, m) => sum + m.distanceMeters, 0),
         });
       }
       return participants;
     },
 
     myActivities: (parent, _args, context) => tripActivities(parent, personOf(context)),
+
+    myManualEntries: (parent, _args, context) => tripManualEntries(parent, personOf(context)),
   },
 
   Activity: {

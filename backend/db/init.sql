@@ -82,6 +82,22 @@ CREATE TABLE IF NOT EXISTS trip_participants (
 
 CREATE INDEX IF NOT EXISTS idx_trip_participants_person ON trip_participants (person);
 
+-- Distance someone did toward a trip with no recorded track (a treadmill, a
+-- forgotten phone). distance_meters is already equivalent hiking distance,
+-- so it adds straight onto that person's total. Counts only while
+-- entry_date is inside the trip's window. NOT derived data.
+CREATE TABLE IF NOT EXISTS trip_manual_entries (
+  id               SERIAL PRIMARY KEY,
+  trip_id          INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  person           VARCHAR(64) NOT NULL,
+  entry_date       DATE NOT NULL,
+  distance_meters  NUMERIC NOT NULL,
+  note             TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_trip_manual_entries_trip_id ON trip_manual_entries (trip_id);
+
 CREATE TABLE IF NOT EXISTS activity_routes (
   activity_id             INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
   route_geom              GEOMETRY(LineString, 4326) NOT NULL,

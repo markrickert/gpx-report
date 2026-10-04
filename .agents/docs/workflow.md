@@ -15,7 +15,7 @@ The checkout on the deployment host is the live deployment, not a development ch
 
 - It is safe to drop, recreate, or wipe the database volume without asking first. For a schema change, prefer `docker compose down -v`, recreate, and run `reanalyzeAllActivities` over manual `ALTER TABLE` steps when that is simpler.
 - Do not apply this to the raw files in `data/gpx/`. They are the source data.
-- Do not apply this to `activity_shares`, `trips`, `trip_participants`, `immich_settings`, or activity notes. They cannot be regenerated from the files. Back them up first. `GET /export/full` includes the shares, trips, and notes, but not the Immich settings.
+- Do not apply this to `activity_shares`, `trips`, `trip_participants`, `trip_manual_entries`, `immich_settings`, or activity notes. They cannot be regenerated from the files. Back them up first. `GET /export/full` includes the shares, trips, and notes, but not the Immich settings.
 - A query that reads `activities` must filter through `visibleTo()` in `resolvers.ts`. An edit must require `owner = person`.
 - A new ingestion path must limit its concurrency like the watcher queue and the `processAll()` batches.
 
