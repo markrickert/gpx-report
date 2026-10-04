@@ -60,6 +60,28 @@ CREATE TABLE IF NOT EXISTS activity_shares (
 
 CREATE INDEX IF NOT EXISTS idx_activity_shares_person ON activity_shares (person);
 
+-- A trip someone is training for: every activity a participant can see
+-- between start_date and end_date (inclusive) counts toward goal_meters as
+-- equivalent hiking distance (trips/effort.ts). Progress is computed on
+-- read, never stored. NOT derived data, like activity_shares — it's
+-- included in /export/full.
+CREATE TABLE IF NOT EXISTS trips (
+  id           SERIAL PRIMARY KEY,
+  name         VARCHAR(255) NOT NULL,
+  start_date   DATE NOT NULL,
+  end_date     DATE NOT NULL,
+  goal_meters  NUMERIC NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS trip_participants (
+  trip_id  INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  person   VARCHAR(64) NOT NULL,
+  PRIMARY KEY (trip_id, person)
+);
+
+CREATE INDEX IF NOT EXISTS idx_trip_participants_person ON trip_participants (person);
+
 CREATE TABLE IF NOT EXISTS activity_routes (
   activity_id             INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
   route_geom              GEOMETRY(LineString, 4326) NOT NULL,

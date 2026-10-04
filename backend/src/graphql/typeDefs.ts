@@ -213,6 +213,48 @@ export const typeDefs = `#graphql
     correctedElevationLoss: Float
   }
 
+  type EffortFactor {
+    activityType: String!
+    factor: Float!
+    countsElevation: Boolean!
+  }
+
+  type TripParticipant {
+    person: String!
+    equivalentMeters: Float!
+  }
+
+  type TripActivity {
+    id: ID!
+    title: String!
+    activityType: String!
+    startTime: DateTime!
+    distanceMeters: Float!
+    totalElevationGain: Float
+    factor: Float!
+    equivalentMeters: Float!
+  }
+
+  "startDate and endDate are YYYY-MM-DD, both inclusive."
+  type Trip {
+    id: ID!
+    name: String!
+    startDate: String!
+    endDate: String!
+    goalMeters: Float!
+    participants: [TripParticipant!]!
+    "The requesting person's own activities in the window, oldest first."
+    myActivities: [TripActivity!]!
+  }
+
+  input TripInput {
+    name: String!
+    startDate: String!
+    endDate: String!
+    goalMeters: Float!
+    participants: [String!]!
+  }
+
   type Query {
     activity(id: ID!): Activity
     activities(
@@ -243,6 +285,9 @@ export const typeDefs = `#graphql
     personalRecordsByType: [PersonalRecord!]!
     immichSettings: ImmichSettings!
     people: [String!]!
+    trips: [Trip!]!
+    trip(id: ID!): Trip
+    effortFactors: [EffortFactor!]!
   }
 
   type Mutation {
@@ -261,5 +306,7 @@ export const typeDefs = `#graphql
     setActivitySharedWith(id: ID!, people: [String!]!): Activity!
     updateImmichSettings(immichBaseUrl: String!, immichApiKey: String): Boolean!
     scanActivityMedia(activityIds: [ID!]): ImmichScanResult!
+    saveTrip(id: ID, input: TripInput!): Trip!
+    deleteTrip(id: ID!): Boolean!
   }
 `;

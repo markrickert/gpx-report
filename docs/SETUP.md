@@ -64,6 +64,24 @@ The repo-root `docker-compose.yml` already defines the `db` service (`postgis/po
     3.  Rebuild: `docker compose up -d --build backend frontend`.
 
     No re-analysis needed: existing rows are all top-level files, so the `'mark'` default is already correct for them. Back up `activity_shares` before any volume wipe — unlike every other table, `activity_shares` can't be regenerated from the GPX files; `GET /export/full` includes it as `activity-shares.json`.
+*   **Trips migration (existing deployments):** in the same DB shell, run:
+    ```sql
+    CREATE TABLE IF NOT EXISTS trips (
+      id          SERIAL PRIMARY KEY,
+      name        VARCHAR(255) NOT NULL,
+      start_date  DATE NOT NULL,
+      end_date    DATE NOT NULL,
+      goal_meters NUMERIC NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS trip_participants (
+      trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+      person  VARCHAR(64) NOT NULL,
+      PRIMARY KEY (trip_id, person)
+    );
+    CREATE INDEX IF NOT EXISTS idx_trip_participants_person ON trip_participants (person);
+    ```
+    Then rebuild: `docker compose up -d --build backend frontend`. Like `activity_shares`, trips can't be regenerated from the files; `GET /export/full` includes them as `trips.json`, so export before any volume wipe.
 *   **Local (non-Docker) Postgres:** install PostgreSQL + PostGIS yourself, create a DB/user, `CREATE EXTENSION IF NOT EXISTS postgis;`, then run `backend/db/init.sql` against it manually. Point `DATABASE_URL` at it.
 
 ## 3. Backend Setup

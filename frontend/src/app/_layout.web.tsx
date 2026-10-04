@@ -15,6 +15,7 @@ const PERSON_NAV = [
   { path: "", label: "Dashboard" },
   { path: "/heatmap", label: "Heatmap" },
   { path: "/stats", label: "Stats" },
+  { path: "/trips", label: "Trips" },
   { path: "/settings", label: "Settings" },
 ];
 

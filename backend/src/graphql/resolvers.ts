@@ -39,6 +39,7 @@ import {
 } from "../immich/settings.js";
 import { scanActivityMedia } from "../immich/scan.js";
 import { DEFAULT_PERSON, slugifyPerson, listPeople } from "../people.js";
+import { EFFORT_FACTORS, effortFactor, equivalentMeters } from "../trips/effort.js";
 
 // A flagged point only actually matters if removing it noticeably moves the
 // track's total distance — some flagged jumps are implausible-speed but
@@ -96,6 +97,64 @@ function personOf(context) {
 function visibleTo(alias, n) {
   return `(${alias}.owner = $${n} OR ${alias}.gpx_filename IN (SELECT gpx_filename FROM activity_shares WHERE person = $${n}))`;
 }
+
+// Dates leave as YYYY-MM-DD text: a DATE through the DateTime scalar would
+// shift by the server's UTC offset.
+const TRIP_COLUMNS = `t.id, t.name, to_char(t.start_date, 'YYYY-MM-DD') AS start_date,
+  to_char(t.end_date, 'YYYY-MM-DD') AS end_date, t.goal_meters`;
+
+function mapTripRow(row) {
+  return {
+    id: String(row.id),
+    name: row.name,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    goalMeters: Number(row.goal_meters),
+  };
+}
+
+// Only its participants can see or change a trip.
+async function findTrip(id, context) {
+  const { rows } = await pool.query(
+    `SELECT ${TRIP_COLUMNS} FROM trips t
+     JOIN trip_participants p ON p.trip_id = t.id
+     WHERE t.id = $1 AND p.person = $2`,
+    [id, personOf(context)],
+  );
+  return rows[0] ? mapTripRow(rows[0]) : null;
+}
+
+// What `person` did inside the trip's window (both dates inclusive), each
+// with its equivalent hiking distance.
+async function tripActivities(trip, person) {
+  const { rows } = await pool.query(
+    `SELECT a.id, a.title, a.activity_type, a.start_time, a.distance_meters, a.total_elevation_gain
+     FROM activities a
+     WHERE ${visibleTo("a", 1)}
+       AND a.start_time >= $2::date
+       AND a.start_time < $3::date + 1
+     ORDER BY a.start_time`,
+    [person, trip.startDate, trip.endDate],
+  );
+  return rows.map((row) => {
+    const activity = {
+      id: String(row.id),
+      title: row.title,
+      activityType: row.activity_type,
+      startTime: row.start_time,
+      distanceMeters: Number(row.distance_meters),
+      totalElevationGain:
+        row.total_elevation_gain == null ? null : Number(row.total_elevation_gain),
+    };
+    return {
+      ...activity,
+      factor: effortFactor(activity.activityType).factor,
+      equivalentMeters: equivalentMeters(activity),
+    };
+  });
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Only the owner edits/trims/deletes the source file; a share recipient
 // gets read-only access.
@@ -871,6 +930,21 @@ export const resolvers = {
     },
 
     people: async () => listPeople(GPX_FILES_DIRECTORY),
+
+    trips: async (_parent, _args, context) => {
+      const { rows } = await pool.query(
+        `SELECT ${TRIP_COLUMNS} FROM trips t
+         JOIN trip_participants p ON p.trip_id = t.id
+         WHERE p.person = $1
+         ORDER BY t.end_date, t.id`,
+        [personOf(context)],
+      );
+      return rows.map(mapTripRow);
+    },
+
+    trip: async (_parent, { id }, context) => findTrip(id, context),
+
+    effortFactors: () => EFFORT_FACTORS,
   },
 
   Mutation: {
@@ -1196,6 +1270,97 @@ export const resolvers = {
     scanActivityMedia: async (_parent, { activityIds }) => {
       return scanActivityMedia(activityIds ? activityIds.map((id) => Number(id)) : undefined);
     },
+
+    // Creates a trip (no id) or replaces one the requester is on. Whoever
+    // creates a trip is always on it; after that any participant can change
+    // anything, including who else is on it.
+    saveTrip: async (_parent, { id, input }, context) => {
+      const name = input.name.trim();
+      if (!name) throw new Error("A trip needs a name");
+      if (!DATE_RE.test(input.startDate) || !DATE_RE.test(input.endDate)) {
+        throw new Error("Dates must be YYYY-MM-DD");
+      }
+      if (input.endDate < input.startDate) throw new Error("The end date is before the start date");
+      if (!(input.goalMeters > 0)) throw new Error("The goal must be more than zero");
+      if (id && !(await findTrip(id, context))) throw new Error("Trip not found");
+
+      const known = await listPeople(GPX_FILES_DIRECTORY);
+      const slugs = new Set<string>(id ? [] : [personOf(context)]);
+      for (const person of input.participants) {
+        const slug = slugifyPerson(person);
+        if (!slug || !known.includes(slug)) throw new Error(`Unknown person: ${person}`);
+        slugs.add(slug);
+      }
+      if (slugs.size === 0) throw new Error("A trip needs at least one person");
+
+      const values = [name, input.startDate, input.endDate, input.goalMeters];
+      const client = await pool.connect();
+      let tripId = id;
+      try {
+        await client.query("BEGIN");
+        if (id) {
+          await client.query(
+            "UPDATE trips SET name = $1, start_date = $2, end_date = $3, goal_meters = $4 WHERE id = $5",
+            [...values, id],
+          );
+          await client.query("DELETE FROM trip_participants WHERE trip_id = $1", [id]);
+        } else {
+          const { rows } = await client.query(
+            "INSERT INTO trips (name, start_date, end_date, goal_meters) VALUES ($1, $2, $3, $4) RETURNING id",
+            values,
+          );
+          tripId = rows[0].id;
+        }
+        for (const slug of slugs) {
+          await client.query("INSERT INTO trip_participants (trip_id, person) VALUES ($1, $2)", [
+            tripId,
+            slug,
+          ]);
+        }
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+
+      return {
+        id: String(tripId),
+        name,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        goalMeters: input.goalMeters,
+      };
+    },
+
+    deleteTrip: async (_parent, { id }, context) => {
+      if (!(await findTrip(id, context))) throw new Error("Trip not found");
+      await pool.query("DELETE FROM trips WHERE id = $1", [id]);
+      return true;
+    },
+  },
+
+  Trip: {
+    // Each person's total comes from what that person can see, not what
+    // the requester can see. Only the total leaves the server.
+    participants: async (parent) => {
+      const { rows } = await pool.query(
+        "SELECT person FROM trip_participants WHERE trip_id = $1 ORDER BY person",
+        [parent.id],
+      );
+      const participants = [];
+      for (const { person } of rows) {
+        const activities = await tripActivities(parent, person);
+        participants.push({
+          person,
+          equivalentMeters: activities.reduce((sum, a) => sum + a.equivalentMeters, 0),
+        });
+      }
+      return participants;
+    },
+
+    myActivities: (parent, _args, context) => tripActivities(parent, personOf(context)),
   },
 
   Activity: {

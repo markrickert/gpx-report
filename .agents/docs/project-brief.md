@@ -24,5 +24,6 @@ GPX Report is a personal, self-hosted alternative to Strava. It records, stores,
 - **Person**: an account name. The default person owns the files at the top of the data folder. Each other person owns the files in the subfolder with their name.
 - **Owner**: the person whose folder holds the source file of an activity.
 - **Share**: the owner lets another person count an activity as their own, read-only.
+- **Trip**: something a group of people train for, with an end date and a distance goal. Every activity in its window counts toward the goal as equivalent hiking distance.
 - **Recording**: a track on the phone that the server does not have yet.
 - **Reanalysis**: a new parse of the source files that regenerates the derived data.

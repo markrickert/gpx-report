@@ -487,3 +487,64 @@ export const SET_ACTIVITY_SHARED_WITH = gql`
     }
   }
 `;
+
+export const GET_TRIPS = gql`
+  query GetTrips {
+    trips {
+      id
+      name
+      startDate
+      endDate
+      goalMeters
+      participants {
+        person
+        equivalentMeters
+      }
+    }
+  }
+`;
+
+export const GET_TRIP = gql`
+  query GetTrip($id: ID!) {
+    trip(id: $id) {
+      id
+      name
+      startDate
+      endDate
+      goalMeters
+      participants {
+        person
+        equivalentMeters
+      }
+      myActivities {
+        id
+        title
+        activityType
+        startTime
+        distanceMeters
+        totalElevationGain
+        factor
+        equivalentMeters
+      }
+    }
+    effortFactors {
+      activityType
+      factor
+      countsElevation
+    }
+  }
+`;
+
+export const SAVE_TRIP = gql`
+  mutation SaveTrip($id: ID, $input: TripInput!) {
+    saveTrip(id: $id, input: $input) {
+      id
+    }
+  }
+`;
+
+export const DELETE_TRIP = gql`
+  mutation DeleteTrip($id: ID!) {
+    deleteTrip(id: $id)
+  }
+`;

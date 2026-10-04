@@ -22,7 +22,7 @@
 
 - The source files, in one folder for each person, are the source of truth. Treat them with care.
 - Activities and routes are derived data. Reanalysis regenerates them, so it is safe to delete the database volume and rebuild it.
-- Shares, activity notes, and the Immich settings exist only in the database. Export them before a volume wipe, because a volume wipe deletes them. The full backup export includes the database rows and the shares.
+- Shares, trips, activity notes, and the Immich settings exist only in the database. Export them before a volume wipe, because a volume wipe deletes them. The full backup export includes the database rows, the shares, and the trips.
 - The database stores each route two times: as a PostGIS geometry for spatial queries, and as a point list that keeps elevation, time, and sensor values for the map and the charts.
 
 ## Conventions

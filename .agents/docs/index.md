@@ -49,7 +49,7 @@ Add each document using this format:
 #### [accounts.md](./accounts.md)
 
 - Description: People, ownership, visibility, and sharing.
-- Tags: `accounts`, `people`, `person`, `owner`, `sharing`, `visibility`, `permissions`
+- Tags: `accounts`, `people`, `person`, `owner`, `sharing`, `visibility`, `permissions`, `trips`
 
 #### [recorder.md](./recorder.md)
 

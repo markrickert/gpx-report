@@ -109,11 +109,21 @@ This document details the features of gpx-report, and reflects what is actually 
 *   **Payload Sizing:** The backing `heatmapPoints` GraphQL query returns `[lat, lon, elevation]` triples for every activity at once (no pagination), but caps/samples each route at 300 points server-side so a personal-scale dataset (hundreds of activities) stays a few MB rather than tens of MB at full GPS resolution. Sampling is done in SQL (a `jsonb_array_elements`/modulo pass per route) rather than fetching every stored point and sampling in JS, so the DB->backend transfer stays proportional to the sampled output, not the full-resolution dataset.
 *   **In-Memory Caching:** `heatmapPoints` is expensive to compute (still a multi-second full scan over every activity's points at this dataset size) and rarely changes, so the resolver caches the sampled result in memory for 5 minutes — repeat loads of `/heatmap` within that window are near-instant instead of recomputing every time. Staleness after a new activity is ingested (up to 5 minutes) is an accepted tradeoff for a personal, single-user app.
 
-## 7. Units
+## 7. Trips
+
+*   **Training for a trip:** `/<person>/trips` lists the trips a person is training for. A trip has a name, a training start date (defaults to today, can be backdated), a training end date, and a goal in miles or km of hiking or walking. Every activity in that window counts toward the goal.
+*   **Equivalent effort:** Other activities count as hiking distance: `factor × (distance + 8 × elevation gain)`. The factor is 1 for Hiking, Walking, Running, and Unknown or unrecognized types; 0.4 Mountain Biking; 0.3 Cycling; 0.2 E-Mountain Bike Ride; 4 Swimming; 0.5 Kayaking; 0.15 Alpine Skiing; 0 Paragliding. The elevation term (8 m of flat per 1 m climbed) applies to foot and bike types only, because recorded gain on water is noise and on skis is lift- or gravity-assisted. The table lives in `backend/src/trips/effort.ts` and applies on read, so changing a factor re-scores every trip.
+*   **Several people, one goal:** A trip can have several people on it. Each gets their own progress bar from their own activities (shared activities count, as everywhere else). People on a trip see each other's totals but not each other's activities. Anyone on the trip can edit it, change who is on it, or delete it; nobody else sees it.
+*   **Pace:** Progress is compared with a straight line from zero at the start date to the goal at the end date: distance ahead of or behind pace, distance needed per week, and days left, plus a chart of the running total against that line.
+*   **Breakdown:** The trip page lists the viewer's contributing activities and a per-type table (distance, elevation gain, factor, what it counts as), and a "How this is calculated" table of the factors.
+*   **Past trips:** After the end date a trip moves to a Past section with the final result. It is still computed live, so a late-synced file still counts.
+*   **Dashboard card:** The Dashboard shows a "Training For" card with a progress bar for each active trip, hidden when there are none.
+
+## 8. Units
 
 *   **km/miles Toggle:** A nav-bar toggle switches all distance/speed/elevation display between metric (km, km/h, m) and imperial (mi, mph, ft), backend by a React context persisted to `localStorage`. Defaults to imperial.
 
-## 8. Recording (Phone App)
+## 9. Recording (Phone App)
 
 *   **Phone app:** The iOS/Android build of `frontend/` has three tabs — History, Record, Settings — each with a native title bar. It's the primary way new activities are created.
 *   **Background recording:** Record uses `expo-location` background updates (`startLocationUpdatesAsync`, BestForNavigation, every ~5 m / 2 s), so recording continues with the screen locked. Android shows a foreground-service notification while recording. Each location batch is written straight to on-device SQLite by a module-scope TaskManager task, so a killed or relaunched JS runtime loses nothing.
@@ -125,7 +135,7 @@ This document details the features of gpx-report, and reflects what is actually 
 *   **Settings:** "Your name" (who this phone records as — recording is blocked until it's set; each recording keeps the name it was started with); server GraphQL URL (overrides the build-time default, since a server's hostname can change), with a connection test; units; current location permission with a link to system settings.
 *   **No web recording:** The web app doesn't record — a browser stops delivering GPS once the tab is backgrounded or the screen locks. Recording is phone-only.
 
-## 9. Accounts & Sharing
+## 10. Accounts & Sharing
 
 *   **Separate accounts, name only:** Each person has their own activities, dashboard, stats, PRs, streaks, and heatmap. There's no password — the phone sends the name from its Settings, the web uses the person in the URL, and the private network is the access boundary.
 *   **Per-person folders:** A person's files live in `data/gpx/<person>/`; files at the top of `data/gpx/` belong to the default person (`mark`). Creating the folder (or a first phone upload) adds a person.
@@ -133,7 +143,7 @@ This document details the features of gpx-report, and reflects what is actually 
 *   **"Did this with…":** On an activity they own, a person can tick others to share it with. A shared activity fully counts for the recipient — list, totals, PRs, streaks, heatmap — and shows "Shared by <owner>" on its detail page.
 *   **Recipient permissions:** A recipient can view a shared activity and remove it from their own activities ("Remove from my activities"), which leaves the file and the owner's copy untouched. Only the owner can edit, trim, clean, or delete it. Immich settings stay one shared config.
 
-## 10. Data Management
+## 11. Data Management
 
 *   **Self-Hosted:** All data is stored locally, ensuring user privacy and control.
 *   **Activity sources:** New activities come from the phone app's uploads (see above) or from files dropped manually into the monitored directory (`.gpx`, `.igc`, `.skiz`). Both go through the same directory-watch pipeline.

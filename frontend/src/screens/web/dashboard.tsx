@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation } from "@apollo/client";
 import { Link } from "@/components/web-link";
+import { TripProgress, myTotal } from "@/components/trip-progress";
 import {
   GET_DASHBOARD,
   GET_ON_THIS_DAY,
+  GET_TRIPS,
   UPDATE_ACTIVITY_TYPE,
   DELETE_ACTIVITY,
 } from "@/graphql/queries";
@@ -20,6 +23,7 @@ import {
 import { ACTIVITY_TYPES } from "@/utils/activity-types";
 import { activityTypeLabel } from "@/utils/activity-type-icons";
 import { downloadCsv } from "@/utils/csv";
+import { tripPace } from "@/utils/trip-pace";
 import { usePersonHref } from "@/lib/person";
 import { ImportFiles } from "@/screens/web/import-files";
 
@@ -106,6 +110,36 @@ function OnThisDayCard() {
                 {activityTypeLabel(activity.activityType)},{" "}
                 {formatDistance(activity.distanceMeters, unit)})
               </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+// The trips this person is still training for. Finished trips live on the
+// Trips page only.
+function TripsCard() {
+  const { person } = useLocalSearchParams<{ person: string }>();
+  const href = usePersonHref();
+  const { data } = useQuery(GET_TRIPS, { fetchPolicy: "cache-and-network" });
+  const trips = (data?.trips ?? []).filter((trip) => !tripPace({ ...trip, totalMeters: 0 }).isPast);
+  if (trips.length === 0) return null;
+
+  return (
+    <section className="on-this-day">
+      <h2>Training For</h2>
+      <ul className="on-this-day-list">
+        {trips.map((trip) => {
+          const { daysRemaining } = tripPace({ ...trip, totalMeters: 0 });
+          return (
+            <li key={trip.id}>
+              <Link to={href(`/trips/${trip.id}`)}>{trip.name}</Link>{" "}
+              <span className="trip-dates">
+                {daysRemaining} {daysRemaining === 1 ? "day" : "days"} left
+              </span>
+              <TripProgress trip={trip} totalMeters={myTotal(trip, person)} />
             </li>
           );
         })}
@@ -335,6 +369,7 @@ export default function Dashboard() {
         </div>
       </section>
 
+      <TripsCard />
       <OnThisDayCard />
 
       <div className="filter-row">

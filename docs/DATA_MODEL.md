@@ -63,6 +63,21 @@ Opt-in "did this with…" sharing. A shared activity counts for `person` exactly
 | `gpx_filename` | `VARCHAR(255)` | `NOT NULL`, part of `PRIMARY KEY`    | The shared activity's `activities.gpx_filename`. |
 | `person`       | `VARCHAR(64)`  | `NOT NULL`, part of `PRIMARY KEY`    | Who it's shared with. Indexed.                  |
 
+### `trips` and `trip_participants` Tables
+
+A trip someone is training for. Every activity a participant can see between `start_date` and `end_date` (both inclusive, in the database's timezone) counts toward `goal_meters` as equivalent hiking distance (`backend/src/trips/effort.ts`). Progress is computed on read and never stored, so a late file, a retyped activity, or a tuned factor changes past trips too. **Not derived data** — included in `GET /export/full` (`trips.json`), and a volume wipe loses it.
+
+| Table               | Column Name   | Data Type      | Constraints                                   | Description                                |
+| :------------------ | :------------ | :------------- | :-------------------------------------------- | :----------------------------------------- |
+| `trips`             | `id`          | `SERIAL`       | `PRIMARY KEY`                                 |                                            |
+| `trips`             | `name`        | `VARCHAR(255)` | `NOT NULL`                                    | Name of the trip.                          |
+| `trips`             | `start_date`  | `DATE`         | `NOT NULL`                                    | First day that counts.                     |
+| `trips`             | `end_date`    | `DATE`         | `NOT NULL`                                    | Training end date; last day that counts.   |
+| `trips`             | `goal_meters` | `NUMERIC`      | `NOT NULL`                                    | Cumulative equivalent hiking distance.     |
+| `trips`             | `created_at`  | `TIMESTAMPTZ`  | `NOT NULL DEFAULT NOW()`                      |                                            |
+| `trip_participants` | `trip_id`     | `INTEGER`      | `REFERENCES trips(id) ON DELETE CASCADE`, PK  |                                            |
+| `trip_participants` | `person`      | `VARCHAR(64)`  | `NOT NULL`, PK                                | Someone training for the trip. Indexed.    |
+
 ### `immich_settings` Table
 
 Single-row table (`id` always `1`) holding the optional Immich media integration's connection info. See `backend/src/immich/`.
@@ -188,6 +203,33 @@ type Query {
                                 # for an all-time view.
 }
 ```
+
+### Trips
+
+```graphql
+type Trip {
+  id: ID!
+  name: String!
+  startDate: String! # YYYY-MM-DD, inclusive
+  endDate: String!   # YYYY-MM-DD, inclusive
+  goalMeters: Float!
+  participants: [TripParticipant!]! # each person's total, from what THAT person can see
+  myActivities: [TripActivity!]!    # the requester's own activities in the window, oldest first
+}
+type TripParticipant { person: String!  equivalentMeters: Float! }
+type TripActivity {
+  id: ID!  title: String!  activityType: String!  startTime: DateTime!
+  distanceMeters: Float!  totalElevationGain: Float
+  factor: Float!  equivalentMeters: Float!
+}
+type EffortFactor { activityType: String!  factor: Float!  countsElevation: Boolean! }
+input TripInput { name: String!  startDate: String!  endDate: String!  goalMeters: Float!  participants: [String!]! }
+```
+
+- `Query.trips` lists the trips the requester is on, soonest end date first. `Query.trip(id)` returns null for a trip they aren't on.
+- `Query.effortFactors` returns the conversion table, so the page can show how the number is made.
+- `Mutation.saveTrip(id: ID, input: TripInput!)` creates a trip (no `id`; the requester is always added) or replaces one the requester is on. `Mutation.deleteTrip(id)` needs the same. Any participant can change anything, including the participants; each must be in `people`.
+- Other participants only ever see a total. The activities behind it stay under the normal visibility rule.
 
 ### Immich media gallery types
 

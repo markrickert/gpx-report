@@ -36,6 +36,11 @@ New integration: optionally allow the user to give a url and api key in the inte
   - [ ] "Remove from my activities" leaves the file alone.
 - [ ] **Browser ingest notifications are per default person only.** `utils/notifications.tsx` is mounted at the web root and polls with the header-less client, so it only notices the default person's new activities.
 
+### Trips
+
+- [x] **Train toward a trip** (2026-10-03) — new `trips`/`trip_participants` tables, `backend/src/trips/effort.ts` (per-type factors plus 8:1 climb equivalence, unit-tested), `trips`/`trip`/`effortFactors` queries and `saveTrip`/`deleteTrip` mutations, `trips.json` in the full export, and on the web a `/<person>/trips` list, a trip detail page (per-person bars, pace tiles, progress chart, by-type and per-activity breakdown), and a "Training For" dashboard card. Verified by unit tests, lint, typecheck, and a web bundle build only: the machine it was written on had no Docker or Postgres, so the SQL and the pages have not run against a database.
+- [ ] **Roll out trips on the live server.** Run the SQL in `docs/SETUP.md` §2 ("Trips migration"), rebuild backend and frontend, then check a trip with two people: totals match a hand calculation, each person's activity list shows only their own, a third person can't open it, and it holds up at phone width.
+
 ### Test coverage gaps
 
 Audited 2026-08-08: pure-logic modules (`track/geo.js`, `track/outliers.js`, `track/elevation.js`, `gpx/writer.js`, `igc/writer.js`, `skiz/writer.js`, `graphql/scalars.js`) now have unit tests alongside the existing parser/`liftDetection`/`personalRecords` suites, and `graphql/resolvers.js`'s pure/computable resolvers were added 2026-08-10 (145 tests total in `backend/`). What's left, roughly ordered by value:

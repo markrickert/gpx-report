@@ -368,6 +368,131 @@ select {
   gap: 0.4rem;
 }
 
+.trip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.trip-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.trip-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  font-weight: 600;
+}
+
+.trip-dates {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.trip-progress-text {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.1rem 1rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.3rem;
+}
+
+.trip-progress-person {
+  text-transform: capitalize;
+  margin-right: 0.5rem;
+}
+
+.trip-progress-pace {
+  color: var(--text-muted);
+}
+
+.trip-progress-bar {
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+
+.trip-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.trip-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem 1rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.trip-form > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.trip-form > label input {
+  font-size: 1rem;
+  padding: 0.4rem 0.5rem;
+}
+
+.trip-form-people,
+.trip-form-actions,
+.trip-form .title-edit-error {
+  grid-column: 1 / -1;
+}
+
+.trip-form-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  border: none;
+  margin: 0;
+  padding: 0;
+  text-transform: capitalize;
+}
+
+.trip-form-people legend {
+  padding: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: none;
+}
+
+.trip-form-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.trip-factors {
+  margin-top: 1.5rem;
+}
+
+.trip-factors summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
 .filter-row {
   margin-bottom: 1rem;
 }

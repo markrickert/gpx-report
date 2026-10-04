@@ -20,6 +20,11 @@ Accounts let a small group of people use one deployment. Each person sees their 
 - **Sharing**: the owner sets the full list of people for an activity. Each name must be an existing person and must not be the owner.
 - **Share storage**: the database stores each share by its source file. Shares survive reanalysis. Shares cannot be regenerated from the files.
 
+## Trips
+
+- A trip is a shared training goal. Only the people on a trip can see it, edit it, change who is on it, or delete it. The person who creates a trip is always on it.
+- Each person's progress comes from the activities that person can see. The people on a trip see each other's totals only. The visibility rule still decides whose activities a person can list.
+
 ## Web Interaction
 
 - The web landing page lists the people. Each person has their own set of pages under their name in the URL.

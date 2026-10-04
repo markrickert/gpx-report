@@ -771,3 +771,163 @@ describe("importActivityFile", () => {
     expect(processFile).not.toHaveBeenCalled();
   });
 });
+
+describe("trips", () => {
+  const { saveTrip, deleteTrip } = resolvers.Mutation;
+  const tripRow = {
+    id: 3,
+    name: "Tour du Mont Blanc",
+    start_date: "2026-10-01",
+    end_date: "2027-06-30",
+    goal_meters: "500000",
+  };
+  const trip = {
+    id: "3",
+    name: "Tour du Mont Blanc",
+    startDate: "2026-10-01",
+    endDate: "2027-06-30",
+    goalMeters: 500000,
+  };
+  const input = {
+    name: " Tour du Mont Blanc ",
+    startDate: "2026-10-01",
+    endDate: "2027-06-30",
+    goalMeters: 500000,
+    participants: ["Kristin"],
+  };
+  let client;
+
+  beforeEach(() => {
+    pool.query.mockReset();
+    pool.connect.mockReset();
+    mkdirSync(path.join(process.env.GPX_FILES_DIRECTORY, "kristin"), { recursive: true });
+    client = { query: vi.fn().mockResolvedValue({ rows: [{ id: 3 }] }), release: vi.fn() };
+    pool.connect.mockResolvedValue(client);
+  });
+
+  it("lists only the trips the requester is on", async () => {
+    pool.query.mockResolvedValue({ rows: [tripRow] });
+    expect(await resolvers.Query.trips(null, {}, kristin)).toEqual([trip]);
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/p\.person = \$1/);
+    expect(params).toEqual(["kristin"]);
+  });
+
+  it("hides a trip from someone who isn't on it", async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+    expect(await resolvers.Query.trip(null, { id: "3" }, kristin)).toBeNull();
+    expect(pool.query.mock.calls[0][1]).toEqual(["3", "kristin"]);
+  });
+
+  it("puts the creator on a new trip", async () => {
+    const result = await saveTrip(null, { id: null, input }, mark);
+
+    expect(result).toEqual(trip);
+    const inserted = client.query.mock.calls
+      .filter(([sql]) => sql.startsWith("INSERT INTO trip_participants"))
+      .map(([, params]) => params);
+    expect(inserted).toEqual([
+      [3, "mark"],
+      [3, "kristin"],
+    ]);
+    expect(client.query).toHaveBeenLastCalledWith("COMMIT");
+  });
+
+  it("replaces the participants of an existing trip", async () => {
+    pool.query.mockResolvedValue({ rows: [tripRow] });
+
+    await saveTrip(null, { id: "3", input }, mark);
+
+    expect(client.query).toHaveBeenCalledWith("DELETE FROM trip_participants WHERE trip_id = $1", [
+      "3",
+    ]);
+    const inserted = client.query.mock.calls
+      .filter(([sql]) => sql.startsWith("INSERT INTO trip_participants"))
+      .map(([, params]) => params);
+    expect(inserted).toEqual([["3", "kristin"]]);
+  });
+
+  it("rejects bad input before writing anything", async () => {
+    await expect(
+      saveTrip(null, { id: null, input: { ...input, participants: ["nobody"] } }, mark),
+    ).rejects.toThrow(/Unknown person/);
+    await expect(
+      saveTrip(null, { id: null, input: { ...input, endDate: "2026-09-30" } }, mark),
+    ).rejects.toThrow(/before the start/);
+    await expect(
+      saveTrip(null, { id: null, input: { ...input, goalMeters: 0 } }, mark),
+    ).rejects.toThrow(/more than zero/);
+    await expect(
+      saveTrip(null, { id: null, input: { ...input, name: "  " } }, mark),
+    ).rejects.toThrow(/name/);
+    pool.query.mockResolvedValue({ rows: [tripRow] });
+    await expect(
+      saveTrip(null, { id: "3", input: { ...input, participants: [] } }, mark),
+    ).rejects.toThrow(/at least one person/);
+    expect(pool.connect).not.toHaveBeenCalled();
+  });
+
+  it("won't change or delete a trip the requester isn't on", async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+    await expect(saveTrip(null, { id: "3", input }, kristin)).rejects.toThrow(/Trip not found/);
+    await expect(deleteTrip(null, { id: "3" }, kristin)).rejects.toThrow(/Trip not found/);
+    expect(pool.connect).not.toHaveBeenCalled();
+    expect(pool.query).toHaveBeenCalledTimes(2);
+  });
+
+  it("totals each participant from their own visible activities", async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ person: "kristin" }, { person: "mark" }] })
+      .mockResolvedValueOnce({
+        rows: [
+          { id: 1, activity_type: "Hiking", distance_meters: "1000", total_elevation_gain: "100" },
+          { id: 2, activity_type: "Cycling", distance_meters: "10000", total_elevation_gain: null },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const participants = await resolvers.Trip.participants(trip);
+
+    expect(participants).toEqual([
+      { person: "kristin", equivalentMeters: 1800 + 3000 },
+      { person: "mark", equivalentMeters: 0 },
+    ]);
+    const [sql, params] = pool.query.mock.calls[1];
+    expect(sql).toMatch(
+      /a\.owner = \$1 OR a\.gpx_filename IN \(SELECT gpx_filename FROM activity_shares/,
+    );
+    expect(params).toEqual(["kristin", "2026-10-01", "2027-06-30"]);
+    expect(pool.query.mock.calls[2][1][0]).toBe("mark");
+  });
+
+  it("lists the requester's own activities with their equivalent distance", async () => {
+    pool.query.mockResolvedValue({
+      rows: [
+        {
+          id: 7,
+          title: "Ridge walk",
+          activity_type: "Paragliding",
+          start_time: new Date("2026-10-02T10:00:00Z"),
+          distance_meters: "30000",
+          total_elevation_gain: "2000",
+        },
+      ],
+    });
+
+    const activities = await resolvers.Trip.myActivities(trip, {}, kristin);
+
+    expect(activities).toEqual([
+      {
+        id: "7",
+        title: "Ridge walk",
+        activityType: "Paragliding",
+        startTime: new Date("2026-10-02T10:00:00Z"),
+        distanceMeters: 30000,
+        totalElevationGain: 2000,
+        factor: 0,
+        equivalentMeters: 0,
+      },
+    ]);
+    expect(pool.query.mock.calls[0][1][0]).toBe("kristin");
+  });
+});

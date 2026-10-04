@@ -142,6 +142,16 @@ app.get("/api/export/full", async (req, res) => {
     "SELECT gpx_filename, person FROM activity_shares ORDER BY gpx_filename, person",
   );
   archive.append(JSON.stringify(shares, null, 2), { name: "activity-shares.json" });
+  // Nor are trips.
+  const { rows: trips } = await pool.query(`
+    SELECT t.id, t.name, to_char(t.start_date, 'YYYY-MM-DD') AS start_date,
+      to_char(t.end_date, 'YYYY-MM-DD') AS end_date, t.goal_meters,
+      ARRAY(SELECT person FROM trip_participants p WHERE p.trip_id = t.id ORDER BY person)
+        AS participants
+    FROM trips t
+    ORDER BY t.id
+  `);
+  archive.append(JSON.stringify(trips, null, 2), { name: "trips.json" });
 
   await archive.finalize();
 });
