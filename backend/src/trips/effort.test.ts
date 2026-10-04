@@ -58,6 +58,13 @@ describe("equivalentMeters", () => {
     }
   });
 
+  it("drops the climb term when the trip doesn't count climbing", () => {
+    const hike = { activityType: "Hiking", distanceMeters: 1000, totalElevationGain: 100 };
+    expect(equivalentMeters(hike, false)).toBe(1000);
+    const ride = { activityType: "Cycling", distanceMeters: 10000, totalElevationGain: 100 };
+    expect(equivalentMeters(ride, false)).toBeCloseTo(3000);
+  });
+
   it("counts paragliding as nothing", () => {
     expect(
       equivalentMeters({

@@ -780,6 +780,8 @@ describe("trips", () => {
     start_date: "2026-10-01",
     end_date: "2027-06-30",
     goal_meters: "500000",
+    counts_elevation: true,
+    weekly_targets_meters: null,
   };
   const trip = {
     id: "3",
@@ -787,6 +789,8 @@ describe("trips", () => {
     startDate: "2026-10-01",
     endDate: "2027-06-30",
     goalMeters: 500000,
+    countsElevation: true,
+    weeklyTargetsMeters: null,
   };
   const input = {
     name: " Tour du Mont Blanc ",
@@ -831,6 +835,39 @@ describe("trips", () => {
       [3, "kristin"],
     ]);
     expect(client.query).toHaveBeenLastCalledWith("COMMIT");
+  });
+
+  it("makes the goal the sum of a weekly plan", async () => {
+    const plan = { ...input, startDate: "2026-10-05", endDate: "2026-10-25" };
+    const result = await saveTrip(
+      null,
+      { id: null, input: { ...plan, countsElevation: false, weeklyTargetsMeters: [10, 0, 30] } },
+      mark,
+    );
+
+    expect(result.goalMeters).toBe(40);
+    expect(result.countsElevation).toBe(false);
+    expect(result.weeklyTargetsMeters).toEqual([10, 0, 30]);
+    const [, params] = client.query.mock.calls.find(([sql]) => sql.includes("INSERT INTO trips"));
+    expect(params.slice(3)).toEqual([40, false, "[10,0,30]"]);
+
+    await expect(
+      saveTrip(null, { id: null, input: { ...plan, weeklyTargetsMeters: [10, 30] } }, mark),
+    ).rejects.toThrow(/need 3 weekly targets/);
+  });
+
+  it("counts plain distance on a trip that doesn't count climbing", async () => {
+    pool.query.mockResolvedValue({
+      rows: [
+        { id: 1, activity_type: "Hiking", distance_meters: "1000", total_elevation_gain: "100" },
+      ],
+    });
+    const [activity] = await resolvers.Trip.myActivities(
+      { ...trip, countsElevation: false },
+      {},
+      kristin,
+    );
+    expect(activity.equivalentMeters).toBe(1000);
   });
 
   it("replaces the participants of an existing trip", async () => {

@@ -40,6 +40,7 @@ import {
 import { scanActivityMedia } from "../immich/scan.js";
 import { DEFAULT_PERSON, slugifyPerson, listPeople } from "../people.js";
 import { EFFORT_FACTORS, effortFactor, equivalentMeters } from "../trips/effort.js";
+import { tripWeekCount } from "../trips/weeks.js";
 
 // A flagged point only actually matters if removing it noticeably moves the
 // track's total distance — some flagged jumps are implausible-speed but
@@ -101,7 +102,8 @@ function visibleTo(alias, n) {
 // Dates leave as YYYY-MM-DD text: a DATE through the DateTime scalar would
 // shift by the server's UTC offset.
 const TRIP_COLUMNS = `t.id, t.name, to_char(t.start_date, 'YYYY-MM-DD') AS start_date,
-  to_char(t.end_date, 'YYYY-MM-DD') AS end_date, t.goal_meters`;
+  to_char(t.end_date, 'YYYY-MM-DD') AS end_date, t.goal_meters, t.counts_elevation,
+  t.weekly_targets_meters`;
 
 function mapTripRow(row) {
   return {
@@ -110,6 +112,8 @@ function mapTripRow(row) {
     startDate: row.start_date,
     endDate: row.end_date,
     goalMeters: Number(row.goal_meters),
+    countsElevation: row.counts_elevation,
+    weeklyTargetsMeters: row.weekly_targets_meters,
   };
 }
 
@@ -149,7 +153,7 @@ async function tripActivities(trip, person) {
     return {
       ...activity,
       factor: effortFactor(activity.activityType).factor,
-      equivalentMeters: equivalentMeters(activity),
+      equivalentMeters: equivalentMeters(activity, trip.countsElevation),
     };
   });
 }
@@ -1302,7 +1306,21 @@ export const resolvers = {
         throw new Error("Dates must be YYYY-MM-DD");
       }
       if (input.endDate < input.startDate) throw new Error("The end date is before the start date");
-      if (!(input.goalMeters > 0)) throw new Error("The goal must be more than zero");
+      const weeklyTargetsMeters = input.weeklyTargetsMeters ?? null;
+      if (weeklyTargetsMeters) {
+        const weeks = tripWeekCount(input.startDate, input.endDate);
+        if (weeklyTargetsMeters.length !== weeks) {
+          throw new Error(`These dates need ${weeks} weekly targets`);
+        }
+        if (weeklyTargetsMeters.some((m) => !(m >= 0))) {
+          throw new Error("A weekly target can't be negative");
+        }
+      }
+      const goalMeters = weeklyTargetsMeters
+        ? weeklyTargetsMeters.reduce((sum, m) => sum + m, 0)
+        : input.goalMeters;
+      if (!(goalMeters > 0)) throw new Error("The goal must be more than zero");
+      const countsElevation = input.countsElevation ?? true;
       if (id && !(await findTrip(id, context))) throw new Error("Trip not found");
 
       const known = await listPeople(GPX_FILES_DIRECTORY);
@@ -1314,20 +1332,31 @@ export const resolvers = {
       }
       if (slugs.size === 0) throw new Error("A trip needs at least one person");
 
-      const values = [name, input.startDate, input.endDate, input.goalMeters];
+      const values = [
+        name,
+        input.startDate,
+        input.endDate,
+        goalMeters,
+        countsElevation,
+        weeklyTargetsMeters && JSON.stringify(weeklyTargetsMeters),
+      ];
       const client = await pool.connect();
       let tripId = id;
       try {
         await client.query("BEGIN");
         if (id) {
           await client.query(
-            "UPDATE trips SET name = $1, start_date = $2, end_date = $3, goal_meters = $4 WHERE id = $5",
+            `UPDATE trips SET name = $1, start_date = $2, end_date = $3, goal_meters = $4,
+               counts_elevation = $5, weekly_targets_meters = $6
+             WHERE id = $7`,
             [...values, id],
           );
           await client.query("DELETE FROM trip_participants WHERE trip_id = $1", [id]);
         } else {
           const { rows } = await client.query(
-            "INSERT INTO trips (name, start_date, end_date, goal_meters) VALUES ($1, $2, $3, $4) RETURNING id",
+            `INSERT INTO trips
+               (name, start_date, end_date, goal_meters, counts_elevation, weekly_targets_meters)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
             values,
           );
           tripId = rows[0].id;
@@ -1351,7 +1380,9 @@ export const resolvers = {
         name,
         startDate: input.startDate,
         endDate: input.endDate,
-        goalMeters: input.goalMeters,
+        goalMeters,
+        countsElevation,
+        weeklyTargetsMeters,
       };
     },
 

@@ -14,6 +14,7 @@ import { useQuery } from "@apollo/client";
 import { Link, Stack, useFocusEffect } from "expo-router";
 import { unstable_getMaterialSymbolSourceAsync } from "expo-symbols";
 import { RouteThumbnail } from "@/components/route-thumbnail";
+import { TripsCard } from "@/components/trips-card";
 import { GET_DASHBOARD } from "@/graphql/queries";
 import { useTheme } from "@/hooks/use-theme";
 import { DEFAULT_PERSON, usePerson } from "@/lib/person";
@@ -126,6 +127,7 @@ export function HistoryScreen() {
           {`Can't reach the server (${error.message}). Recordings stay on this phone until it's back.`}
         </Text>
       )}
+      <TripsCard />
       {unsynced.map((rec) => (
         <View key={rec.id} style={[styles.row, { backgroundColor: colors.backgroundElement }]}>
           <Text style={[styles.title, { color: colors.text }]}>{rec.title}</Text>

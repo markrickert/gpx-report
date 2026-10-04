@@ -40,7 +40,9 @@ New integration: optionally allow the user to give a url and api key in the inte
 
 - [x] **Train toward a trip** (2026-10-03) — new `trips`/`trip_participants` tables, `backend/src/trips/effort.ts` (per-type factors plus 8:1 climb equivalence, unit-tested), `trips`/`trip`/`effortFactors` queries and `saveTrip`/`deleteTrip` mutations, `trips.json` in the full export, and on the web a `/<person>/trips` list, a trip detail page (per-person bars, pace tiles, progress chart, by-type and per-activity breakdown), and a "Training For" dashboard card. Rolled out the same day: tables created by hand, and a throwaway trip on the live server matched a hand calculation and was invisible to a person not on it.
 - [x] **Manual trip entries** (2026-10-03) — new `trip_manual_entries` table and `addTripManualEntry`/`deleteTripManualEntry` mutations, for distance with no recorded track. Counts as entered toward the person's own total; form and list on the trip page; in the full export as `trip-manual-entries.json`.
-- [ ] **Roll out manual trip entries on the live server.** Create `trip_manual_entries` (SQL in `docs/SETUP.md` §2, "Trips migration") and rebuild backend and frontend.
+- [x] **Trips in the phone app** (2026-10-03) — `components/trips-card.tsx` at the top of History shows each active trip's progress; `app/trips/` routes open the web trips pages in a WebView (`components/trip-web-view.tsx`), as activity pages do. `trips` is now a reserved person name. Verified by lint, typecheck, and iOS + web bundling only.
+- [x] **Weekly plan and climbing switch for trips** (2026-10-03) — `trips.weekly_targets_meters` and `trips.counts_elevation`; pace, "left this week", and the chart's target line follow the plan when a trip has one (`frontend/src/utils/trip-pace.ts`, `backend/src/trips/weeks.ts`).
+- [ ] **Check trips on a real phone.** The History card shows the Portugal trip and refreshes after an upload; tapping it opens the trip page without the web nav; "All trips" opens the list; a manual entry can be added and removed; the back gesture works inside the embedded pages.
 
 ### Test coverage gaps
 

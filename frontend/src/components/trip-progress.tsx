@@ -24,7 +24,8 @@ export function paceLabel(trip, totalMeters, unit) {
     return `Finished ${formatTripDistance(trip.goalMeters - totalMeters, unit)} short`;
   }
   const ahead = formatTripDistance(Math.abs(pace.aheadMeters), unit);
-  return pace.aheadMeters >= 0 ? `${ahead} ahead of pace` : `${ahead} behind pace`;
+  const line = trip.weeklyTargetsMeters ? "plan" : "pace";
+  return pace.aheadMeters >= 0 ? `${ahead} ahead of ${line}` : `${ahead} behind ${line}`;
 }
 
 /** One person's bar toward a trip's goal, with where they stand against the pace line. */

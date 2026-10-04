@@ -472,6 +472,10 @@ select {
   text-transform: capitalize;
 }
 
+.trip-form-options {
+  text-transform: none;
+}
+
 .trip-form-people legend {
   padding: 0;
   font-size: 0.85rem;

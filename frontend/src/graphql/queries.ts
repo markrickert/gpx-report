@@ -496,6 +496,8 @@ export const GET_TRIPS = gql`
       startDate
       endDate
       goalMeters
+      countsElevation
+      weeklyTargetsMeters
       participants {
         person
         equivalentMeters
@@ -512,6 +514,8 @@ export const GET_TRIP = gql`
       startDate
       endDate
       goalMeters
+      countsElevation
+      weeklyTargetsMeters
       participants {
         person
         equivalentMeters

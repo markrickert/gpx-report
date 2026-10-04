@@ -33,8 +33,14 @@ export function effortFactor(activityType) {
   return EFFORT_FACTORS.find((f) => f.activityType === activityType) ?? UNKNOWN;
 }
 
-export function equivalentMeters({ activityType, distanceMeters, totalElevationGain }) {
+// climbCounts is the trip's own switch: a trip planned in plain trail
+// distance turns the climb term off for every type.
+export function equivalentMeters(
+  { activityType, distanceMeters, totalElevationGain },
+  climbCounts = true,
+) {
   const { factor, countsElevation } = effortFactor(activityType);
-  const climb = countsElevation ? CLIMB_EQUIVALENCE * Math.max(0, totalElevationGain ?? 0) : 0;
+  const climb =
+    climbCounts && countsElevation ? CLIMB_EQUIVALENCE * Math.max(0, totalElevationGain ?? 0) : 0;
   return factor * (distanceMeters + climb);
 }

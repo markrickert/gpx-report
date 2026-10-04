@@ -71,6 +71,13 @@ CREATE TABLE IF NOT EXISTS trips (
   start_date   DATE NOT NULL,
   end_date     DATE NOT NULL,
   goal_meters  NUMERIC NOT NULL,
+  -- False for a trip planned in plain trail distance: activities then count
+  -- factor x distance, with no credit for climbing.
+  counts_elevation        BOOLEAN NOT NULL DEFAULT TRUE,
+  -- Optional plan: one target per week from start_date (trips/weeks.ts), the
+  -- last week running through end_date. goal_meters is then their sum, and
+  -- pace follows the plan instead of a straight line.
+  weekly_targets_meters   JSONB,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

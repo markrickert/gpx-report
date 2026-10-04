@@ -145,7 +145,8 @@ app.get("/api/export/full", async (req, res) => {
   // Nor are trips.
   const { rows: trips } = await pool.query(`
     SELECT t.id, t.name, to_char(t.start_date, 'YYYY-MM-DD') AS start_date,
-      to_char(t.end_date, 'YYYY-MM-DD') AS end_date, t.goal_meters,
+      to_char(t.end_date, 'YYYY-MM-DD') AS end_date, t.goal_meters, t.counts_elevation,
+      t.weekly_targets_meters,
       ARRAY(SELECT person FROM trip_participants p WHERE p.trip_id = t.id ORDER BY person)
         AS participants
     FROM trips t

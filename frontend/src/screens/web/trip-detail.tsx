@@ -26,7 +26,7 @@ import {
 } from "@/graphql/queries";
 import { usePersonHref } from "@/lib/person";
 import { activityTypeLabel } from "@/utils/activity-type-icons";
-import { localDate, tripPace } from "@/utils/trip-pace";
+import { localDate, tripPace, tripTargetLine } from "@/utils/trip-pace";
 import { useUnits, distanceValue, distanceUnitLabel, formatElevation } from "@/utils/units";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -46,15 +46,19 @@ function PaceTiles({ trip, totalMeters }) {
         <span className="summary-value">
           {formatTripDistance(Math.abs(pace.aheadMeters), unit)}
         </span>
-        <span className="summary-label">{ahead ? "Ahead of pace" : "Behind pace"}</span>
+        <span className="summary-label">
+          {ahead ? "Ahead of" : "Behind"} {trip.weeklyTargetsMeters ? "plan" : "pace"}
+        </span>
       </div>
       {!pace.isPast && (
         <>
           <div className="summary-tile">
             <span className="summary-value">
-              {formatTripDistance(pace.neededPerWeekMeters, unit)}
+              {formatTripDistance(pace.neededThisWeekMeters ?? pace.neededPerWeekMeters, unit)}
             </span>
-            <span className="summary-label">Needed per week</span>
+            <span className="summary-label">
+              {pace.neededThisWeekMeters == null ? "Needed per week" : "Left this week"}
+            </span>
           </div>
           <div className="summary-tile">
             <span className="summary-value">{pace.daysRemaining}</span>
@@ -95,10 +99,10 @@ function ProgressChart({ trip }) {
   // Carry the line flat up to today, so a quiet week shows as one.
   const now = Math.min(Math.max(loadedAt, start), end);
   if (now > actual[actual.length - 1].t) actual.push({ t: now, value: distanceValue(total, unit) });
-  const target = [
-    { t: start, value: 0 },
-    { t: end, value: distanceValue(trip.goalMeters, unit) },
-  ];
+  const target = tripTargetLine(trip).map(({ day, meters }) => ({
+    t: start + day * DAY_MS,
+    value: distanceValue(meters, unit),
+  }));
   const formatDay = (t) =>
     new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
@@ -137,7 +141,7 @@ function ProgressChart({ trip }) {
           <Line
             data={target}
             dataKey="value"
-            name="On pace"
+            name={trip.weeklyTargetsMeters ? "Plan" : "On pace"}
             stroke="var(--text-muted)"
             strokeDasharray="6 4"
             dot={false}
@@ -362,13 +366,14 @@ function ManualEntries({ trip, onChanged }) {
   );
 }
 
-function EffortFactors({ factors }) {
+function EffortFactors({ factors, countsElevation }) {
   return (
     <details className="trip-factors">
       <summary>How this is calculated</summary>
       <p>
-        Every activity between the two dates counts as hiking distance: its own distance, plus 8
-        times its elevation gain where climbing counts, times a factor for its type.
+        {countsElevation
+          ? "Every activity between the two dates counts as hiking distance: its own distance, plus 8 times its elevation gain where climbing counts, times a factor for its type."
+          : "Every activity between the two dates counts as hiking distance: its own distance times a factor for its type. This trip gives no extra credit for climbing."}
       </p>
       <div className="stats-table-wrap">
         <table className="stats-table">
@@ -376,7 +381,7 @@ function EffortFactors({ factors }) {
             <tr>
               <th>Type</th>
               <th>Factor</th>
-              <th>Climbing counts</th>
+              {countsElevation && <th>Climbing counts</th>}
             </tr>
           </thead>
           <tbody>
@@ -388,7 +393,7 @@ function EffortFactors({ factors }) {
                     : activityTypeLabel(f.activityType)}
                 </td>
                 <td>× {f.factor}</td>
-                <td>{f.countsElevation ? "Yes" : "No"}</td>
+                {countsElevation && <td>{f.countsElevation ? "Yes" : "No"}</td>}
               </tr>
             ))}
           </tbody>
@@ -496,7 +501,7 @@ export default function TripDetail() {
         </>
       )}
       <ManualEntries trip={trip} onChanged={refetch} />
-      <EffortFactors factors={effortFactors} />
+      <EffortFactors factors={effortFactors} countsElevation={trip.countsElevation} />
       <DeleteTripSection trip={trip} />
     </div>
   );

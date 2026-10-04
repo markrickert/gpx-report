@@ -51,6 +51,18 @@ export default function RootLayout() {
                     headerTintColor: colors.text,
                   }}
                 />
+                <Stack.Screen
+                  name="trips/index"
+                  options={{
+                    title: "Trips",
+                    headerBackTitle: "Back",
+                    headerTintColor: colors.text,
+                  }}
+                />
+                <Stack.Screen
+                  name="trips/[id]"
+                  options={{ title: "Trip", headerBackTitle: "Back", headerTintColor: colors.text }}
+                />
               </Stack>
             ) : (
               <OnboardingScreen />

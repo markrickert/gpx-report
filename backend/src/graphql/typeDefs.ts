@@ -250,6 +250,10 @@ export const typeDefs = `#graphql
     startDate: String!
     endDate: String!
     goalMeters: Float!
+    "False when activities count without the climbing credit."
+    countsElevation: Boolean!
+    "One target per week from startDate, the last week running through endDate. Null when the trip has no plan."
+    weeklyTargetsMeters: [Float!]
     participants: [TripParticipant!]!
     "The requesting person's own activities in the window, oldest first."
     myActivities: [TripActivity!]!
@@ -262,6 +266,9 @@ export const typeDefs = `#graphql
     startDate: String!
     endDate: String!
     goalMeters: Float!
+    countsElevation: Boolean = true
+    "When given, goalMeters is ignored and the goal is their sum."
+    weeklyTargetsMeters: [Float!]
     participants: [String!]!
   }
 

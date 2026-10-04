@@ -74,6 +74,8 @@ A trip someone is training for. Every activity a participant can see between `st
 | `trips`             | `start_date`  | `DATE`         | `NOT NULL`                                    | First day that counts.                     |
 | `trips`             | `end_date`    | `DATE`         | `NOT NULL`                                    | Training end date; last day that counts.   |
 | `trips`             | `goal_meters` | `NUMERIC`      | `NOT NULL`                                    | Cumulative equivalent hiking distance.     |
+| `trips`             | `counts_elevation` | `BOOLEAN` | `NOT NULL DEFAULT TRUE`                  | False: activities count without the climbing credit. |
+| `trips`             | `weekly_targets_meters` | `JSONB` |                                       | Optional plan: one target per week from `start_date`, the last week running through `end_date`. `goal_meters` is then their sum. |
 | `trips`             | `created_at`  | `TIMESTAMPTZ`  | `NOT NULL DEFAULT NOW()`                      |                                            |
 | `trip_participants` | `trip_id`     | `INTEGER`      | `REFERENCES trips(id) ON DELETE CASCADE`, PK  |                                            |
 | `trip_participants` | `person`      | `VARCHAR(64)`  | `NOT NULL`, PK                                | Someone training for the trip. Indexed.    |
@@ -227,6 +229,8 @@ type Trip {
   startDate: String! # YYYY-MM-DD, inclusive
   endDate: String!   # YYYY-MM-DD, inclusive
   goalMeters: Float!
+  countsElevation: Boolean!     # false: no climbing credit on this trip
+  weeklyTargetsMeters: [Float!] # the weekly plan, or null
   participants: [TripParticipant!]! # each person's total, from what THAT person can see
   myActivities: [TripActivity!]!    # the requester's own activities in the window, oldest first
 }
@@ -244,6 +248,7 @@ input TripInput { name: String!  startDate: String!  endDate: String!  goalMeter
 - `Query.effortFactors` returns the conversion table, so the page can show how the number is made.
 - `Mutation.saveTrip(id: ID, input: TripInput!)` creates a trip (no `id`; the requester is always added) or replaces one the requester is on. `Mutation.deleteTrip(id)` needs the same. Any participant can change anything, including the participants; each must be in `people`.
 - `Trip.myManualEntries: [TripManualEntry!]!` (`id`, `date`, `distanceMeters`, `note`) lists the requester's own manual entries. `Mutation.addTripManualEntry(tripId, date, distanceMeters, note)` adds one for the requester, with a date inside the trip's window; `Mutation.deleteTripManualEntry(id)` removes one of their own. Manual entries are part of `TripParticipant.equivalentMeters`.
+- `TripInput` also takes `countsElevation` (default true) and `weeklyTargetsMeters`. A plan needs exactly `tripWeekCount(startDate, endDate)` targets (`backend/src/trips/weeks.ts`: whole weeks from the start date, leftover days folded into the last week), and the goal becomes their sum.
 - Other participants only ever see a total. The activities behind it stay under the normal visibility rule.
 
 ### Immich media gallery types
