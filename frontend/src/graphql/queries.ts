@@ -388,6 +388,27 @@ export const FIX_ACTIVITY_ELEVATION_SPIKES = gql`
   }
 `;
 
+export const GET_ACTIVITY_TERRAIN_ELEVATION_DIFF = gql`
+  query GetActivityTerrainElevationDiff($id: ID!) {
+    activityTerrainElevationDiff(id: $id) {
+      activityId
+      elevations
+      originalElevationGain
+      correctedElevationGain
+      originalElevationLoss
+      correctedElevationLoss
+    }
+  }
+`;
+
+export const APPLY_TERRAIN_ELEVATION = gql`
+  mutation ApplyTerrainElevation($id: ID!) {
+    applyTerrainElevation(id: $id) {
+      id
+    }
+  }
+`;
+
 export const GET_ACTIVITIES_WITH_LIFT_SEGMENTS = gql`
   query GetActivitiesWithLiftSegments {
     activitiesWithLiftSegments {

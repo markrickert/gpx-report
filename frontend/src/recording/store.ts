@@ -49,6 +49,10 @@ db.execSync(`
 try {
   db.execSync("ALTER TABLE recordings ADD COLUMN note TEXT");
 } catch {}
+try {
+  db.execSync("ALTER TABLE points ADD COLUMN accuracy REAL");
+  db.execSync("ALTER TABLE points ADD COLUMN altitude_accuracy REAL");
+} catch {}
 
 const COLUMNS: Record<keyof Omit<Recording, "id">, string> = {
   person: "person",
@@ -132,12 +136,14 @@ export function appendPoints(recordingId: string, points: TrackPoint[]) {
   db.withTransactionSync(() => {
     for (const p of points) {
       db.runSync(
-        "INSERT INTO points (recording_id, segment, lat, lon, elevation, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO points (recording_id, segment, lat, lon, elevation, accuracy, altitude_accuracy, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         recordingId,
         p.segment,
         p.lat,
         p.lon,
         p.elevation,
+        p.accuracy ?? null,
+        p.altitudeAccuracy ?? null,
         p.timestamp,
       );
     }
@@ -150,7 +156,7 @@ export function appendPoints(recordingId: string, points: TrackPoint[]) {
  */
 export function getPoints(recordingId: string, afterId = 0): (TrackPoint & { id: number })[] {
   return db.getAllSync(
-    "SELECT id, segment, lat, lon, elevation, timestamp FROM points WHERE recording_id = ? AND id > ? ORDER BY id",
+    "SELECT id, segment, lat, lon, elevation, accuracy, altitude_accuracy AS altitudeAccuracy, timestamp FROM points WHERE recording_id = ? AND id > ? ORDER BY id",
     recordingId,
     afterId,
   );

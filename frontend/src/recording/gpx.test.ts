@@ -22,6 +22,18 @@ describe("buildGpxXml", () => {
     expect(buildGpxXml([pt(40, 0)], "A", "Unknown")).not.toContain("<type>");
   });
 
+  it("writes the phone's accuracy estimates as extensions and omits them when unknown", () => {
+    const xml = buildGpxXml(
+      [{ ...pt(40, 0), accuracy: 4.26, altitudeAccuracy: 12 }, pt(40.1, 0)],
+      "A",
+      "Hiking",
+    );
+    expect(xml).toContain(
+      "<extensions><accuracy>4.3</accuracy><altitudeAccuracy>12.0</altitudeAccuracy></extensions></trkpt>",
+    );
+    expect(xml.match(/<extensions>/g)).toHaveLength(1);
+  });
+
   it("writes the note as an escaped <desc> and omits it when empty", () => {
     expect(buildGpxXml([pt(40, 0)], "A", "Hiking", "Rain & <wind>")).toContain(
       "<desc>Rain &amp; &lt;wind&gt;</desc>",

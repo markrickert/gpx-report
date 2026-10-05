@@ -32,6 +32,7 @@ import { detectLiftSegments, totalsExcludingLifts } from "../track/liftDetection
 import { detectElevationSpikes, correctElevationSpikes } from "../track/elevationSpikes.js";
 import { haversineMeters, computeTrackStats } from "../track/geo.js";
 import { computeElevationGainLoss } from "../track/elevation.js";
+import { terrainElevations } from "../track/terrain.js";
 import { suggestActivityTypes } from "../track/suggestType.js";
 import {
   getImmichBaseUrl,
@@ -310,6 +311,27 @@ function correctionsFromSpikeRuns(spikeRuns, correctedPoints) {
     }
   }
   return corrections;
+}
+
+// The activity's points with each elevation replaced by the terrain model's,
+// where it has data. A flight is not on the ground, so IGC is refused.
+async function terrainCorrectedPoints(id, activity) {
+  if (activity.gpx_filename.toLowerCase().endsWith(".igc")) {
+    throw new Error("Terrain elevation does not apply to flights");
+  }
+  const { rows } = await pool.query(
+    "SELECT points_data FROM activity_routes WHERE activity_id = $1",
+    [id],
+  );
+  const points = rows[0]?.points_data || [];
+  const elevations = await terrainElevations(points);
+  return {
+    points,
+    correctedPoints: points.map((p, i) =>
+      elevations[i] == null ? p : { ...p, elevation: elevations[i] },
+    ),
+    elevations,
+  };
 }
 
 export const resolvers = {
@@ -920,6 +942,21 @@ export const resolvers = {
       };
     },
 
+    activityTerrainElevationDiff: async (_parent, { id }, context) => {
+      const activity = await requireOwnedActivity(id, context);
+      const { points, correctedPoints } = await terrainCorrectedPoints(id, activity);
+      const original = computeElevationGainLoss(points.map((p) => p.elevation));
+      const corrected = computeElevationGainLoss(correctedPoints.map((p) => p.elevation));
+      return {
+        activityId: id,
+        elevations: correctedPoints.map((p) => p.elevation ?? null),
+        originalElevationGain: original.gain,
+        correctedElevationGain: corrected.gain,
+        originalElevationLoss: original.loss,
+        correctedElevationLoss: corrected.loss,
+      };
+    },
+
     activitiesWithLiftSegments: async (_parent, _args, context) => {
       const { rows } = await pool.query(
         `
@@ -1206,6 +1243,28 @@ export const resolvers = {
         const corrections = correctionsFromSpikeRuns(spikeRuns, correctedPoints);
         const filePath = path.join(GPX_FILES_DIRECTORY, activity.gpx_filename);
         await fixTrackElevationsByFormat(filePath, filename, corrections);
+        await processFile(filePath);
+      }
+
+      const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
+      return mapActivityRow(updated[0]);
+    },
+
+    applyTerrainElevation: async (_parent, { id }, context) => {
+      const activity = await requireOwnedActivity(id, context);
+      const { elevations } = await terrainCorrectedPoints(id, activity);
+      const corrections = new Map();
+      elevations.forEach((elevation, i) => {
+        if (elevation != null) corrections.set(i, elevation);
+      });
+
+      if (corrections.size > 0) {
+        const filePath = path.join(GPX_FILES_DIRECTORY, activity.gpx_filename);
+        await fixTrackElevationsByFormat(
+          filePath,
+          activity.gpx_filename.toLowerCase(),
+          corrections,
+        );
         await processFile(filePath);
       }
 

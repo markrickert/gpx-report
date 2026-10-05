@@ -2,6 +2,9 @@ export type TrackPoint = {
   lat: number;
   lon: number;
   elevation: number | null;
+  /** Radius of uncertainty of the position and of the elevation, in meters, as the phone reports them. */
+  accuracy?: number | null;
+  altitudeAccuracy?: number | null;
   timestamp: number;
   /**
    * Incremented on every resume, so each pause/resume stretch becomes its

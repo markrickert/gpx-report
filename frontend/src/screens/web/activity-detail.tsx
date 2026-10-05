@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
 import { Link } from "@/components/web-link";
-import { useQuery, useMutation } from "@apollo/client";
+import { useQuery, useLazyQuery, useMutation } from "@apollo/client";
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, useMap } from "react-leaflet";
 import {
   LineChart,
@@ -27,6 +27,8 @@ import {
   CLEAN_ACTIVITY_OUTLIERS,
   GET_ACTIVITY_ELEVATION_FIX_DIFF,
   FIX_ACTIVITY_ELEVATION_SPIKES,
+  GET_ACTIVITY_TERRAIN_ELEVATION_DIFF,
+  APPLY_TERRAIN_ELEVATION,
   SEARCH_ACTIVITIES_FOR_COMPARE,
   DELETE_ACTIVITY,
   GET_PERSONAL_RECORDS,
@@ -1015,6 +1017,140 @@ function ElevationFixTool({ activity }) {
         </button>
         {saveError && <p className="title-edit-error">Failed to save: {saveError}</p>}
       </div>
+    </div>
+  );
+}
+
+// Replaces the recorded elevation with ground elevation from a terrain model
+// (backend/src/track/terrain.ts), for a track whose positions are good but
+// whose altitude is not. Loads only on request: the preview makes the server
+// download terrain data.
+function TerrainElevationTool({ activity, onApplied }) {
+  const { unit } = useUnits();
+  const [loadDiff, { data, loading, error }] = useLazyQuery(GET_ACTIVITY_TERRAIN_ELEVATION_DIFF, {
+    variables: { id: activity.id },
+    fetchPolicy: "network-only",
+  });
+  const [applyTerrain, { loading: applying }] = useMutation(APPLY_TERRAIN_ELEVATION);
+  const [saveError, setSaveError] = useState(null);
+
+  const diff = data?.activityTerrainElevationDiff;
+  const chartData =
+    diff &&
+    activity.route.elevationProfile.map((p, i) => ({
+      idx: i,
+      original: elevationValue(p.elevation, unit),
+      corrected: elevationValue(diff.elevations[i], unit),
+    }));
+
+  const save = async () => {
+    if (
+      !window.confirm(
+        "Replace every elevation in the source file with the terrain elevation? The original stays saved on the server, and you can restore it from this page.",
+      )
+    ) {
+      return;
+    }
+    setSaveError(null);
+    try {
+      await applyTerrain({ variables: { id: activity.id } });
+      await onApplied();
+    } catch (e) {
+      setSaveError(e.message);
+    }
+  };
+
+  return (
+    <div className="outlier-cleanup">
+      <h2>Terrain Elevation</h2>
+      <p className="chart-hint">
+        If the recorded altitude is wrong but the route on the map is right, replace the altitude
+        with the ground elevation under each point.
+      </p>
+      {!diff && (
+        <div className="trim-controls">
+          <button onClick={() => loadDiff()} disabled={loading}>
+            {loading ? "Loading terrain…" : "Preview Terrain Elevation"}
+          </button>
+          {error && <p className="title-edit-error">Failed to load: {error.message}</p>}
+        </div>
+      )}
+      {diff && (
+        <>
+          <div className="stats-table-wrap">
+            <table className="stats-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Recorded</th>
+                  <th>Terrain</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Elevation Gain</td>
+                  <td>{formatElevation(diff.originalElevationGain, unit)}</td>
+                  <td>{formatElevation(diff.correctedElevationGain, unit)}</td>
+                </tr>
+                <tr>
+                  <td>Elevation Loss</td>
+                  <td>{formatElevation(diff.originalElevationLoss, unit)}</td>
+                  <td>{formatElevation(diff.correctedElevationLoss, unit)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <ResponsiveContainer width="100%" height={250} className="elevation-chart">
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="idx" hide />
+              <YAxis
+                domain={["auto", "auto"]}
+                tickFormatter={(v) => String(Math.round(v))}
+                label={{
+                  value: `Elevation (${elevationUnitLabel(unit)})`,
+                  angle: -90,
+                  position: "insideLeft",
+                }}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "rgba(17, 24, 39, 0.92)",
+                  border: "none",
+                  borderRadius: 6,
+                }}
+                labelStyle={{ color: "#e5e7eb" }}
+                itemStyle={{ color: "#e5e7eb" }}
+              />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="original"
+                name="Recorded"
+                stroke="#9ca3af"
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="corrected"
+                name="Terrain"
+                stroke="#2563eb"
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+          <div className="trim-controls">
+            <button onClick={save} disabled={applying}>
+              Replace &amp; Save
+            </button>
+            {saveError && <p className="title-edit-error">Failed to save: {saveError}</p>}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -2103,6 +2239,10 @@ export default function ActivityDetail() {
       {isOwner && <OutlierCleanup activity={activity} />}
 
       {isOwner && <ElevationFixTool activity={activity} />}
+
+      {isOwner && activity.activityType !== "Paragliding" && (
+        <TerrainElevationTool activity={activity} onApplied={refetch} />
+      )}
 
       <ComparisonSection activity={activity} />
 

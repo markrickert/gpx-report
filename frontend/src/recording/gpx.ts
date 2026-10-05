@@ -13,6 +13,8 @@ function escapeXml(value: string) {
 // backend/src/gpx/parser.ts reads: <trk><name>/<type> + <trkpt><ele>/<time>.
 // <type> is picked up by the parser's resolveActivityType(), so the chosen
 // activity type lands at ingest with no follow-up mutation.
+// The phone's own accuracy estimates go in <extensions>, which the parser
+// ignores; they are there to diagnose a bad recording from its source file.
 export function buildGpxXml(
   points: TrackPoint[],
   title: string,
@@ -30,7 +32,14 @@ export function buildGpxXml(
         .map((p) => {
           const ele = p.elevation != null ? `<ele>${p.elevation.toFixed(1)}</ele>` : "";
           const time = `<time>${new Date(p.timestamp).toISOString()}</time>`;
-          return `   <trkpt lat="${p.lat}" lon="${p.lon}">${ele}${time}</trkpt>`;
+          const accuracy = [
+            p.accuracy != null ? `<accuracy>${p.accuracy.toFixed(1)}</accuracy>` : "",
+            p.altitudeAccuracy != null
+              ? `<altitudeAccuracy>${p.altitudeAccuracy.toFixed(1)}</altitudeAccuracy>`
+              : "",
+          ].join("");
+          const extensions = accuracy ? `<extensions>${accuracy}</extensions>` : "";
+          return `   <trkpt lat="${p.lat}" lon="${p.lon}">${ele}${time}${extensions}</trkpt>`;
         })
         .join("\n");
       return `  <trkseg>\n${trkpts}\n  </trkseg>`;

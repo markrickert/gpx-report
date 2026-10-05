@@ -204,6 +204,16 @@ export const typeDefs = `#graphql
     timestamp: Float
   }
 
+  type ActivityTerrainElevationDiff {
+    activityId: ID!
+    "One elevation per track point, from the terrain model where it has data."
+    elevations: [Float]!
+    originalElevationGain: Float
+    correctedElevationGain: Float
+    originalElevationLoss: Float
+    correctedElevationLoss: Float
+  }
+
   type ActivityElevationFixDiff {
     activityId: ID!
     spikePoints: [ElevationSpikePoint!]!
@@ -294,6 +304,7 @@ export const typeDefs = `#graphql
     activityOutlierDiff(id: ID!): ActivityOutlierDiff!
     activitiesWithElevationSpikes: [ElevationSpikeSummary!]!
     activityElevationFixDiff(id: ID!): ActivityElevationFixDiff!
+    activityTerrainElevationDiff(id: ID!): ActivityTerrainElevationDiff!
     activitiesWithLiftSegments: [LiftActivitySummary!]!
     onThisDay: [Activity!]!
     activityStreak: ActivityStreak!
@@ -319,6 +330,7 @@ export const typeDefs = `#graphql
     importActivityFile(filename: String!, contentBase64: String!): ImportActivityFileResult!
     cleanActivityOutliers(id: ID!): Activity!
     fixActivityElevationSpikes(id: ID!): Activity!
+    applyTerrainElevation(id: ID!): Activity!
     deleteActivity(id: ID!): Boolean!
     setActivitySharedWith(id: ID!, people: [String!]!): Activity!
     updateImmichSettings(immichBaseUrl: String!, immichApiKey: String): Boolean!

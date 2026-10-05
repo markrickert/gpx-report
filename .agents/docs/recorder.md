@@ -15,6 +15,7 @@ The recorder records a GPS track and uploads it to the server. Recording continu
 ## Workflow
 
 - A background task writes each location point directly to an on-device database. The recording does not depend on the UI. The record screen reads new points from the database.
+- Each point keeps the phone's accuracy estimates for position and altitude. They travel in the GPX as point extensions, and the server does not read them. They are there to diagnose a bad recording.
 - Stop opens the save form. Resume from the form continues the same recording.
 - The save form suggests activity types from the track on the phone, so it works offline. The title is prefilled. The note travels in the GPX `<trk><desc>`, and the server reads it into the activity notes only when the notes are empty.
 - Save puts the recording in an upload queue and does not need the server. At upload time, the queue builds the GPX file from the stored points.

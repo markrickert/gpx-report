@@ -6,6 +6,8 @@ export function locationToPoint(loc: LocationObject, segment: number): TrackPoin
     lat: loc.coords.latitude,
     lon: loc.coords.longitude,
     elevation: loc.coords.altitude ?? null,
+    accuracy: loc.coords.accuracy ?? null,
+    altitudeAccuracy: loc.coords.altitudeAccuracy ?? null,
     timestamp: loc.timestamp,
     segment,
   };
