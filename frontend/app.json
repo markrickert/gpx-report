@@ -13,7 +13,8 @@
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
-        }
+        },
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -24,7 +25,9 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": ["android.permission.RECEIVE_BOOT_COMPLETED"]
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ]
     },
     "web": {
       "output": "single",
@@ -74,6 +77,12 @@
       "eas": {
         "projectId": "f9a513a8-c206-4c3e-aaa2-ab2a752f4018"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f9a513a8-c206-4c3e-aaa2-ab2a752f4018"
     }
   }
 }
