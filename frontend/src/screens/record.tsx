@@ -16,12 +16,22 @@ import {
 } from "@/recording/recorder";
 import { detectLiftSegments } from "@/recording/lift-detection";
 import { suggestActivityTypes } from "@/recording/suggest-type";
+import type { TrackPoint } from "@/recording/types";
 import { formatDuration, trackDistanceMeters } from "@/utils/geo";
 import { formatDistance, formatElevation, useUnits } from "@/utils/units";
 
 // A stopped lift stops advancing the ride's end; keep showing it this long.
 const ON_LIFT_GRACE_MS = 60_000;
 const LIFT_RECHECK_POINTS = 15;
+// A fix the phone rates worse than this (meters, position or altitude) counts
+// as weak. A guess until recordings show what a bad stretch reports.
+const WEAK_ACCURACY_METERS = 15;
+
+function isWeakFix(p: TrackPoint) {
+  return (
+    (p.accuracy ?? 0) > WEAK_ACCURACY_METERS || (p.altitudeAccuracy ?? 0) > WEAK_ACCURACY_METERS
+  );
+}
 
 /**
  * `person` is who the recording belongs to: the phone's Settings name, or
@@ -120,6 +130,8 @@ export function RecordScreen({ person }: { person: string | null }) {
     status === "recording" &&
     !!lastLift &&
     last.timestamp - points[lastLift.endIndex].timestamp <= ON_LIFT_GRACE_MS;
+  const formatAccuracy = (meters?: number | null) =>
+    meters == null ? "-" : `±${formatElevation(meters, unit)}`;
   const tiles = [
     { label: "Duration", value: recording ? formatDuration(elapsedMs(recording, now)) : "0:00" },
     {
@@ -128,7 +140,10 @@ export function RecordScreen({ person }: { person: string | null }) {
     },
     { label: "Elevation", value: last ? formatElevation(last.elevation, unit) : "-" },
     { label: "Points", value: String(points.length) },
+    { label: "GPS accuracy", value: formatAccuracy(last?.accuracy) },
+    { label: "Altitude accuracy", value: formatAccuracy(last?.altitudeAccuracy) },
   ];
+  const weakCount = useMemo(() => points.filter(isWeakFix).length, [points]);
 
   return (
     // The native safe area includes the tab bar, so sizing to it (instead of
@@ -156,6 +171,17 @@ export function RecordScreen({ person }: { person: string | null }) {
         {onLift && (
           <Text style={[styles.hint, { color: colors.textSecondary }]}>
             On a lift — this ride is left out of your distance.
+          </Text>
+        )}
+        {status === "recording" && !!last && isWeakFix(last) && (
+          <Text style={styles.error}>
+            Weak GPS signal — distance and elevation may be off. Give the phone a clear view of the
+            sky.
+          </Text>
+        )}
+        {status !== "recording" && weakCount > 0 && (
+          <Text style={[styles.hint, { color: colors.textSecondary }]}>
+            {weakCount} of {points.length} points had a weak GPS signal.
           </Text>
         )}
         {points.length === 0 && (
