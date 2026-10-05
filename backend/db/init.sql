@@ -78,6 +78,10 @@ CREATE TABLE IF NOT EXISTS trips (
   -- last week running through end_date. goal_meters is then their sum, and
   -- pace follows the plan instead of a straight line.
   weekly_targets_meters   JSONB,
+  -- The top of a goal given as a range, goal_meters and weekly_targets_meters
+  -- being the bottom. Both null when the goal is a single distance.
+  goal_max_meters             NUMERIC,
+  weekly_targets_max_meters   JSONB,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

@@ -82,6 +82,8 @@ The repo-root `docker-compose.yml` already defines the `db` service (`postgis/po
     CREATE INDEX IF NOT EXISTS idx_trip_participants_person ON trip_participants (person);
     ALTER TABLE trips ADD COLUMN IF NOT EXISTS counts_elevation BOOLEAN NOT NULL DEFAULT TRUE;
     ALTER TABLE trips ADD COLUMN IF NOT EXISTS weekly_targets_meters JSONB;
+    ALTER TABLE trips ADD COLUMN IF NOT EXISTS goal_max_meters NUMERIC;
+    ALTER TABLE trips ADD COLUMN IF NOT EXISTS weekly_targets_max_meters JSONB;
     ```
     Then rebuild: `docker compose up -d --build backend frontend`. Like `activity_shares`, trips can't be regenerated from the files; `GET /export/full` includes them as `trips.json`, so export before any volume wipe. A deployment that still has the retired `trip_manual_entries` table can drop it once its rows have been re-entered as manual activities: `DROP TABLE IF EXISTS trip_manual_entries;`.
 *   **Local (non-Docker) Postgres:** install PostgreSQL + PostGIS yourself, create a DB/user, `CREATE EXTENSION IF NOT EXISTS postgis;`, then run `backend/db/init.sql` against it manually. Point `DATABASE_URL` at it.

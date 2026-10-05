@@ -106,7 +106,7 @@ function visibleTo(alias, n) {
 // shift by the server's UTC offset.
 const TRIP_COLUMNS = `t.id, t.name, to_char(t.start_date, 'YYYY-MM-DD') AS start_date,
   to_char(t.end_date, 'YYYY-MM-DD') AS end_date, t.goal_meters, t.counts_elevation,
-  t.weekly_targets_meters`;
+  t.weekly_targets_meters, t.goal_max_meters, t.weekly_targets_max_meters`;
 
 function mapTripRow(row) {
   return {
@@ -117,6 +117,8 @@ function mapTripRow(row) {
     goalMeters: Number(row.goal_meters),
     countsElevation: row.counts_elevation,
     weeklyTargetsMeters: row.weekly_targets_meters,
+    goalMaxMeters: row.goal_max_meters == null ? null : Number(row.goal_max_meters),
+    weeklyTargetsMaxMeters: row.weekly_targets_max_meters,
   };
 }
 
@@ -1415,6 +1417,27 @@ export const resolvers = {
         ? weeklyTargetsMeters.reduce((sum, m) => sum + m, 0)
         : input.goalMeters;
       if (!(goalMeters > 0)) throw new Error("The goal must be more than zero");
+      // The top of the range. A top equal to the bottom is no range at all,
+      // and is stored as null.
+      let weeklyTargetsMaxMeters = (weeklyTargetsMeters && input.weeklyTargetsMaxMeters) ?? null;
+      if (weeklyTargetsMaxMeters) {
+        if (weeklyTargetsMaxMeters.length !== weeklyTargetsMeters.length) {
+          throw new Error(`These dates need ${weeklyTargetsMeters.length} weekly targets`);
+        }
+        if (weeklyTargetsMaxMeters.some((m, i) => !(m >= weeklyTargetsMeters[i]))) {
+          throw new Error("A week's high target can't be below its low one");
+        }
+      }
+      let goalMaxMeters = weeklyTargetsMeters
+        ? (weeklyTargetsMaxMeters?.reduce((sum, m) => sum + m, 0) ?? null)
+        : (input.goalMaxMeters ?? null);
+      if (goalMaxMeters != null && !(goalMaxMeters >= goalMeters)) {
+        throw new Error("The high goal can't be below the low one");
+      }
+      if (goalMaxMeters === goalMeters) {
+        goalMaxMeters = null;
+        weeklyTargetsMaxMeters = null;
+      }
       const countsElevation = input.countsElevation ?? true;
       if (id && !(await findTrip(id, context))) throw new Error("Trip not found");
 
@@ -1434,6 +1457,8 @@ export const resolvers = {
         goalMeters,
         countsElevation,
         weeklyTargetsMeters && JSON.stringify(weeklyTargetsMeters),
+        goalMaxMeters,
+        weeklyTargetsMaxMeters && JSON.stringify(weeklyTargetsMaxMeters),
       ];
       const client = await pool.connect();
       let tripId = id;
@@ -1442,16 +1467,18 @@ export const resolvers = {
         if (id) {
           await client.query(
             `UPDATE trips SET name = $1, start_date = $2, end_date = $3, goal_meters = $4,
-               counts_elevation = $5, weekly_targets_meters = $6
-             WHERE id = $7`,
+               counts_elevation = $5, weekly_targets_meters = $6, goal_max_meters = $7,
+               weekly_targets_max_meters = $8
+             WHERE id = $9`,
             [...values, id],
           );
           await client.query("DELETE FROM trip_participants WHERE trip_id = $1", [id]);
         } else {
           const { rows } = await client.query(
             `INSERT INTO trips
-               (name, start_date, end_date, goal_meters, counts_elevation, weekly_targets_meters)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+               (name, start_date, end_date, goal_meters, counts_elevation, weekly_targets_meters,
+                goal_max_meters, weekly_targets_max_meters)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
             values,
           );
           tripId = rows[0].id;
@@ -1478,6 +1505,8 @@ export const resolvers = {
         goalMeters,
         countsElevation,
         weeklyTargetsMeters,
+        goalMaxMeters,
+        weeklyTargetsMaxMeters,
       };
     },
 

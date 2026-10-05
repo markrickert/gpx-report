@@ -258,6 +258,10 @@ export const typeDefs = `#graphql
     countsElevation: Boolean!
     "One target per week from startDate, the last week running through endDate. Null when the trip has no plan."
     weeklyTargetsMeters: [Float!]
+    "The top of the goal's range, goalMeters being the bottom. Null when the goal is a single distance."
+    goalMaxMeters: Float
+    "The top of each week's range, weeklyTargetsMeters being the bottoms. Null when the goal is a single distance."
+    weeklyTargetsMaxMeters: [Float!]
     participants: [TripParticipant!]!
     "The requesting person's own activities in the window, oldest first."
     myActivities: [TripActivity!]!
@@ -282,6 +286,10 @@ export const typeDefs = `#graphql
     countsElevation: Boolean = true
     "When given, goalMeters is ignored and the goal is their sum."
     weeklyTargetsMeters: [Float!]
+    "The top of the goal's range. Ignored with a weekly plan."
+    goalMaxMeters: Float
+    "The top of each week's range. When given, the top of the goal is their sum."
+    weeklyTargetsMaxMeters: [Float!]
     participants: [String!]!
   }
 

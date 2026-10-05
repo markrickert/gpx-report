@@ -19,16 +19,29 @@ export function TripForm({ trip = null, onSaved, onCancel }) {
   const [goal, setGoal] = useState(
     trip ? String(Number(distanceValue(trip.goalMeters, unit).toFixed(1))) : "",
   );
+  // The high boxes are optional: left empty, the goal is the one distance.
+  const [goalMax, setGoalMax] = useState(
+    trip?.goalMaxMeters != null
+      ? String(Number(distanceValue(trip.goalMaxMeters, unit).toFixed(1)))
+      : "",
+  );
   const [countsElevation, setCountsElevation] = useState<boolean>(trip?.countsElevation ?? true);
   const toUnit = (meters) => String(Number(distanceValue(meters, unit).toFixed(1)));
   const [planned, setPlanned] = useState(Boolean(trip?.weeklyTargetsMeters));
   const [typedWeeks, setTypedWeeks] = useState<string[]>(
     (trip?.weeklyTargetsMeters ?? []).map(toUnit),
   );
-  // One box per week of the current dates, keeping whatever is already typed.
+  const [typedWeeksMax, setTypedWeeksMax] = useState<string[]>(
+    (trip?.weeklyTargetsMaxMeters ?? []).map(toUnit),
+  );
+  // One row per week of the current dates, keeping whatever is already typed.
   const weekCount = startDate && endDate >= startDate ? tripWeekCount(startDate, endDate) : 0;
   const weeks = Array.from({ length: weekCount }, (_, i) => typedWeeks[i] ?? "");
-  const weekTotal = weeks.reduce((sum, w) => sum + (Number(w) || 0), 0);
+  const weeksMax = Array.from({ length: weekCount }, (_, i) => typedWeeksMax[i] ?? "");
+  const weekLows = weeks.map((w) => Number(w) || 0);
+  const weekHighs = weeksMax.map((w, i) => (w === "" ? weekLows[i] : Number(w)));
+  const weekTotal = weekLows.reduce((sum, w) => sum + w, 0);
+  const weekTotalMax = weekHighs.reduce((sum, w) => sum + w, 0);
   const weekLabel = (i) => {
     const day = (offset) => {
       const d = new Date(`${startDate}T00:00:00`);
@@ -58,8 +71,11 @@ export function TripForm({ trip = null, onSaved, onCancel }) {
             endDate,
             goalMeters: (planned ? weekTotal : Number(goal)) / distanceValue(1, unit),
             countsElevation,
-            weeklyTargetsMeters: planned
-              ? weeks.map((w) => (Number(w) || 0) / distanceValue(1, unit))
+            weeklyTargetsMeters: planned ? weekLows.map((w) => w / distanceValue(1, unit)) : null,
+            goalMaxMeters:
+              planned || goalMax === "" ? null : Number(goalMax) / distanceValue(1, unit),
+            weeklyTargetsMaxMeters: planned
+              ? weekHighs.map((w) => w / distanceValue(1, unit))
               : null,
             participants,
           },
@@ -99,19 +115,39 @@ export function TripForm({ trip = null, onSaved, onCancel }) {
       {planned ? (
         <label>
           Goal ({distanceUnitLabel(unit)} of hiking or walking)
-          <input value={weekTotal.toFixed(1)} disabled />
+          <input
+            value={
+              weekTotalMax === weekTotal
+                ? weekTotal.toFixed(1)
+                : `${weekTotal.toFixed(1)}–${weekTotalMax.toFixed(1)}`
+            }
+            disabled
+          />
         </label>
       ) : (
         <label>
           Goal ({distanceUnitLabel(unit)} of hiking or walking)
-          <input
-            type="number"
-            min="0"
-            step="any"
-            value={goal}
-            onChange={(e) => setGoal(e.target.value)}
-            required
-          />
+          <span className="trip-form-range">
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={goal}
+              placeholder="Low"
+              aria-label="Low goal"
+              onChange={(e) => setGoal(e.target.value)}
+              required
+            />
+            <input
+              type="number"
+              min={goal || "0"}
+              step="any"
+              value={goalMax}
+              placeholder="High (optional)"
+              aria-label="High goal"
+              onChange={(e) => setGoalMax(e.target.value)}
+            />
+          </span>
         </label>
       )}
       <fieldset className="trip-form-people trip-form-options">
@@ -133,14 +169,28 @@ export function TripForm({ trip = null, onSaved, onCancel }) {
         weeks.map((value, i) => (
           <label key={i}>
             {weekLabel(i)}
-            <input
-              type="number"
-              min="0"
-              step="any"
-              value={value}
-              placeholder={distanceUnitLabel(unit)}
-              onChange={(e) => setTypedWeeks(weeks.map((w, j) => (j === i ? e.target.value : w)))}
-            />
+            <span className="trip-form-range">
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={value}
+                placeholder="Low"
+                aria-label={`Week ${i + 1} low`}
+                onChange={(e) => setTypedWeeks(weeks.map((w, j) => (j === i ? e.target.value : w)))}
+              />
+              <input
+                type="number"
+                min={value || "0"}
+                step="any"
+                value={weeksMax[i]}
+                placeholder="High (optional)"
+                aria-label={`Week ${i + 1} high`}
+                onChange={(e) =>
+                  setTypedWeeksMax(weeksMax.map((w, j) => (j === i ? e.target.value : w)))
+                }
+              />
+            </span>
           </label>
         ))}
       <fieldset className="trip-form-people">

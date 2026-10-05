@@ -2,7 +2,13 @@ import { useCallback } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useQuery } from "@apollo/client";
 import { Link, useFocusEffect } from "expo-router";
-import { formatTripDistance, myTotal, paceLabel } from "@/components/trip-progress";
+import {
+  formatTripDistance,
+  formatTripRange,
+  myTotal,
+  paceLabel,
+  tripBar,
+} from "@/components/trip-progress";
 import { GET_TRIPS } from "@/graphql/queries";
 import { useTheme } from "@/hooks/use-theme";
 import { DEFAULT_PERSON, personSlug, usePerson } from "@/lib/person";
@@ -15,6 +21,7 @@ type Trip = {
   startDate: string;
   endDate: string;
   goalMeters: number;
+  goalMaxMeters: number | null;
   participants: { person: string; equivalentMeters: number }[];
 };
 
@@ -39,6 +46,7 @@ export function TripsCard() {
       {trips.map((trip) => {
         const total = myTotal(trip, person);
         const percent = Math.round((total / trip.goalMeters) * 100);
+        const bar = tripBar(trip, total);
         const { daysRemaining } = tripPace({ ...trip, totalMeters: total });
         return (
           <Link key={trip.id} href={`/trips/${trip.id}`} asChild>
@@ -55,10 +63,15 @@ export function TripsCard() {
                 </Text>
               </View>
               <View style={[styles.bar, { backgroundColor: colors.border }]}>
-                <View style={[styles.fill, { width: `${Math.min(percent, 100)}%` }]} />
+                <View style={[styles.fill, { width: `${bar.fill}%` }]} />
+                {bar.low != null && (
+                  <View
+                    style={[styles.low, { left: `${bar.low}%`, backgroundColor: colors.text }]}
+                  />
+                )}
               </View>
               <Text style={[styles.meta, { color: colors.textSecondary }]}>
-                {`${formatTripDistance(total, unit)} of ${formatTripDistance(trip.goalMeters, unit)} (${percent}%) — ${paceLabel(trip, total, unit)}`}
+                {`${formatTripDistance(total, unit)} of ${formatTripRange(trip.goalMeters, trip.goalMaxMeters, unit)} (${percent}%) — ${paceLabel(trip, total, unit)}`}
               </Text>
             </Pressable>
           </Link>
@@ -83,5 +96,6 @@ const styles = StyleSheet.create({
   meta: { fontSize: 13 },
   bar: { height: 8, borderRadius: 999, overflow: "hidden" },
   fill: { height: "100%", borderRadius: 999, backgroundColor: "#2563eb" },
+  low: { position: "absolute", top: 0, bottom: 0, width: 2 },
   link: { color: "#2563eb", fontSize: 14, fontWeight: "600" },
 });

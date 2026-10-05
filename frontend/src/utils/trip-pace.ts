@@ -25,7 +25,20 @@ type Plan = {
   startDate: string;
   endDate: string;
   weeklyTargetsMeters?: number[] | null;
+  goalMaxMeters?: number | null;
+  weeklyTargetsMaxMeters?: number[] | null;
 };
+
+/** The top of a goal given as a range, as a plan of its own. Null for a single goal. */
+export function tripMaxPlan(plan: Plan): Plan | null {
+  if (plan.goalMaxMeters == null) return null;
+  return {
+    goalMeters: plan.goalMaxMeters,
+    startDate: plan.startDate,
+    endDate: plan.endDate,
+    weeklyTargetsMeters: plan.weeklyTargetsMaxMeters,
+  };
+}
 
 /**
  * The target as days-from-start against cumulative meters, one point per week
@@ -52,19 +65,20 @@ export function tripTargetLine({ goalMeters, startDate, endDate, weeklyTargetsMe
 /**
  * Where someone stands against the target line (see tripTargetLine): 0 on the
  * day before startDate, the goal at the end of endDate. Both dates are
- * inclusive, and today counts as a day still left to train on.
+ * inclusive, and today counts as a day still left to train on. With a range,
+ * the plain figures are against its bottom and the Max ones against its top.
  */
 export function tripPace({
-  goalMeters,
-  startDate,
-  endDate,
-  weeklyTargetsMeters = null,
   totalMeters,
   today = localDate(),
+  ...plan
 }: Plan & {
   totalMeters: number;
   today?: string;
 }) {
+  const { goalMeters, startDate, endDate, weeklyTargetsMeters = null } = plan;
+  const maxPlan = tripMaxPlan(plan);
+  const max = maxPlan && tripPace({ ...maxPlan, totalMeters, today });
   const start = dayNumber(startDate);
   const end = dayNumber(endDate);
   const now = dayNumber(today);
@@ -84,12 +98,17 @@ export function tripPace({
     if (elapsedDays > from.day || i === 1) throughThisWeekMeters = to.meters;
   }
 
+  const expectedMaxMeters = max?.expectedMeters ?? expectedMeters;
+
   return {
     expectedMeters,
-    aheadMeters: totalMeters - expectedMeters,
+    // Zero anywhere inside a range: negative under its bottom, positive over its top.
+    aheadMeters: totalMeters - Math.min(Math.max(totalMeters, expectedMeters), expectedMaxMeters),
+    inRange: max != null && totalMeters >= expectedMeters && totalMeters <= expectedMaxMeters,
     daysRemaining,
     // With under a week left, "per week" is just what's left.
     neededPerWeekMeters: daysRemaining ? remainingMeters / Math.max(daysRemaining / 7, 1) : 0,
+    neededPerWeekMaxMeters: max?.neededPerWeekMeters ?? null,
     // With a weekly plan: what's left to reach the plan's total through the
     // end of the current week. Null without one.
     neededThisWeekMeters: !weeklyTargetsMeters?.length
@@ -97,6 +116,7 @@ export function tripPace({
       : daysRemaining
         ? Math.max(throughThisWeekMeters - totalMeters, 0)
         : 0,
+    neededThisWeekMaxMeters: max?.neededThisWeekMeters ?? null,
     isPast: now > end,
   };
 }

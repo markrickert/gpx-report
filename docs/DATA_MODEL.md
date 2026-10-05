@@ -76,6 +76,8 @@ A trip someone is training for. Every activity a participant can see between `st
 | `trips`             | `goal_meters` | `NUMERIC`      | `NOT NULL`                                    | Cumulative equivalent hiking distance.     |
 | `trips`             | `counts_elevation` | `BOOLEAN` | `NOT NULL DEFAULT TRUE`                  | False: activities count without the climbing credit. |
 | `trips`             | `weekly_targets_meters` | `JSONB` |                                       | Optional plan: one target per week from `start_date`, the last week running through `end_date`. `goal_meters` is then their sum. |
+| `trips`             | `goal_max_meters` | `NUMERIC` |                                         | Top of a goal given as a range, `goal_meters` being the bottom. Null for a single goal. |
+| `trips`             | `weekly_targets_max_meters` | `JSONB` |                                 | Top of each week's range, `weekly_targets_meters` being the bottoms. `goal_max_meters` is then their sum. Null for a single goal. |
 | `trips`             | `created_at`  | `TIMESTAMPTZ`  | `NOT NULL DEFAULT NOW()`                      |                                            |
 | `trip_participants` | `trip_id`     | `INTEGER`      | `REFERENCES trips(id) ON DELETE CASCADE`, PK  |                                            |
 | `trip_participants` | `person`      | `VARCHAR(64)`  | `NOT NULL`, PK                                | Someone training for the trip. Indexed.    |
@@ -217,6 +219,8 @@ type Trip {
   goalMeters: Float!
   countsElevation: Boolean!     # false: no climbing credit on this trip
   weeklyTargetsMeters: [Float!] # the weekly plan, or null
+  goalMaxMeters: Float              # top of the goal's range, or null for a single goal
+  weeklyTargetsMaxMeters: [Float!]  # top of each week's range, or null
   participants: [TripParticipant!]! # each person's total, from what THAT person can see
   myActivities: [TripActivity!]!    # the requester's own activities in the window, oldest first
 }
@@ -235,6 +239,7 @@ input TripInput { name: String!  startDate: String!  endDate: String!  goalMeter
 - `Mutation.saveTrip(id: ID, input: TripInput!)` creates a trip (no `id`; the requester is always added) or replaces one the requester is on. `Mutation.deleteTrip(id)` needs the same. Any participant can change anything, including the participants; each must be in `people`.
 - `Mutation.addManualActivity(input: ManualActivityInput!, clientId)` writes `<person>/manual-<id>.manual.json` (`title`, `activityType`, `startTime`, `distanceMeters`, optional `durationSeconds`, `elevationGainMeters`, `notes`) and ingests it; a repeated `clientId` returns the first save. `Mutation.updateManualActivity(id, input)` rewrites every field for the owner. `Activity.isManual` is true for these. They have no `activity_routes` row, a `duration_seconds` of 0 when none was given, and are left out of `personalRecordsByType`.
 - `TripInput` also takes `countsElevation` (default true) and `weeklyTargetsMeters`. A plan needs exactly `tripWeekCount(startDate, endDate)` targets (`backend/src/trips/weeks.ts`: whole weeks from the start date, leftover days folded into the last week), and the goal becomes their sum.
+- `TripInput` also takes `goalMaxMeters` and `weeklyTargetsMaxMeters`, the top of a goal given as a range. `goalMeters` and `weeklyTargetsMeters` are then the bottom. Each top must be at least its bottom, a plan's top is the sum of its weekly tops, and a top equal to the bottom is saved as null.
 - Other participants only ever see a total. The activities behind it stay under the normal visibility rule.
 
 ### Immich media gallery types

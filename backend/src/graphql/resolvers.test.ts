@@ -853,6 +853,8 @@ describe("trips", () => {
     goal_meters: "500000",
     counts_elevation: true,
     weekly_targets_meters: null,
+    goal_max_meters: null,
+    weekly_targets_max_meters: null,
   };
   const trip = {
     id: "3",
@@ -862,6 +864,8 @@ describe("trips", () => {
     goalMeters: 500000,
     countsElevation: true,
     weeklyTargetsMeters: null,
+    goalMaxMeters: null,
+    weeklyTargetsMaxMeters: null,
   };
   const input = {
     name: " Tour du Mont Blanc ",
@@ -920,11 +924,51 @@ describe("trips", () => {
     expect(result.countsElevation).toBe(false);
     expect(result.weeklyTargetsMeters).toEqual([10, 0, 30]);
     const [, params] = client.query.mock.calls.find(([sql]) => sql.includes("INSERT INTO trips"));
-    expect(params.slice(3)).toEqual([40, false, "[10,0,30]"]);
+    expect(params.slice(3)).toEqual([40, false, "[10,0,30]", null, null]);
 
     await expect(
       saveTrip(null, { id: null, input: { ...plan, weeklyTargetsMeters: [10, 30] } }, mark),
     ).rejects.toThrow(/need 3 weekly targets/);
+  });
+
+  it("keeps the top of a goal given as a range", async () => {
+    const ranged = await saveTrip(
+      null,
+      { id: null, input: { ...input, goalMaxMeters: 600000 } },
+      mark,
+    );
+    expect(ranged.goalMeters).toBe(500000);
+    expect(ranged.goalMaxMeters).toBe(600000);
+
+    const plan = { ...input, startDate: "2026-10-05", endDate: "2026-10-25" };
+    const weekly = { weeklyTargetsMeters: [10, 0, 30], weeklyTargetsMaxMeters: [15, 0, 40] };
+    const planned = await saveTrip(null, { id: null, input: { ...plan, ...weekly } }, mark);
+    expect(planned.goalMaxMeters).toBe(55);
+    expect(planned.weeklyTargetsMaxMeters).toEqual([15, 0, 40]);
+    const [, params] = client.query.mock.calls.findLast(([sql]) =>
+      sql.includes("INSERT INTO trips"),
+    );
+    expect(params.slice(6)).toEqual([55, "[15,0,40]"]);
+
+    // A top that matches the bottom is a single goal.
+    const single = await saveTrip(
+      null,
+      { id: null, input: { ...plan, ...weekly, weeklyTargetsMaxMeters: [10, 0, 30] } },
+      mark,
+    );
+    expect(single.goalMaxMeters).toBeNull();
+    expect(single.weeklyTargetsMaxMeters).toBeNull();
+
+    await expect(
+      saveTrip(null, { id: null, input: { ...input, goalMaxMeters: 400000 } }, mark),
+    ).rejects.toThrow(/high goal/);
+    await expect(
+      saveTrip(
+        null,
+        { id: null, input: { ...plan, ...weekly, weeklyTargetsMaxMeters: [15, 0, 20] } },
+        mark,
+      ),
+    ).rejects.toThrow(/high target/);
   });
 
   it("counts plain distance on a trip that doesn't count climbing", async () => {

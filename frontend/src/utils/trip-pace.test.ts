@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { localDate, tripPace, tripTargetLine, tripWeekCount } from "./trip-pace";
+import { localDate, tripMaxPlan, tripPace, tripTargetLine, tripWeekCount } from "./trip-pace";
 
 // A 100-day window with a 100km goal: 1km expected per day.
 const trip = { goalMeters: 100000, startDate: "2026-01-01", endDate: "2026-04-10" };
@@ -108,5 +108,54 @@ describe("a weekly plan", () => {
     };
     const pace = tripPace({ ...portugal, totalMeters: 0, today: "2026-11-05" });
     expect(pace.expectedMeters).toBeCloseTo(60000 + (10000 * 4) / 8);
+  });
+});
+
+describe("a goal given as a range", () => {
+  // 100 days, 100-150km: 1 to 1.5km expected per day.
+  const ranged = { ...trip, goalMaxMeters: 150000 };
+
+  it("has no top without one", () => {
+    expect(tripMaxPlan(trip)).toBeNull();
+    const pace = tripPace({ ...trip, totalMeters: 12000, today: "2026-01-10" });
+    expect(pace.inRange).toBe(false);
+    expect(pace.neededPerWeekMaxMeters).toBeNull();
+  });
+
+  it("is on pace anywhere between the two lines", () => {
+    const pace = tripPace({ ...ranged, totalMeters: 12000, today: "2026-01-10" });
+    expect(pace.inRange).toBe(true);
+    expect(pace.aheadMeters).toBe(0);
+    expect(pace.neededPerWeekMeters).toBeCloseTo((88000 / 91) * 7);
+    expect(pace.neededPerWeekMaxMeters).toBeCloseTo((138000 / 91) * 7);
+  });
+
+  it("is behind under the bottom and over above the top", () => {
+    const under = tripPace({ ...ranged, totalMeters: 8000, today: "2026-01-10" });
+    expect(under.inRange).toBe(false);
+    expect(under.aheadMeters).toBeCloseTo(-2000);
+    const over = tripPace({ ...ranged, totalMeters: 18000, today: "2026-01-10" });
+    expect(over.inRange).toBe(false);
+    expect(over.aheadMeters).toBeCloseTo(3000);
+  });
+
+  it("follows each week's range in a plan", () => {
+    const planned = {
+      goalMeters: 40000,
+      goalMaxMeters: 55000,
+      startDate: "2026-10-05",
+      endDate: "2026-10-25",
+      weeklyTargetsMeters: [10000, 0, 30000],
+      weeklyTargetsMaxMeters: [15000, 0, 40000],
+    };
+    expect(tripTargetLine(tripMaxPlan(planned))).toEqual([
+      { day: 0, meters: 0 },
+      { day: 7, meters: 15000 },
+      { day: 14, meters: 15000 },
+      { day: 21, meters: 55000 },
+    ]);
+    const firstWeek = tripPace({ ...planned, totalMeters: 4000, today: "2026-10-07" });
+    expect(firstWeek.neededThisWeekMeters).toBeCloseTo(6000);
+    expect(firstWeek.neededThisWeekMaxMeters).toBeCloseTo(11000);
   });
 });

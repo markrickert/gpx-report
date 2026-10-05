@@ -16,12 +16,13 @@ import {
   TripProgress,
   formatTripDate,
   formatTripDistance,
+  formatTripRange,
   myTotal,
 } from "@/components/trip-progress";
 import { DELETE_TRIP, GET_TRIP } from "@/graphql/queries";
 import { usePersonHref } from "@/lib/person";
 import { activityTypeLabel } from "@/utils/activity-type-icons";
-import { tripPace, tripTargetLine } from "@/utils/trip-pace";
+import { tripMaxPlan, tripPace, tripTargetLine } from "@/utils/trip-pace";
 import { useUnits, distanceValue, distanceUnitLabel, formatElevation } from "@/utils/units";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -30,6 +31,7 @@ function PaceTiles({ trip, totalMeters }) {
   const { unit } = useUnits();
   const pace = tripPace({ ...trip, totalMeters });
   const ahead = pace.aheadMeters >= 0;
+  const line = trip.weeklyTargetsMeters ? "plan" : "pace";
 
   return (
     <section className="summary-grid">
@@ -39,17 +41,28 @@ function PaceTiles({ trip, totalMeters }) {
       </div>
       <div className="summary-tile">
         <span className="summary-value">
-          {formatTripDistance(Math.abs(pace.aheadMeters), unit)}
+          {pace.inRange ? "In range" : formatTripDistance(Math.abs(pace.aheadMeters), unit)}
         </span>
         <span className="summary-label">
-          {ahead ? "Ahead of" : "Behind"} {trip.weeklyTargetsMeters ? "plan" : "pace"}
+          {pace.inRange
+            ? "On"
+            : !ahead
+              ? "Behind"
+              : trip.goalMaxMeters == null
+                ? "Ahead of"
+                : "Over"}{" "}
+          {line}
         </span>
       </div>
       {!pace.isPast && (
         <>
           <div className="summary-tile">
             <span className="summary-value">
-              {formatTripDistance(pace.neededThisWeekMeters ?? pace.neededPerWeekMeters, unit)}
+              {formatTripRange(
+                pace.neededThisWeekMeters ?? pace.neededPerWeekMeters,
+                pace.neededThisWeekMaxMeters ?? pace.neededPerWeekMaxMeters,
+                unit,
+              )}
             </span>
             <span className="summary-label">
               {pace.neededThisWeekMeters == null ? "Needed per week" : "Left this week"}
@@ -67,7 +80,7 @@ function PaceTiles({ trip, totalMeters }) {
   );
 }
 
-// The viewer's running total against the straight line to the goal.
+// The viewer's running total against the target line, or both lines of a range.
 function ProgressChart({ trip }) {
   const { unit } = useUnits();
   const [loadedAt] = useState(() => Date.now());
@@ -86,10 +99,14 @@ function ProgressChart({ trip }) {
   // Carry the line flat up to today, so a quiet week shows as one.
   const now = Math.min(Math.max(loadedAt, start), end);
   if (now > actual[actual.length - 1].t) actual.push({ t: now, value: distanceValue(total, unit) });
-  const target = tripTargetLine(trip).map(({ day, meters }) => ({
-    t: start + day * DAY_MS,
-    value: distanceValue(meters, unit),
-  }));
+  const toPoints = (plan) =>
+    tripTargetLine(plan).map(({ day, meters }) => ({
+      t: start + day * DAY_MS,
+      value: distanceValue(meters, unit),
+    }));
+  const target = toPoints(trip);
+  const maxPlan = tripMaxPlan(trip);
+  const targetName = trip.weeklyTargetsMeters ? "Plan" : "On pace";
   const formatDay = (t) =>
     new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
@@ -128,12 +145,23 @@ function ProgressChart({ trip }) {
           <Line
             data={target}
             dataKey="value"
-            name={trip.weeklyTargetsMeters ? "Plan" : "On pace"}
+            name={maxPlan ? `${targetName} (low)` : targetName}
             stroke="var(--text-muted)"
             strokeDasharray="6 4"
             dot={false}
             isAnimationActive={false}
           />
+          {maxPlan && (
+            <Line
+              data={toPoints(maxPlan)}
+              dataKey="value"
+              name={`${targetName} (high)`}
+              stroke="var(--text-muted)"
+              strokeDasharray="6 4"
+              dot={false}
+              isAnimationActive={false}
+            />
+          )}
           <Line
             data={actual}
             dataKey="value"

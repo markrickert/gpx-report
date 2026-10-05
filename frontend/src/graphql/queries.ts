@@ -521,6 +521,8 @@ export const GET_TRIPS = gql`
       goalMeters
       countsElevation
       weeklyTargetsMeters
+      goalMaxMeters
+      weeklyTargetsMaxMeters
       participants {
         person
         equivalentMeters
@@ -539,6 +541,8 @@ export const GET_TRIP = gql`
       goalMeters
       countsElevation
       weeklyTargetsMeters
+      goalMaxMeters
+      weeklyTargetsMaxMeters
       participants {
         person
         equivalentMeters

@@ -420,6 +420,7 @@ select {
 }
 
 .trip-progress-bar {
+  position: relative;
   height: 0.6rem;
   border-radius: 999px;
   background: var(--bg-subtle);
@@ -430,6 +431,14 @@ select {
   height: 100%;
   border-radius: 999px;
   background: var(--accent);
+}
+
+.trip-progress-low {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text);
 }
 
 .trip-form {
@@ -455,6 +464,16 @@ select {
 .trip-form > label select {
   font-size: 1rem;
   padding: 0.4rem 0.5rem;
+}
+
+.trip-form-range {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.trip-form-range input {
+  flex: 1;
+  min-width: 0;
 }
 
 .trip-form-people,
