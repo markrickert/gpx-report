@@ -119,9 +119,8 @@ This document details the features of gpx-report, and reflects what is actually 
 *   **Weekly plan:** A trip can instead carry a target for each week (rest weeks as zero). The goal is then the sum, and pace follows the plan: ahead of or behind plan, distance left this week, and a chart line that steps through each week's total, so a rest week or a taper is flat rather than falling behind. Weeks run seven days from the start date, with leftover days folded into the last week.
 *   **Climbing credit switch:** A trip planned in plain trail miles can turn the elevation term off, so logged distance and planned distance mean the same thing. Type factors still apply.
 *   **Breakdown:** The trip page lists the viewer's contributing activities and a per-type table (distance, elevation gain, factor, what it counts as), and a "How this is calculated" table of the factors.
-*   **Manual entries:** For distance with no recorded track (a treadmill, a forgotten phone), the trip page takes a date, a distance, and an optional note. It counts toward that person's total as entered, with no factor, and shows on the progress chart. A person adds and removes only their own.
 *   **Past trips:** After the end date a trip moves to a Past section with the final result. It is still computed live, so a late-synced file still counts.
-*   **Phone app:** The top of the phone's History tab shows a progress bar for each active trip (days left, distance of goal, pace) and an "All trips" link. Tapping either opens the web trips pages inside the app, without their nav, the same way activity pages open, so creating a trip and adding manual entries work from the phone.
+*   **Phone app:** The top of the phone's History tab shows a progress bar for each active trip (days left, distance of goal, pace) and an "All trips" link. Tapping either opens the web trips pages inside the app, without their nav, the same way activity pages open, so creating a trip works from the phone.
 *   **Dashboard card:** The Dashboard shows a "Training For" card with a progress bar for each active trip, hidden when there are none.
 
 ## 8. Units
@@ -151,7 +150,8 @@ This document details the features of gpx-report, and reflects what is actually 
 ## 11. Data Management
 
 *   **Self-Hosted:** All data is stored locally, ensuring user privacy and control.
-*   **Activity sources:** New activities come from the phone app's uploads (see above) or from files dropped manually into the monitored directory (`.gpx`, `.igc`, `.skiz`). Both go through the same directory-watch pipeline.
+*   **Activity sources:** New activities come from the phone app's uploads (see above), from files dropped manually into the monitored directory (`.gpx`, `.igc`, `.skiz`), or from a manual activity (below). All go through the same directory-watch pipeline.
+*   **Manual activities:** For distance with no recorded track (a treadmill, a forgotten phone), a person adds an activity by hand: a date, a distance, and a type, with an optional title, duration, elevation gain, and note. The web Dashboard has an "Add manual activity" button; the phone's History tab has "Add an activity by hand", which saves offline and uploads through the same queue as recordings. A manual activity has a day but no time. It appears in the activity list with its type's icon and a "Manual" tag, and counts in distance totals, streaks, and trips (with its type's factor and climbing credit, like a recorded one). It never sets a personal record, and without a duration it has no time or speed. Its page has no map or elevation profile; Edit there changes any field. Stored as a small `.manual.json` file in the person's folder, so reanalysis and the full export keep it.
 
 ## User Flows
 

@@ -22,13 +22,14 @@ import { pickAndImport } from "@/recording/importer";
 import * as store from "@/recording/store";
 import { drainUploadQueue, retryNow } from "@/recording/upload-queue";
 import type { QueuedImport, Recording } from "@/recording/types";
-import { activityTypeLabel } from "@/utils/activity-type-icons";
+import { activityTypeIcon, activityTypeLabel } from "@/utils/activity-type-icons";
 import { formatDistance, useUnits } from "@/utils/units";
 
 type ServerActivity = {
   id: string;
   title: string;
   activityType: string;
+  isManual: boolean;
   startTime: string;
   durationSeconds: number;
   distanceMeters: number;
@@ -38,7 +39,9 @@ type ServerActivity = {
 };
 
 // Same "1h 23m" format as the web Dashboard list.
+// A manual activity can have no duration, stored as zero.
 function formatDuration(seconds: number) {
+  if (!seconds) return null;
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
@@ -128,6 +131,13 @@ export function HistoryScreen() {
         </Text>
       )}
       <TripsCard />
+      <Link href="/add-activity" asChild>
+        <Pressable
+          style={StyleSheet.flatten([styles.row, { backgroundColor: colors.backgroundElement }])}
+        >
+          <Text style={styles.link}>Add an activity by hand</Text>
+        </Pressable>
+      </Link>
       {unsynced.map((rec) => (
         <View key={rec.id} style={[styles.row, { backgroundColor: colors.backgroundElement }]}>
           <Text style={[styles.title, { color: colors.text }]}>{rec.title}</Text>
@@ -217,9 +227,27 @@ export function HistoryScreen() {
                     : { backgroundColor: colors.backgroundElement, borderColor: colors.border },
                 ])}
               >
-                <RouteThumbnail routeThumbnail={item.routeThumbnail} />
+                {item.isManual ? (
+                  <View style={[styles.manualIcon, { backgroundColor: colors.backgroundSelected }]}>
+                    <Text style={styles.manualIconText}>
+                      {activityTypeIcon(item.activityType) ?? "✎"}
+                    </Text>
+                  </View>
+                ) : (
+                  <RouteThumbnail routeThumbnail={item.routeThumbnail} />
+                )}
                 <View style={styles.activityText}>
                   <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
+                  {item.isManual && (
+                    <Text
+                      style={[
+                        styles.badge,
+                        { backgroundColor: colors.backgroundSelected, color: colors.textSecondary },
+                      ]}
+                    >
+                      Manual
+                    </Text>
+                  )}
                   {unknown && (
                     <Text style={[styles.badge, { backgroundColor: colors.warning }]}>
                       Needs review
@@ -228,7 +256,9 @@ export function HistoryScreen() {
                   <Text style={[styles.meta, { color: colors.textSecondary }]}>
                     {[
                       activityTypeLabel(item.activityType),
-                      new Date(item.startTime).toLocaleString(),
+                      item.isManual
+                        ? new Date(item.startTime).toLocaleDateString()
+                        : new Date(item.startTime).toLocaleString(),
                       formatDistance(item.distanceMeters, unit),
                       formatDuration(item.durationSeconds),
                       item.locationName,
@@ -253,6 +283,14 @@ const styles = StyleSheet.create({
   row: { padding: 12, borderRadius: 12, borderCurve: "continuous", gap: 4 },
   activityRow: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1 },
   activityText: { flex: 1, gap: 2 },
+  manualIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  manualIconText: { fontSize: 24 },
   badge: {
     alignSelf: "flex-start",
     color: "white",

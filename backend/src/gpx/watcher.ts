@@ -35,7 +35,7 @@ export function watchGpxDirectory(directory) {
   });
 
   watcher.on("add", (filePath) => {
-    if (!/\.(gpx|igc|skiz)$/i.test(filePath)) return;
+    if (!/\.(gpx|igc|skiz|manual\.json)$/i.test(filePath)) return;
     const skipGeocode = !ready;
     enqueue(async () => {
       try {

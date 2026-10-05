@@ -153,12 +153,6 @@ app.get("/api/export/full", async (req, res) => {
     ORDER BY t.id
   `);
   archive.append(JSON.stringify(trips, null, 2), { name: "trips.json" });
-  const { rows: manualEntries } = await pool.query(`
-    SELECT trip_id, person, to_char(entry_date, 'YYYY-MM-DD') AS entry_date, distance_meters, note
-    FROM trip_manual_entries
-    ORDER BY trip_id, entry_date, id
-  `);
-  archive.append(JSON.stringify(manualEntries, null, 2), { name: "trip-manual-entries.json" });
 
   await archive.finalize();
 });

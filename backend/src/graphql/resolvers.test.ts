@@ -202,6 +202,7 @@ describe("personalRecordsByType", () => {
     });
 
     const result = await personalRecordsByType(null, {}, mark);
+    expect(pool.query.mock.calls.at(-1)[0]).toMatch(/gpx_filename NOT LIKE '%\.manual\.json'/);
     expect(result).toEqual([
       {
         activityType: "Running",
@@ -414,6 +415,76 @@ describe("saveRecordedActivity", () => {
     await expect(
       saveRecordedActivity(null, { gpxContent: gpx("x"), clientId: "../../etc/passwd" }, mark),
     ).rejects.toThrow(/clientId/);
+  });
+});
+
+describe("manual activities", () => {
+  const { addManualActivity, updateManualActivity } = resolvers.Mutation;
+  const input = {
+    title: "Afternoon Hiking",
+    activityType: "Hiking",
+    startTime: new Date("2026-10-04T18:00:00.000Z"),
+    distanceMeters: 6437.4,
+    durationSeconds: 3600,
+    notes: "Roads by the condo",
+  };
+  const fileOf = (filename) =>
+    JSON.parse(readFileSync(path.join(process.env.GPX_FILES_DIRECTORY, filename), "utf-8"));
+
+  beforeEach(() => {
+    pool.query.mockReset();
+    processFile.mockReset();
+  });
+
+  it("writes a file in the person's folder, ingests it, and ignores a retry", async () => {
+    const clientId = "1c7f3c2e-9a1d-4c7e-8f00-123456789abc";
+    const filename = `kristin/manual-${clientId}.manual.json`;
+    pool.query.mockResolvedValue({ rows: [{ id: 5, gpx_filename: filename }] });
+
+    const first = await addManualActivity(null, { input, clientId }, kristin);
+    await addManualActivity(null, { input: { ...input, title: "Retry" }, clientId }, kristin);
+
+    expect(first.gpxFilename).toBe(filename);
+    expect(fileOf(filename)).toMatchObject({ title: "Afternoon Hiking", distanceMeters: 6437.4 });
+    expect(processFile).toHaveBeenCalledTimes(2);
+    expect(pool.query.mock.calls[0][1]).toEqual([filename]);
+  });
+
+  it("refuses a zero distance before writing anything", async () => {
+    await expect(
+      addManualActivity(null, { input: { ...input, distanceMeters: 0 }, clientId: null }, mark),
+    ).rejects.toThrow(/distance/);
+    expect(processFile).not.toHaveBeenCalled();
+  });
+
+  it("rewrites every field on update, clearing ones left out", async () => {
+    const clientId = "2d7f3c2e-9a1d-4c7e-8f00-123456789abc";
+    const filename = `mark/manual-${clientId}.manual.json`;
+    pool.query.mockResolvedValue({ rows: [{ id: 6, gpx_filename: filename, owner: "mark" }] });
+    await addManualActivity(null, { input, clientId }, mark);
+
+    await updateManualActivity(
+      null,
+      { id: "6", input: { ...input, distanceMeters: 8000, durationSeconds: null, notes: null } },
+      mark,
+    );
+
+    expect(fileOf(filename)).toMatchObject({
+      distanceMeters: 8000,
+      durationSeconds: null,
+      notes: null,
+    });
+    expect(pool.query.mock.calls.some(([sql]) => /UPDATE activities SET notes/.test(sql))).toBe(
+      true,
+    );
+  });
+
+  it("only changes a manual activity, and only for its owner", async () => {
+    pool.query.mockResolvedValue({ rows: [{ gpx_filename: "mark/ride.gpx", owner: "mark" }] });
+    await expect(updateManualActivity(null, { id: "1", input }, mark)).rejects.toThrow(/by hand/);
+    await expect(updateManualActivity(null, { id: "1", input }, kristin)).rejects.toThrow(
+      /Only mark/,
+    );
   });
 });
 
@@ -921,13 +992,12 @@ describe("trips", () => {
           { id: 2, activity_type: "Cycling", distance_meters: "10000", total_elevation_gain: null },
         ],
       })
-      .mockResolvedValueOnce({ rows: [{ id: 9, distance_meters: "2000", note: null }] })
       .mockResolvedValue({ rows: [] });
 
     const participants = await resolvers.Trip.participants(trip);
 
     expect(participants).toEqual([
-      { person: "kristin", equivalentMeters: 1800 + 3000 + 2000 },
+      { person: "kristin", equivalentMeters: 1800 + 3000 },
       { person: "mark", equivalentMeters: 0 },
     ]);
     const [sql, params] = pool.query.mock.calls[1];
@@ -935,82 +1005,6 @@ describe("trips", () => {
       /a\.owner = \$1 OR a\.gpx_filename IN \(SELECT gpx_filename FROM activity_shares/,
     );
     expect(params).toEqual(["kristin", "2026-10-01", "2027-06-30"]);
-    expect(pool.query.mock.calls[2][1]).toEqual(["3", "kristin", "2026-10-01", "2027-06-30"]);
-    expect(pool.query.mock.calls[3][1][0]).toBe("mark");
-  });
-
-  describe("manual entries", () => {
-    const { addTripManualEntry, deleteTripManualEntry } = resolvers.Mutation;
-    const entry = { tripId: "3", date: "2026-10-05", distanceMeters: 5000, note: " Treadmill " };
-
-    it("adds distance for the requester", async () => {
-      pool.query.mockResolvedValueOnce({ rows: [tripRow] }).mockResolvedValueOnce({
-        rows: [{ id: 9, entry_date: "2026-10-05", distance_meters: "5000", note: "Treadmill" }],
-      });
-
-      expect(await addTripManualEntry(null, entry, kristin)).toEqual({
-        id: "9",
-        date: "2026-10-05",
-        distanceMeters: 5000,
-        note: "Treadmill",
-      });
-      expect(pool.query.mock.calls[1][1]).toEqual([
-        "3",
-        "kristin",
-        "2026-10-05",
-        5000,
-        "Treadmill",
-      ]);
-    });
-
-    it("rejects a date outside the window, a zero distance, and a trip the requester isn't on", async () => {
-      pool.query.mockResolvedValue({ rows: [tripRow] });
-      await expect(
-        addTripManualEntry(null, { ...entry, date: "2026-09-30" }, kristin),
-      ).rejects.toThrow(/outside/);
-      await expect(
-        addTripManualEntry(null, { ...entry, distanceMeters: 0 }, kristin),
-      ).rejects.toThrow(/more than zero/);
-      pool.query.mockResolvedValue({ rows: [] });
-      await expect(addTripManualEntry(null, entry, kristin)).rejects.toThrow(/Trip not found/);
-    });
-
-    it("only deletes the requester's own entry", async () => {
-      pool.query.mockResolvedValueOnce({ rowCount: 0 }).mockResolvedValueOnce({ rowCount: 1 });
-      await expect(deleteTripManualEntry(null, { id: "9" }, mark)).rejects.toThrow(/not found/);
-      expect(await deleteTripManualEntry(null, { id: "9" }, kristin)).toBe(true);
-      expect(pool.query.mock.calls[1][1]).toEqual(["9", "kristin"]);
-    });
-  });
-
-  it("lists the requester's own activities with their equivalent distance", async () => {
-    pool.query.mockResolvedValue({
-      rows: [
-        {
-          id: 7,
-          title: "Ridge walk",
-          activity_type: "Paragliding",
-          start_time: new Date("2026-10-02T10:00:00Z"),
-          distance_meters: "30000",
-          total_elevation_gain: "2000",
-        },
-      ],
-    });
-
-    const activities = await resolvers.Trip.myActivities(trip, {}, kristin);
-
-    expect(activities).toEqual([
-      {
-        id: "7",
-        title: "Ridge walk",
-        activityType: "Paragliding",
-        startTime: new Date("2026-10-02T10:00:00Z"),
-        distanceMeters: 30000,
-        totalElevationGain: 2000,
-        factor: 0,
-        equivalentMeters: 0,
-      },
-    ]);
-    expect(pool.query.mock.calls[0][1][0]).toBe("kristin");
+    expect(pool.query.mock.calls[2][1][0]).toBe("mark");
   });
 });

@@ -23,7 +23,7 @@ Accounts let a small group of people use one deployment. Each person sees their 
 ## Trips
 
 - A trip is a shared training goal. Only the people on a trip can see it, edit it, change who is on it, or delete it. The person who creates a trip is always on it.
-- Each person's progress comes from the activities that person can see, plus the manual entries that person added. A person adds and removes only their own manual entries. The people on a trip see each other's totals only. The visibility rule still decides whose activities a person can list.
+- Each person's progress comes from the activities that person can see, including the ones they added by hand. The people on a trip see each other's totals only. The visibility rule still decides whose activities a person can list.
 
 ## Web Interaction
 

@@ -26,6 +26,7 @@ The recorder records a GPS track and uploads it to the server. Recording continu
 ## Phone App Surfaces
 
 - History shows the activities from the server and the recordings that are not uploaded yet, with a manual retry.
+- History has a form to add an activity by hand, for distance with no recording. It saves on the phone and uploads through the same queue as imported files.
 - The activity view on the phone is a short summary. The full analysis is on the web.
 - Settings holds the person name, the server address, and the location permission status. Its About section shows the version, build number, channel, and running update, and checks for a new update on request.
 

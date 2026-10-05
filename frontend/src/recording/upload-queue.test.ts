@@ -13,6 +13,8 @@ vi.mock("@/lib/apollo", () => {
 vi.mock("expo-crypto", () => ({ randomUUID: () => "unused" }));
 vi.mock("./import-files", () => ({
   readBase64: vi.fn(async (uri: string) => `base64-of-${uri}`),
+  readText: vi.fn(async () => JSON.stringify({ title: "Hiking", distanceMeters: 6437 })),
+  writeIntoQueue: vi.fn(),
   removeFile: vi.fn(),
 }));
 
@@ -169,6 +171,28 @@ describe("drainUploadQueue imports", () => {
       lastError: "No timestamps",
     });
     expect(removeFile).toHaveBeenCalledWith("file:///imports/imp-3.gpx");
+  });
+
+  it("sends a manual activity through its own mutation with the queue id as clientId", async () => {
+    store.createImport(
+      {
+        id: "man-1",
+        person: "kristin",
+        name: "Hiking",
+        localUri: "file:///imports/man-1.manual.json",
+      },
+      5_000,
+    );
+    apolloClient.mutate.mockResolvedValue({ data: { addManualActivity: { id: "43" } } });
+
+    await drainUploadQueue(10_000);
+
+    expect(apolloClient.mutate.mock.calls[0][0].variables).toEqual({
+      input: { title: "Hiking", distanceMeters: 6437 },
+      clientId: "man-1",
+    });
+    expect(store.listImports(["pending", "failed", "rejected"])).toEqual([]);
+    expect(removeFile).toHaveBeenCalledWith("file:///imports/man-1.manual.json");
   });
 
   it("keeps the file and backs off when the server can't be reached", async () => {

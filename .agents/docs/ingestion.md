@@ -8,7 +8,8 @@ Ingestion turns source files into activities. It is the only path from a file to
 
 - Files that people drop or sync into the data folder.
 - Phone uploads, which the server writes as GPX files into the folder of the person who recorded them.
-- The supported formats are GPX, IGC (paragliding), and Ski Tracks archives.
+- Manual activities, which a person types in with no track. The server writes each one as a small JSON file into that person's folder.
+- The supported formats are GPX, IGC (paragliding), Ski Tracks archives, and the manual activity file.
 
 ## Workflow
 
@@ -16,7 +17,7 @@ Ingestion turns source files into activities. It is the only path from a file to
 - At startup, the watcher replays every file that already exists. Then it continues to watch for new files.
 - The watcher processes one file at a time, in arrival order.
 - Processing parses the file with the parser for its format, computes the statistics, and gets the owner from the folder of the file.
-- Processing then writes the activity and its route in one transaction. The relative file path is the key, so processing the same file again is safe.
+- Processing then writes the activity and its route in one transaction. A manual activity has no route. The relative file path is the key, so processing the same file again is safe.
 - Reanalysis runs the same processing again for all activities or for a date range, in small batches.
 
 ## Rules

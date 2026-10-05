@@ -80,20 +80,10 @@ The repo-root `docker-compose.yml` already defines the `db` service (`postgis/po
       PRIMARY KEY (trip_id, person)
     );
     CREATE INDEX IF NOT EXISTS idx_trip_participants_person ON trip_participants (person);
-    CREATE TABLE IF NOT EXISTS trip_manual_entries (
-      id              SERIAL PRIMARY KEY,
-      trip_id         INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
-      person          VARCHAR(64) NOT NULL,
-      entry_date      DATE NOT NULL,
-      distance_meters NUMERIC NOT NULL,
-      note            TEXT,
-      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE INDEX IF NOT EXISTS idx_trip_manual_entries_trip_id ON trip_manual_entries (trip_id);
     ALTER TABLE trips ADD COLUMN IF NOT EXISTS counts_elevation BOOLEAN NOT NULL DEFAULT TRUE;
     ALTER TABLE trips ADD COLUMN IF NOT EXISTS weekly_targets_meters JSONB;
     ```
-    Then rebuild: `docker compose up -d --build backend frontend`. Like `activity_shares`, trips can't be regenerated from the files; `GET /export/full` includes them as `trips.json` and `trip-manual-entries.json`, so export before any volume wipe.
+    Then rebuild: `docker compose up -d --build backend frontend`. Like `activity_shares`, trips can't be regenerated from the files; `GET /export/full` includes them as `trips.json`, so export before any volume wipe. A deployment that still has the retired `trip_manual_entries` table can drop it once its rows have been re-entered as manual activities: `DROP TABLE IF EXISTS trip_manual_entries;`.
 *   **Local (non-Docker) Postgres:** install PostgreSQL + PostGIS yourself, create a DB/user, `CREATE EXTENSION IF NOT EXISTS postgis;`, then run `backend/db/init.sql` against it manually. Point `DATABASE_URL` at it.
 
 ## 3. Backend Setup

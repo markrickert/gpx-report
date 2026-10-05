@@ -50,9 +50,12 @@ import {
 import { ACTIVITY_TYPES } from "@/utils/activity-types";
 import { activityTypeIcon, activityTypeLabel } from "@/utils/activity-type-icons";
 import { apiOrigin } from "@/lib/apollo";
+import { ManualActivityForm } from "@/screens/web/manual-activity-form";
 import { usePersonHref } from "@/lib/person";
 
+// A manual activity can have no duration, stored as zero.
 function formatDuration(seconds) {
+  if (!seconds) return "-";
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
@@ -63,6 +66,7 @@ function formatDuration(seconds) {
 // owner can edit — a share recipient views it read-only.
 function isEditable(activity, person) {
   if (activity.owner !== person) return false;
+  if (activity.isManual) return true;
   const filename = activity.gpxFilename.toLowerCase();
   return filename.endsWith(".gpx") || filename.endsWith(".skiz");
 }
@@ -133,6 +137,20 @@ function ActivityHeader({ activity, person, record, editMode, onEditModeChange }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  // A manual activity is all typed fields, so Edit opens the whole form.
+  if (editMode && activity.isManual) {
+    return (
+      <>
+        <h1>{activity.title}</h1>
+        <ManualActivityForm
+          activity={activity}
+          onSaved={() => onEditModeChange(false)}
+          onCancel={() => onEditModeChange(false)}
+        />
+      </>
+    );
+  }
+
   if (!editMode) {
     const records = matchedRecords(activity, record);
     return (
@@ -165,7 +183,10 @@ function ActivityHeader({ activity, person, record, editMode, onEditModeChange }
         )}
         <p>
           <span className="activity-type-badge">{activityTypeLabel(activity.activityType)}</span>{" "}
-          {new Date(activity.startTime).toLocaleString()}
+          {activity.isManual && <span className="activity-manual-badge">Manual</span>}
+          {activity.isManual
+            ? new Date(activity.startTime).toLocaleDateString()
+            : new Date(activity.startTime).toLocaleString()}
           {activity.locationName && (
             <>
               {" "}
@@ -1660,7 +1681,8 @@ export default function ActivityDetail() {
   const runCount = activity.route.liftSegments.filter((seg) => seg.elevationGainMeters > 0).length;
 
   const [trimStart, trimEnd] = trimRange ?? [0, elevationData.length - 1];
-  const trimActive = editMode && isEditable(activity, person) && trimRange !== null;
+  const trimActive =
+    editMode && !activity.isManual && isEditable(activity, person) && trimRange !== null;
   const visiblePositions = trimActive ? positions.slice(trimStart, trimEnd + 1) : positions;
   const visibleElevationData = trimActive
     ? elevationData.slice(trimStart, trimEnd + 1)
@@ -1927,231 +1949,246 @@ export default function ActivityDetail() {
         </div>
       )}
 
-      <h2>Elevation Profile</h2>
-      <p className="chart-hint">
-        Line color shows speed (blue = fast, red = slow); gray bands mark rest stops, purple bands
-        mark suspected lift rides.
-      </p>
-      <div className="elevation-chart-wrap">
-        <ResponsiveContainer width="100%" height={250} className="elevation-chart">
-          <LineChart
-            data={elevationData}
-            onMouseMove={handleChartDrag}
-            onMouseUp={endDrag}
-            onMouseLeave={() => {
-              endDrag();
-              clearHover();
-            }}
-            {...({ onTouchMove: handleChartDrag, onTouchEnd: endDrag } as any)}
-          >
-            <defs>
-              <linearGradient id="speedGradient" x1="0" y1="0" x2="1" y2="0">
-                {speedGradientStops.map((stop, i) => (
-                  <stop key={i} offset={stop.offset} stopColor={stop.color} />
-                ))}
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              dataKey="dist"
-              label={{
-                value: `Distance (${distanceUnitLabel(unit)})`,
-                position: "insideBottom",
-                offset: -5,
-              }}
-            />
-            {/* Hidden axis keyed by point index rather than "dist": recharts'
+      {!activity.isManual && (
+        <>
+          <h2>Elevation Profile</h2>
+          <p className="chart-hint">
+            Line color shows speed (blue = fast, red = slow); gray bands mark rest stops, purple
+            bands mark suspected lift rides.
+          </p>
+          <div className="elevation-chart-wrap">
+            <ResponsiveContainer width="100%" height={250} className="elevation-chart">
+              <LineChart
+                data={elevationData}
+                onMouseMove={handleChartDrag}
+                onMouseUp={endDrag}
+                onMouseLeave={() => {
+                  endDrag();
+                  clearHover();
+                }}
+                {...({ onTouchMove: handleChartDrag, onTouchEnd: endDrag } as any)}
+              >
+                <defs>
+                  <linearGradient id="speedGradient" x1="0" y1="0" x2="1" y2="0">
+                    {speedGradientStops.map((stop, i) => (
+                      <stop key={i} offset={stop.offset} stopColor={stop.color} />
+                    ))}
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="dist"
+                  label={{
+                    value: `Distance (${distanceUnitLabel(unit)})`,
+                    position: "insideBottom",
+                    offset: -5,
+                  }}
+                />
+                {/* Hidden axis keyed by point index rather than "dist": recharts'
               category-axis Reference* lookup silently fails to render at all
               once the axis key has duplicate values, which "dist" (rounded
               to 2 decimals) does constantly on real tracks — index is always
               unique, so Reference* components below target this axis instead. */}
-            <XAxis dataKey="idx" xAxisId="idx" hide allowDuplicatedCategory={false} />
-            <YAxis
-              domain={elevationDomain as [number, number]}
-              tickFormatter={(value) => String(Math.round(value))}
-              label={{
-                value: `Elevation (${elevationUnitLabel(unit)})`,
-                angle: -90,
-                position: "insideLeft",
-              }}
-            />
-            <Tooltip
-              contentStyle={{
-                background: "rgba(17, 24, 39, 0.92)",
-                border: "none",
-                borderRadius: 6,
-              }}
-              labelStyle={{ color: "#e5e7eb" }}
-              itemStyle={{ color: "#e5e7eb" }}
-            />
-            {restBands.map(([start, end]) => (
-              <ReferenceArea
-                key={`${start}-${end}`}
-                xAxisId="idx"
-                x1={start}
-                x2={end}
-                fill="#94a3b8"
-                fillOpacity={0.2}
-                strokeOpacity={0}
-              />
-            ))}
-            {activity.route.liftSegments.map((seg) => (
-              <ReferenceArea
-                key={`lift-${seg.startIndex}-${seg.endIndex}`}
-                xAxisId="idx"
-                x1={seg.startIndex}
-                x2={seg.endIndex}
-                fill="#a855f7"
-                fillOpacity={0.25}
-                strokeOpacity={0}
-              />
-            ))}
-            {trimActive && trimStart > 0 && (
-              <ReferenceArea
-                xAxisId="idx"
-                x1={0}
-                x2={trimStart}
-                fill="#ef4444"
-                fillOpacity={0.4}
-                strokeOpacity={0}
-              />
-            )}
-            {trimActive && trimEnd < elevationData.length - 1 && (
-              <ReferenceArea
-                xAxisId="idx"
-                x1={trimEnd}
-                x2={elevationData.length - 1}
-                fill="#ef4444"
-                fillOpacity={0.4}
-                strokeOpacity={0}
-              />
-            )}
-            <Line
-              type="monotone"
-              dataKey="elevation"
-              stroke="url(#speedGradient)"
-              strokeWidth={2}
-              dot={false}
-            />
-            {/* Recharts only recognizes Reference* components as direct chart
-              children, not ones nested inside a Fragment/wrapper — each must
-              be its own top-level conditional expression here. */}
-            {trimActive && (
-              <ReferenceLine xAxisId="idx" x={trimStart} stroke="#9ca3af" strokeWidth={2} isFront />
-            )}
-            {trimActive && (
-              <ReferenceLine
-                xAxisId="idx"
-                x={trimStart}
-                stroke="transparent"
-                strokeWidth={24}
-                isFront
-                style={{ cursor: "ew-resize" }}
-                onMouseDown={() => setDragging("start")}
-                onTouchStart={() => setDragging("start")}
-              />
-            )}
-            {trimActive && (
-              <ReferenceDot
-                xAxisId="idx"
-                x={trimStart}
-                y={elevationMid}
-                shape={(props) => <TrimHandleShape {...props} />}
-                isFront
-                style={{ cursor: "ew-resize" }}
-                onMouseDown={() => setDragging("start")}
-                onTouchStart={() => setDragging("start")}
-              />
-            )}
-            {trimActive && (
-              <ReferenceLine xAxisId="idx" x={trimEnd} stroke="#9ca3af" strokeWidth={2} isFront />
-            )}
-            {trimActive && (
-              <ReferenceLine
-                xAxisId="idx"
-                x={trimEnd}
-                stroke="transparent"
-                strokeWidth={24}
-                isFront
-                style={{ cursor: "ew-resize" }}
-                onMouseDown={() => setDragging("end")}
-                onTouchStart={() => setDragging("end")}
-              />
-            )}
-            {trimActive && (
-              <ReferenceDot
-                xAxisId="idx"
-                x={trimEnd}
-                y={elevationMid}
-                shape={(props) => <TrimHandleShape {...props} />}
-                isFront
-                style={{ cursor: "ew-resize" }}
-                onMouseDown={() => setDragging("end")}
-                onTouchStart={() => setDragging("end")}
-              />
-            )}
-            {hoverIndex != null && !dragging && elevationData[hoverIndex] && (
-              <ReferenceDot
-                xAxisId="idx"
-                x={hoverIndex}
-                y={elevationData[hoverIndex].elevation}
-                r={5}
-                fill="#2563eb"
-                stroke="#fff"
-                strokeWidth={2}
-                isFront
-                ifOverflow="visible"
-              />
-            )}
-            {mediaChartMarkers.map(({ media, startIdx, endIdx }) =>
-              endIdx > startIdx ? (
-                <ReferenceArea
-                  key={media.id}
-                  xAxisId="idx"
-                  x1={startIdx}
-                  x2={endIdx}
-                  fill="#f97316"
-                  fillOpacity={0.25}
-                  strokeOpacity={0}
+                <XAxis dataKey="idx" xAxisId="idx" hide allowDuplicatedCategory={false} />
+                <YAxis
+                  domain={elevationDomain as [number, number]}
+                  tickFormatter={(value) => String(Math.round(value))}
+                  label={{
+                    value: `Elevation (${elevationUnitLabel(unit)})`,
+                    angle: -90,
+                    position: "insideLeft",
+                  }}
                 />
-              ) : null,
-            )}
-            {mediaChartMarkers.map(({ media, startIdx }) => (
-              <ReferenceDot
-                key={media.id}
-                xAxisId="idx"
-                x={startIdx}
-                y={elevationMid}
-                shape={(props) => (
-                  <MediaPillShape
-                    {...props}
-                    isVideo={media.assetType === "VIDEO"}
-                    onEnter={(cx, cy) => setHoveredMedia({ media, cx, cy })}
-                    onLeave={() => setHoveredMedia(null)}
+                <Tooltip
+                  contentStyle={{
+                    background: "rgba(17, 24, 39, 0.92)",
+                    border: "none",
+                    borderRadius: 6,
+                  }}
+                  labelStyle={{ color: "#e5e7eb" }}
+                  itemStyle={{ color: "#e5e7eb" }}
+                />
+                {restBands.map(([start, end]) => (
+                  <ReferenceArea
+                    key={`${start}-${end}`}
+                    xAxisId="idx"
+                    x1={start}
+                    x2={end}
+                    fill="#94a3b8"
+                    fillOpacity={0.2}
+                    strokeOpacity={0}
+                  />
+                ))}
+                {activity.route.liftSegments.map((seg) => (
+                  <ReferenceArea
+                    key={`lift-${seg.startIndex}-${seg.endIndex}`}
+                    xAxisId="idx"
+                    x1={seg.startIndex}
+                    x2={seg.endIndex}
+                    fill="#a855f7"
+                    fillOpacity={0.25}
+                    strokeOpacity={0}
+                  />
+                ))}
+                {trimActive && trimStart > 0 && (
+                  <ReferenceArea
+                    xAxisId="idx"
+                    x1={0}
+                    x2={trimStart}
+                    fill="#ef4444"
+                    fillOpacity={0.4}
+                    strokeOpacity={0}
                   />
                 )}
-                isFront
-              />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
-        {hoveredMedia && (
-          <div
-            className="media-hover-preview"
-            style={{ left: hoveredMedia.cx, top: hoveredMedia.cy - 18 }}
-          >
-            <MediaThumbnail
-              activityId={activity.id}
-              assetId={hoveredMedia.media.immichAssetId}
-              alt=""
-            />
-            {hoveredMedia.media.assetType === "VIDEO" && (
-              <span className="media-gallery-video-badge">▶</span>
+                {trimActive && trimEnd < elevationData.length - 1 && (
+                  <ReferenceArea
+                    xAxisId="idx"
+                    x1={trimEnd}
+                    x2={elevationData.length - 1}
+                    fill="#ef4444"
+                    fillOpacity={0.4}
+                    strokeOpacity={0}
+                  />
+                )}
+                <Line
+                  type="monotone"
+                  dataKey="elevation"
+                  stroke="url(#speedGradient)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                {/* Recharts only recognizes Reference* components as direct chart
+              children, not ones nested inside a Fragment/wrapper — each must
+              be its own top-level conditional expression here. */}
+                {trimActive && (
+                  <ReferenceLine
+                    xAxisId="idx"
+                    x={trimStart}
+                    stroke="#9ca3af"
+                    strokeWidth={2}
+                    isFront
+                  />
+                )}
+                {trimActive && (
+                  <ReferenceLine
+                    xAxisId="idx"
+                    x={trimStart}
+                    stroke="transparent"
+                    strokeWidth={24}
+                    isFront
+                    style={{ cursor: "ew-resize" }}
+                    onMouseDown={() => setDragging("start")}
+                    onTouchStart={() => setDragging("start")}
+                  />
+                )}
+                {trimActive && (
+                  <ReferenceDot
+                    xAxisId="idx"
+                    x={trimStart}
+                    y={elevationMid}
+                    shape={(props) => <TrimHandleShape {...props} />}
+                    isFront
+                    style={{ cursor: "ew-resize" }}
+                    onMouseDown={() => setDragging("start")}
+                    onTouchStart={() => setDragging("start")}
+                  />
+                )}
+                {trimActive && (
+                  <ReferenceLine
+                    xAxisId="idx"
+                    x={trimEnd}
+                    stroke="#9ca3af"
+                    strokeWidth={2}
+                    isFront
+                  />
+                )}
+                {trimActive && (
+                  <ReferenceLine
+                    xAxisId="idx"
+                    x={trimEnd}
+                    stroke="transparent"
+                    strokeWidth={24}
+                    isFront
+                    style={{ cursor: "ew-resize" }}
+                    onMouseDown={() => setDragging("end")}
+                    onTouchStart={() => setDragging("end")}
+                  />
+                )}
+                {trimActive && (
+                  <ReferenceDot
+                    xAxisId="idx"
+                    x={trimEnd}
+                    y={elevationMid}
+                    shape={(props) => <TrimHandleShape {...props} />}
+                    isFront
+                    style={{ cursor: "ew-resize" }}
+                    onMouseDown={() => setDragging("end")}
+                    onTouchStart={() => setDragging("end")}
+                  />
+                )}
+                {hoverIndex != null && !dragging && elevationData[hoverIndex] && (
+                  <ReferenceDot
+                    xAxisId="idx"
+                    x={hoverIndex}
+                    y={elevationData[hoverIndex].elevation}
+                    r={5}
+                    fill="#2563eb"
+                    stroke="#fff"
+                    strokeWidth={2}
+                    isFront
+                    ifOverflow="visible"
+                  />
+                )}
+                {mediaChartMarkers.map(({ media, startIdx, endIdx }) =>
+                  endIdx > startIdx ? (
+                    <ReferenceArea
+                      key={media.id}
+                      xAxisId="idx"
+                      x1={startIdx}
+                      x2={endIdx}
+                      fill="#f97316"
+                      fillOpacity={0.25}
+                      strokeOpacity={0}
+                    />
+                  ) : null,
+                )}
+                {mediaChartMarkers.map(({ media, startIdx }) => (
+                  <ReferenceDot
+                    key={media.id}
+                    xAxisId="idx"
+                    x={startIdx}
+                    y={elevationMid}
+                    shape={(props) => (
+                      <MediaPillShape
+                        {...props}
+                        isVideo={media.assetType === "VIDEO"}
+                        onEnter={(cx, cy) => setHoveredMedia({ media, cx, cy })}
+                        onLeave={() => setHoveredMedia(null)}
+                      />
+                    )}
+                    isFront
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+            {hoveredMedia && (
+              <div
+                className="media-hover-preview"
+                style={{ left: hoveredMedia.cx, top: hoveredMedia.cy - 18 }}
+              >
+                <MediaThumbnail
+                  activityId={activity.id}
+                  assetId={hoveredMedia.media.immichAssetId}
+                  alt=""
+                />
+                {hoveredMedia.media.assetType === "VIDEO" && (
+                  <span className="media-gallery-video-badge">▶</span>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
-
+        </>
+      )}
       {trimActive && (
         <TrimControls
           activity={activity}
@@ -2240,13 +2277,13 @@ export default function ActivityDetail() {
 
       {isOwner && <ElevationFixTool activity={activity} />}
 
-      {isOwner && activity.activityType !== "Paragliding" && (
+      {isOwner && !activity.isManual && activity.activityType !== "Paragliding" && (
         <TerrainElevationTool activity={activity} onApplied={refetch} />
       )}
 
-      <ComparisonSection activity={activity} />
+      {!activity.isManual && <ComparisonSection activity={activity} />}
 
-      <SimilarActivitiesSection activity={activity} />
+      {!activity.isManual && <SimilarActivitiesSection activity={activity} />}
 
       {isOwner && <RescanMediaSection activity={activity} onScanned={refetch} />}
 

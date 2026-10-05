@@ -21,15 +21,18 @@ import {
   elevationUnitLabel,
 } from "@/utils/units";
 import { ACTIVITY_TYPES } from "@/utils/activity-types";
-import { activityTypeLabel } from "@/utils/activity-type-icons";
+import { activityTypeIcon, activityTypeLabel } from "@/utils/activity-type-icons";
 import { downloadCsv } from "@/utils/csv";
 import { tripPace } from "@/utils/trip-pace";
 import { usePersonHref } from "@/lib/person";
 import { ImportFiles } from "@/screens/web/import-files";
+import { ManualActivityForm } from "@/screens/web/manual-activity-form";
 
 const PAGE_SIZE = 50;
 
+// A manual activity can have no duration, stored as zero.
 function formatDuration(seconds) {
+  if (!seconds) return "-";
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
@@ -190,6 +193,7 @@ export default function Dashboard() {
   const [bulkType, setBulkType] = useState(ACTIVITY_TYPES[0]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState(null);
+  const [addingManual, setAddingManual] = useState(false);
   const [updateActivityType] = useMutation(UPDATE_ACTIVITY_TYPE);
   const [deleteActivity] = useMutation(DELETE_ACTIVITY);
 
@@ -399,6 +403,22 @@ export default function Dashboard() {
 
       <ImportFiles onImported={refetch} />
 
+      {addingManual ? (
+        <ManualActivityForm
+          onSaved={async () => {
+            await refetch();
+            setAddingManual(false);
+          }}
+          onCancel={() => setAddingManual(false)}
+        />
+      ) : (
+        <div className="button-row">
+          <button type="button" onClick={() => setAddingManual(true)}>
+            Add manual activity
+          </button>
+        </div>
+      )}
+
       <div className="button-row">
         <button type="button" onClick={exportCsv} disabled={activities.length === 0}>
           Download CSV
@@ -462,16 +482,25 @@ export default function Dashboard() {
                 />
               )}
               <Link to={href(`/activities/${activity.id}`)} className="activity-list-link">
-                <RouteThumbnail routeThumbnail={activity.routeThumbnail} />
+                {activity.isManual ? (
+                  <div className="activity-thumbnail activity-thumbnail-manual" aria-hidden="true">
+                    {activityTypeIcon(activity.activityType) ?? "✎"}
+                  </div>
+                ) : (
+                  <RouteThumbnail routeThumbnail={activity.routeThumbnail} />
+                )}
                 <div>
                   <div className="activity-list-title">{activity.title}</div>
                   <div className="activity-list-meta">
                     {activity.activityType === "Unknown" && (
                       <span className="activity-unknown-badge">Needs review</span>
                     )}
+                    {activity.isManual && <span className="activity-manual-badge">Manual</span>}
                     {activityTypeLabel(activity.activityType)} —{" "}
-                    {new Date(activity.startTime).toLocaleString()} —{" "}
-                    {formatDistance(activity.distanceMeters, unit)} —{" "}
+                    {activity.isManual
+                      ? new Date(activity.startTime).toLocaleDateString()
+                      : new Date(activity.startTime).toLocaleString()}{" "}
+                    — {formatDistance(activity.distanceMeters, unit)} —{" "}
                     {formatDuration(activity.durationSeconds)}
                     {activity.locationName && (
                       <>

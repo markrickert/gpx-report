@@ -18,15 +18,10 @@ import {
   formatTripDistance,
   myTotal,
 } from "@/components/trip-progress";
-import {
-  ADD_TRIP_MANUAL_ENTRY,
-  DELETE_TRIP,
-  DELETE_TRIP_MANUAL_ENTRY,
-  GET_TRIP,
-} from "@/graphql/queries";
+import { DELETE_TRIP, GET_TRIP } from "@/graphql/queries";
 import { usePersonHref } from "@/lib/person";
 import { activityTypeLabel } from "@/utils/activity-type-icons";
-import { localDate, tripPace, tripTargetLine } from "@/utils/trip-pace";
+import { tripPace, tripTargetLine } from "@/utils/trip-pace";
 import { useUnits, distanceValue, distanceUnitLabel, formatElevation } from "@/utils/units";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -79,17 +74,9 @@ function ProgressChart({ trip }) {
   const start = new Date(`${trip.startDate}T00:00:00`).getTime();
   const end = new Date(`${trip.endDate}T00:00:00`).getTime() + DAY_MS;
 
-  // A manual entry has a day but no time, so it lands at noon.
-  const events = [
-    ...trip.myActivities.map((a) => ({
-      t: new Date(a.startTime).getTime(),
-      meters: a.equivalentMeters,
-    })),
-    ...trip.myManualEntries.map((m) => ({
-      t: new Date(`${m.date}T12:00:00`).getTime(),
-      meters: m.distanceMeters,
-    })),
-  ].sort((a, b) => a.t - b.t);
+  const events = trip.myActivities
+    .map((a) => ({ t: new Date(a.startTime).getTime(), meters: a.equivalentMeters }))
+    .sort((a, b) => a.t - b.t);
   let total = 0;
   const actual = [{ t: start, value: 0 }];
   for (const event of events) {
@@ -249,123 +236,6 @@ function ActivityTable({ activities }) {
   );
 }
 
-// Distance with no recorded track (a treadmill, a forgotten phone). It's
-// entered as hiking distance already, so it counts as-is.
-function ManualEntries({ trip, onChanged }) {
-  const { unit } = useUnits();
-  const [addEntry, { loading: adding }] = useMutation(ADD_TRIP_MANUAL_ENTRY);
-  const [deleteEntry, { loading: deleting }] = useMutation(DELETE_TRIP_MANUAL_ENTRY);
-  const [error, setError] = useState(null);
-  const today = localDate();
-  const [date, setDate] = useState(
-    today < trip.startDate ? trip.startDate : today > trip.endDate ? trip.endDate : today,
-  );
-  const [distance, setDistance] = useState("");
-  const [note, setNote] = useState("");
-
-  const run = async (action) => {
-    setError(null);
-    try {
-      await action();
-      await onChanged();
-    } catch (e) {
-      setError(e.message);
-    }
-  };
-
-  const submit = (e) => {
-    e.preventDefault();
-    run(async () => {
-      await addEntry({
-        variables: {
-          tripId: trip.id,
-          date,
-          distanceMeters: Number(distance) / distanceValue(1, unit),
-          note,
-        },
-      });
-      setDistance("");
-      setNote("");
-    });
-  };
-
-  return (
-    <section>
-      <h2>Manual entries</h2>
-      <p className="trip-dates">
-        For distance with no recorded track. It counts toward your total as entered.
-      </p>
-      <form className="trip-form" onSubmit={submit}>
-        <label>
-          Date
-          <input
-            type="date"
-            value={date}
-            min={trip.startDate}
-            max={trip.endDate}
-            onChange={(e) => setDate(e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Distance ({distanceUnitLabel(unit)})
-          <input
-            type="number"
-            min="0"
-            step="any"
-            value={distance}
-            onChange={(e) => setDistance(e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Note (optional)
-          <input value={note} onChange={(e) => setNote(e.target.value)} />
-        </label>
-        <div className="trip-form-actions">
-          <button type="submit" className="title-edit-button" disabled={adding}>
-            {adding ? "Adding…" : "Add"}
-          </button>
-        </div>
-        {error && <p className="title-edit-error">Failed: {error}</p>}
-      </form>
-      {trip.myManualEntries.length > 0 && (
-        <div className="stats-table-wrap">
-          <table className="stats-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Distance</th>
-                <th>Note</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...trip.myManualEntries].reverse().map((m) => (
-                <tr key={m.id}>
-                  <td>{formatTripDate(m.date)}</td>
-                  <td>{formatTripDistance(m.distanceMeters, unit)}</td>
-                  <td>{m.note}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="delete-activity-button"
-                      disabled={deleting}
-                      onClick={() => run(() => deleteEntry({ variables: { id: m.id } }))}
-                    >
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
 function EffortFactors({ factors, countsElevation }) {
   return (
     <details className="trip-factors">
@@ -500,7 +370,6 @@ export default function TripDetail() {
           <ActivityTable activities={trip.myActivities} />
         </>
       )}
-      <ManualEntries trip={trip} onChanged={refetch} />
       <EffortFactors factors={effortFactors} countsElevation={trip.countsElevation} />
       <DeleteTripSection trip={trip} />
     </div>

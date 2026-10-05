@@ -4,6 +4,7 @@ import { pool } from "../db.js";
 import { parseGpxFile } from "./parser.js";
 import { parseIgcFile } from "../igc/parser.js";
 import { parseSkizFile } from "../skiz/parser.js";
+import { isManualFilename, parseManualFile } from "../manual/parser.js";
 import { reverseGeocode } from "../geocoding.js";
 import { computeBestEfforts } from "../track/personalRecords.js";
 import { totalsExcludingLifts } from "../track/liftDetection.js";
@@ -20,6 +21,7 @@ export function parseActivityFile(filePath, formatPath = filePath) {
   const lower = formatPath.toLowerCase();
   if (lower.endsWith(".igc")) return parseIgcFile(filePath);
   if (lower.endsWith(".skiz")) return parseSkizFile(filePath);
+  if (isManualFilename(lower)) return parseManualFile(filePath);
   return parseGpxFile(filePath);
 }
 
@@ -131,20 +133,23 @@ export async function processFile(
     );
     const activityId = activityResult.rows[0].id;
 
-    await client.query(
-      `INSERT INTO activity_routes (activity_id, route_geom, elevation_profile_data, points_data)
-       VALUES ($1, ST_GeomFromText($2, 4326), $3, $4)
-       ON CONFLICT (activity_id) DO UPDATE SET
-         route_geom = EXCLUDED.route_geom,
-         elevation_profile_data = EXCLUDED.elevation_profile_data,
-         points_data = EXCLUDED.points_data`,
-      [
-        activityId,
-        toLineStringWkt(parsed.points),
-        JSON.stringify(parsed.elevationProfile),
-        JSON.stringify(parsed.points),
-      ],
-    );
+    // A manual activity has no track, and route_geom can't hold an empty line.
+    if (parsed.points.length > 0) {
+      await client.query(
+        `INSERT INTO activity_routes (activity_id, route_geom, elevation_profile_data, points_data)
+         VALUES ($1, ST_GeomFromText($2, 4326), $3, $4)
+         ON CONFLICT (activity_id) DO UPDATE SET
+           route_geom = EXCLUDED.route_geom,
+           elevation_profile_data = EXCLUDED.elevation_profile_data,
+           points_data = EXCLUDED.points_data`,
+        [
+          activityId,
+          toLineStringWkt(parsed.points),
+          JSON.stringify(parsed.elevationProfile),
+          JSON.stringify(parsed.points),
+        ],
+      );
+    }
 
     await client.query("COMMIT");
     return activityId;
@@ -164,7 +169,7 @@ async function listGpxFiles(directory) {
     .filter(
       (e) =>
         e.isFile() &&
-        /\.(gpx|igc|skiz)$/i.test(e.name) &&
+        /\.(gpx|igc|skiz|manual\.json)$/i.test(e.name) &&
         !e.parentPath.split(path.sep).includes("_backups"),
     )
     .map((e) => path.join(e.parentPath, e.name));

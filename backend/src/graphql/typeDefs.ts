@@ -35,6 +35,8 @@ export const typeDefs = `#graphql
     media: [ActivityMedia!]!
     "True once the track's points have been edited (trimmed, cleaned, or elevation-fixed) since the original saved in _backups/. Title and type edits don't count."
     trackEdited: Boolean!
+    "True for an activity typed in by hand, which has no track."
+    isManual: Boolean!
   }
 
   type ActivityMedia {
@@ -245,14 +247,6 @@ export const typeDefs = `#graphql
     equivalentMeters: Float!
   }
 
-  "Distance with no recorded track, entered by hand. date is YYYY-MM-DD."
-  type TripManualEntry {
-    id: ID!
-    date: String!
-    distanceMeters: Float!
-    note: String
-  }
-
   "startDate and endDate are YYYY-MM-DD, both inclusive."
   type Trip {
     id: ID!
@@ -267,8 +261,17 @@ export const typeDefs = `#graphql
     participants: [TripParticipant!]!
     "The requesting person's own activities in the window, oldest first."
     myActivities: [TripActivity!]!
-    "The requesting person's own manual entries in the window, oldest first."
-    myManualEntries: [TripManualEntry!]!
+  }
+
+  "An activity with no track. startTime is the instant the client picked for the day; without durationSeconds the activity has no time or speed."
+  input ManualActivityInput {
+    title: String!
+    activityType: String!
+    startTime: DateTime!
+    distanceMeters: Float!
+    durationSeconds: Float
+    elevationGainMeters: Float
+    notes: String
   }
 
   input TripInput {
@@ -328,6 +331,8 @@ export const typeDefs = `#graphql
     restoreActivityOriginal(id: ID!): Activity!
     saveRecordedActivity(gpxContent: String!, clientId: String): SaveRecordedActivityResult!
     importActivityFile(filename: String!, contentBase64: String!): ImportActivityFileResult!
+    addManualActivity(input: ManualActivityInput!, clientId: String): Activity!
+    updateManualActivity(id: ID!, input: ManualActivityInput!): Activity!
     cleanActivityOutliers(id: ID!): Activity!
     fixActivityElevationSpikes(id: ID!): Activity!
     applyTerrainElevation(id: ID!): Activity!
@@ -337,12 +342,5 @@ export const typeDefs = `#graphql
     scanActivityMedia(activityIds: [ID!]): ImmichScanResult!
     saveTrip(id: ID, input: TripInput!): Trip!
     deleteTrip(id: ID!): Boolean!
-    addTripManualEntry(
-      tripId: ID!
-      date: String!
-      distanceMeters: Float!
-      note: String
-    ): TripManualEntry!
-    deleteTripManualEntry(id: ID!): Boolean!
   }
 `;

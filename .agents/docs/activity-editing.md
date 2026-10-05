@@ -14,6 +14,8 @@ This domain covers the web analysis of activities and the edits that change an a
 ## Edits
 
 - Title, activity type, and trim rewrite the source file. They work for GPX and Ski Tracks files, not for IGC files.
+- A manual activity has no track. Its owner can change every field (date, distance, duration, elevation gain, type, title, note) from its page. Trim and the cleanup tools do not apply to it.
+- A manual activity counts in totals, streaks, and trips. It never sets a personal record.
 - The database is the only storage for notes.
 - Before an edit rewrites a file, the edit keeps a backup copy of the original file beside it. Ingestion ignores these backup copies.
 - The page offers to restore the original only when the track's points differ from it (a trim, outlier cleanup, elevation fix, or terrain elevation). Title and type edits keep a backup but do not show the offer.

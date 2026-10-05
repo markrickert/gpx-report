@@ -33,6 +33,8 @@ import { detectElevationSpikes, correctElevationSpikes } from "../track/elevatio
 import { haversineMeters, computeTrackStats } from "../track/geo.js";
 import { computeElevationGainLoss } from "../track/elevation.js";
 import { terrainElevations } from "../track/terrain.js";
+import { MANUAL_EXTENSION, isManualFilename } from "../manual/parser.js";
+import { manualFileContent, writeManualFields } from "../manual/writer.js";
 import { suggestActivityTypes } from "../track/suggestType.js";
 import {
   getImmichBaseUrl,
@@ -157,27 +159,6 @@ async function tripActivities(trip, person) {
       equivalentMeters: equivalentMeters(activity, trip.countsElevation),
     };
   });
-}
-
-// What `person` entered by hand for the trip, inside its window.
-async function tripManualEntries(trip, person) {
-  const { rows } = await pool.query(
-    `SELECT id, to_char(entry_date, 'YYYY-MM-DD') AS entry_date, distance_meters, note
-     FROM trip_manual_entries
-     WHERE trip_id = $1 AND person = $2 AND entry_date BETWEEN $3 AND $4
-     ORDER BY entry_date, id`,
-    [trip.id, person, trip.startDate, trip.endDate],
-  );
-  return rows.map(mapManualEntryRow);
-}
-
-function mapManualEntryRow(row) {
-  return {
-    id: String(row.id),
-    date: row.entry_date,
-    distanceMeters: Number(row.distance_meters),
-    note: row.note,
-  };
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -324,6 +305,7 @@ async function terrainCorrectedPoints(id, activity) {
     [id],
   );
   const points = rows[0]?.points_data || [];
+  if (points.length === 0) throw new Error("This activity has no track");
   const elevations = await terrainElevations(points);
   return {
     points,
@@ -590,7 +572,7 @@ export const resolvers = {
           MIN(best_5km_seconds) AS best_5km_seconds,
           MIN(best_10km_seconds) AS best_10km_seconds
         FROM activities a
-        WHERE ${visibleTo("a", 1)}
+        WHERE ${visibleTo("a", 1)} AND a.gpx_filename NOT LIKE '%${MANUAL_EXTENSION}'
         GROUP BY activity_type
         ORDER BY activity_type
       `,
@@ -1017,12 +999,16 @@ export const resolvers = {
     updateActivityTitle: async (_parent, { id, title }, context) => {
       const activity = await requireOwnedActivity(id, context);
       const filename = activity.gpx_filename.toLowerCase();
-      if (!filename.endsWith(".gpx") && !filename.endsWith(".skiz")) {
+      const filePath = path.join(GPX_FILES_DIRECTORY, activity.gpx_filename);
+      if (isManualFilename(filename)) {
+        await writeManualFields(filePath, { title });
+      } else if (filename.endsWith(".skiz")) {
+        await updateSkizTitle(filePath, title);
+      } else if (filename.endsWith(".gpx")) {
+        await updateGpxTitle(filePath, title);
+      } else {
         throw new Error("Editing is only supported for .gpx and .skiz files");
       }
-
-      const filePath = path.join(GPX_FILES_DIRECTORY, activity.gpx_filename);
-      await (filename.endsWith(".skiz") ? updateSkizTitle : updateGpxTitle)(filePath, title);
       await processFile(filePath);
 
       const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
@@ -1042,15 +1028,15 @@ export const resolvers = {
     updateActivityType: async (_parent, { id, activityType }, context) => {
       const activity = await requireOwnedActivity(id, context);
       const filename = activity.gpx_filename.toLowerCase();
-      if (!filename.endsWith(".gpx") && !filename.endsWith(".skiz")) {
-        throw new Error("Editing is only supported for .gpx and .skiz files");
-      }
-
       const filePath = path.join(GPX_FILES_DIRECTORY, activity.gpx_filename);
-      if (filename.endsWith(".skiz")) {
+      if (isManualFilename(filename)) {
+        await writeManualFields(filePath, { activityType });
+      } else if (filename.endsWith(".skiz")) {
         await updateSkizType(filePath, activityType);
-      } else {
+      } else if (filename.endsWith(".gpx")) {
         await updateGpxType(filePath, activityTypeToRawType(activityType));
+      } else {
+        throw new Error("Editing is only supported for .gpx and .skiz files");
       }
       await processFile(filePath);
 
@@ -1133,6 +1119,56 @@ export const resolvers = {
       // path as any synced file. The frontend polls for the resulting
       // activity rather than blocking on it.
       return { filename };
+    },
+
+    // An activity with no track, typed in by hand. Written as a file like
+    // every other activity, so reanalysis and the full export keep it. A
+    // clientId makes a phone's retry after a lost response return the first
+    // save instead of adding a second one, as in saveRecordedActivity.
+    addManualActivity: async (_parent, { input, clientId }, context) => {
+      if (clientId != null && !/^[A-Za-z0-9-]{8,64}$/.test(clientId)) {
+        throw new Error("clientId must be 8-64 letters, digits, or dashes");
+      }
+      const content = manualFileContent(input);
+      const person = personOf(context);
+      const filename = `${person}/manual-${clientId ?? randomBytes(8).toString("hex")}${MANUAL_EXTENSION}`;
+      const filePath = path.join(GPX_FILES_DIRECTORY, filename);
+      await mkdir(path.dirname(filePath), { recursive: true });
+      try {
+        await writeFile(filePath, content, { encoding: "utf-8", flag: "wx" });
+      } catch (err) {
+        if (!clientId || err.code !== "EEXIST") throw err;
+      }
+      await processFile(filePath);
+
+      const { rows } = await pool.query("SELECT * FROM activities WHERE gpx_filename = $1", [
+        filename,
+      ]);
+      return mapActivityRow(rows[0]);
+    },
+
+    updateManualActivity: async (_parent, { id, input }, context) => {
+      const activity = await requireOwnedActivity(id, context);
+      if (!isManualFilename(activity.gpx_filename)) {
+        throw new Error("Only an activity added by hand can be changed this way");
+      }
+      const filePath = path.join(GPX_FILES_DIRECTORY, activity.gpx_filename);
+      // Every field is sent, so a cleared duration or gain is cleared in the file.
+      await writeManualFields(filePath, {
+        ...input,
+        durationSeconds: input.durationSeconds ?? null,
+        elevationGainMeters: input.elevationGainMeters ?? null,
+        notes: input.notes ?? null,
+      });
+      // The file's note only fills empty notes at ingest, so set it directly.
+      await pool.query("UPDATE activities SET notes = $1 WHERE id = $2", [
+        input.notes?.trim() || null,
+        id,
+      ]);
+      await processFile(filePath);
+
+      const { rows: updated } = await pool.query("SELECT * FROM activities WHERE id = $1", [id]);
+      return mapActivityRow(updated[0]);
     },
 
     // Refusals are REJECTED results rather than errors, so the phone's queue
@@ -1450,33 +1486,6 @@ export const resolvers = {
       await pool.query("DELETE FROM trips WHERE id = $1", [id]);
       return true;
     },
-
-    // Always for the requester: nobody enters distance on someone else's behalf.
-    addTripManualEntry: async (_parent, { tripId, date, distanceMeters, note }, context) => {
-      const trip = await findTrip(tripId, context);
-      if (!trip) throw new Error("Trip not found");
-      if (!DATE_RE.test(date)) throw new Error("Dates must be YYYY-MM-DD");
-      if (date < trip.startDate || date > trip.endDate) {
-        throw new Error("That date is outside the trip's training dates");
-      }
-      if (!(distanceMeters > 0)) throw new Error("The distance must be more than zero");
-      const { rows } = await pool.query(
-        `INSERT INTO trip_manual_entries (trip_id, person, entry_date, distance_meters, note)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, to_char(entry_date, 'YYYY-MM-DD') AS entry_date, distance_meters, note`,
-        [tripId, personOf(context), date, distanceMeters, note?.trim() || null],
-      );
-      return mapManualEntryRow(rows[0]);
-    },
-
-    deleteTripManualEntry: async (_parent, { id }, context) => {
-      const { rowCount } = await pool.query(
-        "DELETE FROM trip_manual_entries WHERE id = $1 AND person = $2",
-        [id, personOf(context)],
-      );
-      if (!rowCount) throw new Error("Entry not found");
-      return true;
-    },
   },
 
   Trip: {
@@ -1490,23 +1499,20 @@ export const resolvers = {
       const participants = [];
       for (const { person } of rows) {
         const activities = await tripActivities(parent, person);
-        const manual = await tripManualEntries(parent, person);
         participants.push({
           person,
-          equivalentMeters:
-            activities.reduce((sum, a) => sum + a.equivalentMeters, 0) +
-            manual.reduce((sum, m) => sum + m.distanceMeters, 0),
+          equivalentMeters: activities.reduce((sum, a) => sum + a.equivalentMeters, 0),
         });
       }
       return participants;
     },
 
     myActivities: (parent, _args, context) => tripActivities(parent, personOf(context)),
-
-    myManualEntries: (parent, _args, context) => tripManualEntries(parent, personOf(context)),
   },
 
   Activity: {
+    isManual: (parent) => isManualFilename(parent.gpxFilename),
+
     trackEdited: async (parent) => {
       const filePath = path.join(GPX_FILES_DIRECTORY, parent.gpxFilename);
       const original = await findOriginalBackup(filePath);

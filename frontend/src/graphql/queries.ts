@@ -13,6 +13,7 @@ export const GET_DASHBOARD = gql`
       id
       title
       activityType
+      isManual
       startTime
       durationSeconds
       distanceMeters
@@ -42,6 +43,7 @@ export const GET_ACTIVITY = gql`
     activity(id: $id) {
       id
       gpxFilename
+      isManual
       trackEdited
       owner
       sharedWith
@@ -551,12 +553,6 @@ export const GET_TRIP = gql`
         factor
         equivalentMeters
       }
-      myManualEntries {
-        id
-        date
-        distanceMeters
-        note
-      }
     }
     effortFactors {
       activityType
@@ -580,21 +576,30 @@ export const DELETE_TRIP = gql`
   }
 `;
 
-export const ADD_TRIP_MANUAL_ENTRY = gql`
-  mutation AddTripManualEntry(
-    $tripId: ID!
-    $date: String!
-    $distanceMeters: Float!
-    $note: String
-  ) {
-    addTripManualEntry(tripId: $tripId, date: $date, distanceMeters: $distanceMeters, note: $note) {
+const MANUAL_ACTIVITY_FIELDS = `
       id
-    }
+      gpxFilename
+      isManual
+      title
+      activityType
+      startTime
+      endTime
+      durationSeconds
+      distanceMeters
+      avgSpeedMps
+      movingAvgSpeedMps
+      totalElevationGain
+      notes
+`;
+
+export const ADD_MANUAL_ACTIVITY = gql`
+  mutation AddManualActivity($input: ManualActivityInput!, $clientId: String) {
+    addManualActivity(input: $input, clientId: $clientId) {${MANUAL_ACTIVITY_FIELDS}    }
   }
 `;
 
-export const DELETE_TRIP_MANUAL_ENTRY = gql`
-  mutation DeleteTripManualEntry($id: ID!) {
-    deleteTripManualEntry(id: $id)
+export const UPDATE_MANUAL_ACTIVITY = gql`
+  mutation UpdateManualActivity($id: ID!, $input: ManualActivityInput!) {
+    updateManualActivity(id: $id, input: $input) {${MANUAL_ACTIVITY_FIELDS}    }
   }
 `;

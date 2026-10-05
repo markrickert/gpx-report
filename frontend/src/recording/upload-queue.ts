@@ -1,7 +1,12 @@
 import { clientFor } from "@/lib/apollo";
-import { IMPORT_ACTIVITY_FILE, SAVE_RECORDED_ACTIVITY } from "@/graphql/queries";
+import {
+  ADD_MANUAL_ACTIVITY,
+  IMPORT_ACTIVITY_FILE,
+  SAVE_RECORDED_ACTIVITY,
+} from "@/graphql/queries";
 import { buildGpxXml } from "./gpx";
-import { readBase64, removeFile } from "./import-files";
+import { readBase64, readText, removeFile } from "./import-files";
+import { MANUAL_EXTENSION } from "./manual";
 import * as store from "./store";
 import type { ImportResult } from "./types";
 
@@ -73,6 +78,17 @@ async function drain(now: number) {
     .filter((i) => i.nextAttemptAt == null || i.nextAttemptAt <= now);
   for (const imp of dueImports) {
     try {
+      // A manual activity waits in the same queue. Its id is the clientId, so
+      // a retry after a lost response doesn't add it twice.
+      if (imp.localUri.endsWith(MANUAL_EXTENSION)) {
+        await clientFor(imp.person).mutate({
+          mutation: ADD_MANUAL_ACTIVITY,
+          variables: { input: JSON.parse(await readText(imp.localUri)), clientId: imp.id },
+        });
+        store.deleteImport(imp.id);
+        removeFile(imp.localUri);
+        continue;
+      }
       const { data } = await clientFor(imp.person).mutate({
         mutation: IMPORT_ACTIVITY_FILE,
         variables: { filename: imp.name, contentBase64: await readBase64(imp.localUri) },
