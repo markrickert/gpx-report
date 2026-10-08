@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { router, useLocalSearchParams } from "expo-router";
+import { type Href, router, useLocalSearchParams } from "expo-router";
 import { Link } from "@/components/web-link";
 import { useQuery, useLazyQuery, useMutation } from "@apollo/client";
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, useMap } from "react-leaflet";
@@ -1575,7 +1575,7 @@ function DeleteActivitySection({ activity, isOwner }) {
     setError(null);
     try {
       await deleteActivity({ variables: { id: activity.id } });
-      router.push(href(""));
+      router.push(href("") as Href);
     } catch (e) {
       setError(e.message);
     }
