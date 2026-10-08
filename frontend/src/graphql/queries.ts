@@ -11,6 +11,7 @@ export const GET_DASHBOARD = gql`
     }
     activities(limit: $limit, offset: $offset, activityType: $activityType, search: $search) {
       id
+      gpxFilename
       title
       activityType
       isManual

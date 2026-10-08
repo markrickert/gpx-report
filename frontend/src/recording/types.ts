@@ -36,6 +36,7 @@ export type Recording = {
   nextAttemptAt: number | null;
   lastError: string | null;
   uploadedFilename: string | null;
+  uploadedAt: number | null;
 };
 
 export type ImportStatus = "pending" | "failed" | "rejected";

@@ -54,6 +54,7 @@ describe("drainUploadQueue", () => {
     expect(store.getRecording("rec-1")).toMatchObject({
       status: "uploaded",
       uploadedFilename: "recorded-rec-1.gpx",
+      uploadedAt: 10_000,
     });
   });
 

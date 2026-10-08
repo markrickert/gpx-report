@@ -16,6 +16,7 @@ import { unstable_getMaterialSymbolSourceAsync } from "expo-symbols";
 import { RouteThumbnail } from "@/components/route-thumbnail";
 import { TripsCard } from "@/components/trips-card";
 import { GET_DASHBOARD } from "@/graphql/queries";
+import { useAppActive } from "@/hooks/use-app-active";
 import { useTheme } from "@/hooks/use-theme";
 import { DEFAULT_PERSON, usePerson } from "@/lib/person";
 import { pickAndImport } from "@/recording/importer";
@@ -27,6 +28,7 @@ import { formatDistance, useUnits } from "@/utils/units";
 
 type ServerActivity = {
   id: string;
+  gpxFilename: string;
   title: string;
   activityType: string;
   isManual: boolean;
@@ -37,6 +39,11 @@ type ServerActivity = {
   routeThumbnail: number[][] | null;
   mediaCount: number;
 };
+
+// The server ingests an upload in the background, usually within a minute.
+// Past this, a recording that still isn't in the list is taken as older than
+// the list reaches or deleted on the web, not as still being worked on.
+const PROCESSING_WINDOW_MS = 15 * 60 * 1000;
 
 // Same "1h 23m" format as the web Dashboard list.
 // A manual activity can have no duration, stored as zero.
@@ -54,6 +61,7 @@ export function HistoryScreen() {
   const [unsynced, setUnsynced] = useState<Recording[]>([]);
   const [uploaded, setUploaded] = useState<Recording[]>([]);
   const [imports, setImports] = useState<QueuedImport[]>([]);
+  const [now, setNow] = useState(0);
   const [importing, setImporting] = useState(false);
   const person = usePerson() ?? DEFAULT_PERSON;
   // The title bar button takes an SF Symbol name on iOS but only an image on
@@ -66,11 +74,33 @@ export function HistoryScreen() {
   }, [colors.text]);
   const importIcon = Platform.OS === "ios" ? "doc.badge.plus" : androidImportIcon;
   const [refreshing, setRefreshing] = useState(false);
+  const appActive = useAppActive();
+
+  const activities: ServerActivity[] = data?.activities ?? [];
+  // The server names a recording's file after its id, which is how an upload
+  // is matched to the activity it becomes.
+  const onServer = (rec: Recording) =>
+    activities.some((a) => a.gpxFilename.endsWith(`recorded-${rec.id}.gpx`));
+  const processing = uploaded.filter(
+    (rec) =>
+      rec.uploadedAt != null && now - rec.uploadedAt < PROCESSING_WINDOW_MS && !onServer(rec),
+  );
+  // Once the activity is in the list the phone's copy has done its job. An
+  // upload that never shows up keeps its copy, out of sight.
+  const confirmedIds = uploaded
+    .filter(onServer)
+    .map((rec) => rec.id)
+    .join();
+  useEffect(() => {
+    for (const id of confirmedIds.split(",").filter(Boolean)) store.deleteRecording(id);
+  }, [confirmedIds]);
+  const waitingOnServer = processing.length > 0 || !!error;
 
   const loadUnsynced = useCallback(() => {
     setUnsynced(store.listRecordings(["pending", "failed"]));
     setUploaded(store.listRecordings(["uploaded"]));
     setImports(store.listImports(["pending", "failed", "rejected"]));
+    setNow(Date.now());
   }, []);
 
   async function importFiles() {
@@ -87,32 +117,25 @@ export function HistoryScreen() {
     }
   }
 
-  // The server has the file (and backs up the original before any edit), so
-  // the phone's copy is only a safety net until the user clears it.
-  function removeUploaded() {
-    Alert.alert(
-      "Remove from this phone?",
-      "These recordings are already on the server. Recordings that haven't uploaded yet stay.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: () => {
-            for (const rec of store.listRecordings(["uploaded"])) store.deleteRecording(rec.id);
-            loadUnsynced();
-          },
-        },
-      ],
-    );
-  }
-
   useFocusEffect(
     useCallback(() => {
       loadUnsynced();
       const timer = setInterval(loadUnsynced, 2000);
       return () => clearInterval(timer);
     }, [loadUnsynced]),
+  );
+
+  // The list is asked for again whenever the screen or the app comes back,
+  // and every few seconds while an upload hasn't shown up in it yet or the
+  // server couldn't be reached.
+  useFocusEffect(
+    useCallback(() => {
+      if (!appActive) return;
+      refetch().catch(() => {});
+      if (!waitingOnServer) return;
+      const timer = setInterval(() => refetch().catch(() => {}), 5000);
+      return () => clearInterval(timer);
+    }, [appActive, refetch, waitingOnServer]),
   );
 
   async function onRefresh() {
@@ -151,6 +174,15 @@ export function HistoryScreen() {
           )}
         </View>
       ))}
+      {processing.map((rec) => (
+        <View key={rec.id} style={[styles.row, { backgroundColor: colors.backgroundElement }]}>
+          <Text style={[styles.title, { color: colors.text }]}>{rec.title}</Text>
+          <Text style={[styles.meta, { color: colors.textSecondary }]}>
+            Uploaded. The server is still working on it, so it will show up in the list below in a
+            minute or so.
+          </Text>
+        </View>
+      ))}
       {imports.map((imp) => (
         <View key={imp.id} style={[styles.row, { backgroundColor: colors.backgroundElement }]}>
           <Text style={[styles.title, { color: colors.text }]}>{imp.name}</Text>
@@ -178,16 +210,6 @@ export function HistoryScreen() {
           )}
         </View>
       ))}
-      {uploaded.length > 0 && (
-        <View style={[styles.row, { backgroundColor: colors.backgroundElement }]}>
-          <Text style={[styles.meta, { color: colors.textSecondary }]}>
-            {`${uploaded.length} uploaded ${uploaded.length === 1 ? "recording is" : "recordings are"} still saved on this phone. ${uploaded.length === 1 ? "It's" : "They're"} on the server now.`}
-          </Text>
-          <Pressable onPress={removeUploaded}>
-            <Text style={styles.link}>Remove from phone</Text>
-          </Pressable>
-        </View>
-      )}
     </View>
   );
 
@@ -210,7 +232,7 @@ export function HistoryScreen() {
         style={{ backgroundColor: colors.background }}
         contentContainerStyle={styles.list}
         contentInsetAdjustmentBehavior="automatic"
-        data={data?.activities ?? []}
+        data={activities}
         keyExtractor={(a) => a.id}
         ListHeaderComponent={header}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}

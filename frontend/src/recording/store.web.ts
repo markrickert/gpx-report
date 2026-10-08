@@ -24,6 +24,7 @@ export function createRecording(id: string, now: number, person: string) {
     nextAttemptAt: null,
     lastError: null,
     uploadedFilename: null,
+    uploadedAt: null,
   });
 }
 

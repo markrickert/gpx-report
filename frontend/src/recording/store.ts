@@ -53,6 +53,9 @@ try {
   db.execSync("ALTER TABLE points ADD COLUMN accuracy REAL");
   db.execSync("ALTER TABLE points ADD COLUMN altitude_accuracy REAL");
 } catch {}
+try {
+  db.execSync("ALTER TABLE recordings ADD COLUMN uploaded_at INTEGER");
+} catch {}
 
 const COLUMNS: Record<keyof Omit<Recording, "id">, string> = {
   person: "person",
@@ -68,6 +71,7 @@ const COLUMNS: Record<keyof Omit<Recording, "id">, string> = {
   nextAttemptAt: "next_attempt_at",
   lastError: "last_error",
   uploadedFilename: "uploaded_filename",
+  uploadedAt: "uploaded_at",
 };
 
 function toRecording(row: any): Recording {
@@ -86,6 +90,7 @@ function toRecording(row: any): Recording {
     nextAttemptAt: row.next_attempt_at,
     lastError: row.last_error,
     uploadedFilename: row.uploaded_filename,
+    uploadedAt: row.uploaded_at,
   };
 }
 

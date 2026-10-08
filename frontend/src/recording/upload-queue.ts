@@ -60,6 +60,7 @@ async function drain(now: number) {
       store.updateRecording(rec.id, {
         status: "uploaded",
         uploadedFilename: data.saveRecordedActivity.filename,
+        uploadedAt: now,
         lastError: null,
         nextAttemptAt: null,
       });
