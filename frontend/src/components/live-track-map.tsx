@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Platform, type StyleProp, type ViewStyle } from "react-native";
 import { AppleMaps, GoogleMaps } from "expo-maps";
 import * as Location from "expo-location";
@@ -9,6 +9,11 @@ type Camera = { coordinates: { latitude: number; longitude: number }; zoom: numb
 
 const TRACK_COLOR = "#2563eb";
 const FOLLOW_ZOOM = 16;
+// The native map decodes and redraws the whole polyline on the main thread at
+// every update, so a long track freezes the screen's buttons. Only the newest
+// points stay at full detail; the older ones thin out to a fixed budget.
+const FULL_DETAIL_POINTS = 200;
+const MAX_THINNED_VERTICES = 1000;
 
 // Neither map view can fit bounds, so estimate the zoom that shows the whole
 // track: at zoom z a ~350pt-wide view spans about 492 / 2^z degrees.
@@ -26,7 +31,8 @@ function fitCamera(points: TrackPoint[]): Camera {
   };
 }
 
-export function LiveTrackMap({ points, follow, style }: Props) {
+// Memoized so the screen's one-second clock tick doesn't resend the track.
+export const LiveTrackMap = memo(function LiveTrackMap({ points, follow, style }: Props) {
   const map = useRef<{ setCameraPosition(camera: Camera): void }>(null);
   const last = points[points.length - 1];
   // The live position only matters before the first point and while recording,
@@ -61,11 +67,17 @@ export function LiveTrackMap({ points, follow, style }: Props) {
   }, [mapReady, here, points, last, follow]);
 
   const segments = new Map<number, { latitude: number; longitude: number }[]>();
-  for (const p of points) {
+  const detailFrom = points.length - FULL_DETAIL_POINTS;
+  const stride = Math.max(1, Math.ceil(detailFrom / MAX_THINNED_VERTICES));
+  for (const [i, p] of points.entries()) {
+    if (i < detailFrom && i % stride !== 0) continue;
     if (!segments.has(p.segment)) segments.set(p.segment, []);
     segments.get(p.segment)!.push({ latitude: p.lat, longitude: p.lon });
   }
-  const polylines = [...segments.values()].map((coordinates) => ({
+  // Without a stable id the map gives each update a new one and rebuilds the
+  // line instead of extending it.
+  const polylines = [...segments].map(([segment, coordinates]) => ({
+    id: String(segment),
     coordinates,
     color: TRACK_COLOR,
     width: 4,
@@ -83,4 +95,4 @@ export function LiveTrackMap({ points, follow, style }: Props) {
   ) : (
     <GoogleMaps.View {...shared} onMapLoaded={() => setMapReady(true)} />
   );
-}
+});
