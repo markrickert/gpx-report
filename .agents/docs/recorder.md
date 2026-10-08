@@ -15,6 +15,7 @@ The recorder records a GPS track and uploads it to the server. Recording continu
 ## Workflow
 
 - A background task writes each location point directly to an on-device database. The recording does not depend on the UI. The record screen reads new points from the database.
+- The record screen stops its timers while the app is in the background and reads the missed points when it returns. On Android, screen updates made in the background wait in memory until the app returns.
 - Each point keeps the phone's accuracy estimates for position and altitude. They travel in the GPX as point extensions, and the server does not read them. They are there to diagnose a bad recording.
 - The record screen shows the accuracy of the latest point and warns while the signal is weak. After a stop, it shows how many points were weak.
 - Stop opens the save form. Resume from the form continues the same recording.

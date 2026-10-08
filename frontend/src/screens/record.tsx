@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ActivityTypePicker } from "@/components/activity-type-picker";
 import { LiveTrackMap } from "@/components/live-track-map";
 import { useActiveRecording } from "@/hooks/use-active-recording";
+import { useAppActive } from "@/hooks/use-app-active";
 import { useTheme } from "@/hooks/use-theme";
 import {
   discardRecording,
@@ -52,11 +53,12 @@ export function RecordScreen({ person }: { person: string | null }) {
   const [now, setNow] = useState(() => Date.now());
 
   const status = recording?.status ?? "idle";
+  const active = useAppActive();
   useEffect(() => {
-    if (status !== "recording") return undefined;
+    if (status !== "recording" || !active) return undefined;
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [status]);
+  }, [status, active]);
 
   const suggestions = useMemo(
     () => (status === "stopped" ? suggestActivityTypes(points).slice(0, 3) : []),
