@@ -13,6 +13,7 @@ import {
 import { useColorScheme } from "react-native";
 import { type ExpoRouterLike, useAgentJet } from "react-native-agent-jet";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import { useApplyUpdates } from "@/hooks/use-apply-updates";
 import { useTheme } from "@/hooks/use-theme";
 import { useUploadQueueTriggers } from "@/hooks/use-upload-queue-triggers";
 import { apolloClient, clientFor, useHasSavedGraphqlUrl } from "@/lib/apollo";
@@ -26,6 +27,7 @@ export default function RootLayout() {
   const person = usePerson();
   const hasServer = useHasSavedGraphqlUrl();
   useUploadQueueTriggers();
+  useApplyUpdates();
   const navigationRef = useNavigationContainerRef();
   useAgentJet({
     navigationRef,

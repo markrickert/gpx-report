@@ -119,10 +119,11 @@ export function HistoryScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (!appActive) return;
       loadUnsynced();
       const timer = setInterval(loadUnsynced, 2000);
       return () => clearInterval(timer);
-    }, [loadUnsynced]),
+    }, [appActive, loadUnsynced]),
   );
 
   // The list is asked for again whenever the screen or the app comes back,
