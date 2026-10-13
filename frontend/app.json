@@ -26,7 +26,8 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.RECEIVE_BOOT_COMPLETED"
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "web": {
@@ -59,6 +60,7 @@
         }
       ],
       "expo-sqlite",
+      "expo-widgets",
       [
         "expo-build-properties",
         {

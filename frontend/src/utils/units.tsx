@@ -3,8 +3,13 @@ import { createContext, useContext, useEffect, useState } from "react";
 const STORAGE_KEY = "gpx-report-units";
 const UnitsContext = createContext(null);
 
+/** For code outside React, such as the background location task. */
+export function storedUnit() {
+  return localStorage.getItem(STORAGE_KEY) || "imperial";
+}
+
 export function UnitsProvider({ children }) {
-  const [unit, setUnit] = useState(() => localStorage.getItem(STORAGE_KEY) || "imperial");
+  const [unit, setUnit] = useState(storedUnit);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, unit);

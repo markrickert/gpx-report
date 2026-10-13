@@ -1,5 +1,7 @@
 import { randomUUID } from "expo-crypto";
 import * as store from "./store";
+import { syncLiveStatus } from "./live-status";
+import { requestPermission as requestLiveStatusPermission } from "./live-status-display";
 import { requestLocationPermissions, startLocation, stopLocation } from "./location-source";
 import { drainUploadQueue } from "./upload-queue";
 import type { Recording } from "./types";
@@ -14,6 +16,7 @@ export async function startRecording(person: string) {
   if (!perms.granted) {
     return { error: "Location permission was denied. Enable it in Settings to record." };
   }
+  await requestLiveStatusPermission();
   store.createRecording(randomUUID(), Date.now(), person);
   try {
     await startLocation();
@@ -22,6 +25,7 @@ export async function startRecording(person: string) {
     if (rec) store.deleteRecording(rec.id);
     return { error: `Couldn't start GPS: ${(err as Error).message}` };
   }
+  syncLiveStatus();
   return perms.background
     ? {}
     : {
@@ -37,6 +41,7 @@ export async function pauseRecording(rec: Recording, now = Date.now()) {
     elapsedMs: rec.elapsedMs + (now - (rec.segmentStartedAt ?? now)),
     segmentStartedAt: null,
   });
+  syncLiveStatus();
 }
 
 export async function resumeRecording(rec: Recording, now = Date.now()) {
@@ -46,6 +51,7 @@ export async function resumeRecording(rec: Recording, now = Date.now()) {
     segmentStartedAt: now,
   });
   await startLocation();
+  syncLiveStatus();
 }
 
 export async function stopRecording(rec: Recording, now = Date.now()) {
@@ -56,6 +62,7 @@ export async function stopRecording(rec: Recording, now = Date.now()) {
     elapsedMs: rec.elapsedMs + running,
     segmentStartedAt: null,
   });
+  syncLiveStatus();
 }
 
 export function discardRecording(rec: Recording) {
