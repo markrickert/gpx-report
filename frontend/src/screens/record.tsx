@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ActivityTypePicker } from "@/components/activity-type-picker";
 import { LiveTrackMap } from "@/components/live-track-map";
@@ -151,7 +152,13 @@ export function RecordScreen({ person }: { person: string | null }) {
     // The native safe area includes the tab bar, so sizing to it (instead of
     // the scroll view's automatic inset) keeps the controls just above it.
     <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={styles.container} contentInsetAdjustmentBehavior="never">
+      <KeyboardAwareScrollView
+        contentContainerStyle={styles.container}
+        contentInsetAdjustmentBehavior="never"
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        bottomOffset={16}
+      >
         {!!error && <Text style={styles.error}>{error}</Text>}
         {note && <Text style={[styles.hint, { color: colors.textSecondary }]}>{note}</Text>}
 
@@ -289,7 +296,7 @@ export function RecordScreen({ person }: { person: string | null }) {
             </>
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { ActivityTypePicker } from "@/components/activity-type-picker";
 import { useTheme } from "@/hooks/use-theme";
 import { DEFAULT_PERSON, usePerson } from "@/lib/person";
@@ -55,11 +56,13 @@ export function AddActivityScreen() {
   const input = [styles.input, text, { borderColor: colors.backgroundSelected }];
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView
       style={{ backgroundColor: colors.background }}
       contentContainerStyle={styles.container}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      bottomOffset={16}
     >
       <Text style={[styles.label, text]}>Date</Text>
       <View style={styles.dateRow}>
@@ -168,7 +171,7 @@ export function AddActivityScreen() {
       >
         <Text style={styles.saveText}>Save</Text>
       </Pressable>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 

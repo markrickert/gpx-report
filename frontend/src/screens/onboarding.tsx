@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useTheme } from "@/hooks/use-theme";
 import { getGraphqlUrl, normalizeGraphqlUrl, setGraphqlUrl } from "@/lib/apollo";
 import { getPerson, setPerson } from "@/lib/person";
@@ -38,11 +39,13 @@ export function OnboardingScreen() {
   const input = [styles.input, text, { borderColor: colors.backgroundSelected }];
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView
       style={{ backgroundColor: colors.background }}
       contentContainerStyle={styles.container}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      bottomOffset={16}
     >
       <Text style={[styles.title, text]}>Welcome to GPX Report</Text>
       <Text style={[styles.meta, secondary]}>
@@ -100,7 +103,7 @@ export function OnboardingScreen() {
       >
         <Text style={styles.buttonText}>Test & continue</Text>
       </Pressable>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { requireOptionalNativeModule } from "expo";
 import * as Location from "expo-location";
 import * as Updates from "expo-updates";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useTheme } from "@/hooks/use-theme";
 import { getGraphqlUrl, normalizeGraphqlUrl, setGraphqlUrl } from "@/lib/apollo";
 import { getPerson, setPerson } from "@/lib/person";
@@ -168,10 +169,13 @@ export function SettingsScreen() {
   const secondary = { color: colors.textSecondary };
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView
       style={{ backgroundColor: colors.background }}
       contentContainerStyle={styles.container}
       contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      bottomOffset={16}
     >
       <View style={[styles.section, { backgroundColor: colors.backgroundElement }]}>
         <Text style={[styles.heading, text]}>Your name</Text>
@@ -266,7 +270,7 @@ export function SettingsScreen() {
       </View>
 
       <AboutSection />
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 
