@@ -12,9 +12,9 @@ export async function requestLocationPermissions(): Promise<PermissionResult> {
 
 export async function startLocation() {
   await Location.startLocationUpdatesAsync(LOCATION_TASK, {
-    accuracy: Location.Accuracy.BestForNavigation,
-    distanceInterval: 5,
-    timeInterval: 2000,
+    accuracy: Location.Accuracy.High,
+    distanceInterval: 10,
+    timeInterval: 5000,
     activityType: Location.ActivityType.Fitness,
     pausesUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: true,
