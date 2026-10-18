@@ -167,6 +167,14 @@ export function getPoints(recordingId: string, afterId = 0): (TrackPoint & { id:
   );
 }
 
+export function hasSegmentPoints(recordingId: string, segment: number) {
+  return !!db.getFirstSync(
+    "SELECT 1 FROM points WHERE recording_id = ? AND segment = ?",
+    recordingId,
+    segment,
+  );
+}
+
 export function deleteRecording(id: string) {
   db.withTransactionSync(() => {
     db.runSync("DELETE FROM points WHERE recording_id = ?", id);

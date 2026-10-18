@@ -16,6 +16,7 @@ The recorder records a GPS track and uploads it to the server. Recording continu
 
 - A background task writes each location point directly to an on-device database. The recording does not depend on the UI. The record screen reads new points from the database.
 - The record screen stops its timers while the app is in the background and reads the missed points when it returns. On Android, screen updates made in the background wait in memory until the app returns.
+- The first point of each segment, at start and after each resume, must be a fresh fix with an accuracy of 20 m or better. The background task drops earlier points, so a cached location or a coarse first guess never starts the track. The record screen shows "Waiting for a GPS fix…" until then.
 - Each point keeps the phone's accuracy estimates for position and altitude. They travel in the GPX as point extensions, and the server does not read them. They are there to diagnose a bad recording.
 - The record screen shows the accuracy of the latest point and warns while the signal is weak. After a stop, it shows how many points were weak.
 - While a recording runs or is paused, the phone shows its state, timer, and distance outside the app: a Live Activity on iOS, the ongoing notification on Android. One function makes it match the stored recording. The recorder calls it at each state change, and the background task calls it while the app is not in view.

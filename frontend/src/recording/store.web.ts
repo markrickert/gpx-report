@@ -60,6 +60,10 @@ export function getPoints(recordingId: string, afterId = 0): (TrackPoint & { id:
     .map(({ recordingId: _, ...p }) => p);
 }
 
+export function hasSegmentPoints(recordingId: string, segment: number) {
+  return points.some((p) => p.recordingId === recordingId && p.segment === segment);
+}
+
 export function deleteRecording(id: string) {
   recordings.delete(id);
   for (let i = points.length - 1; i >= 0; i--)

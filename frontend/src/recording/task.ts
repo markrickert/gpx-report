@@ -1,7 +1,7 @@
 import * as TaskManager from "expo-task-manager";
 import type { LocationObject } from "expo-location";
-import { appendPoints, getActiveRecording } from "./store";
-import { locationToPoint } from "./location-point";
+import { appendPoints, getActiveRecording, hasSegmentPoints } from "./store";
+import { dropUnsettledStart, locationToPoint } from "./location-point";
 import { syncLiveStatus } from "./live-status";
 
 export const LOCATION_TASK = "gpx-report-location";
@@ -17,9 +17,14 @@ TaskManager.defineTask<{ locations: LocationObject[] }>(LOCATION_TASK, async ({ 
   if (error || !data) return;
   const rec = getActiveRecording();
   if (!rec || rec.status !== "recording") return;
+  const locations = dropUnsettledStart(
+    data.locations,
+    rec.segmentStartedAt,
+    hasSegmentPoints(rec.id, rec.segment),
+  );
   appendPoints(
     rec.id,
-    data.locations.map((loc) => locationToPoint(loc, rec.segment)),
+    locations.map((loc) => locationToPoint(loc, rec.segment)),
   );
   if (Date.now() - lastLiveStatusAt >= LIVE_STATUS_INTERVAL_MS) {
     lastLiveStatusAt = Date.now();
