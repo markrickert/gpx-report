@@ -34,6 +34,13 @@ describe("buildGpxXml", () => {
     expect(xml.match(/<extensions>/g)).toHaveLength(1);
   });
 
+  it("names the recording platform in creator", () => {
+    expect(buildGpxXml([pt(40, 0)], "A", "Hiking", null, "android")).toContain(
+      `<gpx creator="gpx-report android"`,
+    );
+    expect(buildGpxXml([pt(40, 0)], "A", "Hiking")).toContain(`<gpx creator="gpx-report"`);
+  });
+
   it("writes the note as an escaped <desc> and omits it when empty", () => {
     expect(buildGpxXml([pt(40, 0)], "A", "Hiking", "Rain & <wind>")).toContain(
       "<desc>Rain &amp; &lt;wind&gt;</desc>",

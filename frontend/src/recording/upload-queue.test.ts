@@ -11,6 +11,7 @@ vi.mock("@/lib/apollo", () => {
   };
 });
 vi.mock("expo-crypto", () => ({ randomUUID: () => "unused" }));
+vi.mock("react-native", () => ({ Platform: { OS: "android" } }));
 vi.mock("./import-files", () => ({
   readBase64: vi.fn(async (uri: string) => `base64-of-${uri}`),
   readText: vi.fn(async () => JSON.stringify({ title: "Hiking", distanceMeters: 6437 })),
@@ -51,6 +52,7 @@ describe("drainUploadQueue", () => {
     const { variables } = apolloClient.mutate.mock.calls[0][0];
     expect(variables.clientId).toBe("rec-1");
     expect(variables.gpxContent).toContain("<type>Walking</type>");
+    expect(variables.gpxContent).toContain(`creator="gpx-report android"`);
     expect(store.getRecording("rec-1")).toMatchObject({
       status: "uploaded",
       uploadedFilename: "recorded-rec-1.gpx",

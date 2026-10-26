@@ -7,7 +7,7 @@ Ingestion turns source files into activities. It is the only path from a file to
 ## Sources
 
 - Files that people drop or sync into the data folder.
-- Phone uploads, which the server writes as GPX files into the folder of the person who recorded them.
+- Phone uploads, which the server writes as GPX files into the folder of the person who recorded them. An Android upload gets terrain elevation before the file is written (see [recorder.md](./recorder.md)).
 - Manual activities, which a person types in with no track. The server writes each one as a small JSON file into that person's folder.
 - The supported formats are GPX, IGC (paragliding), Ski Tracks archives, and the manual activity file.
 

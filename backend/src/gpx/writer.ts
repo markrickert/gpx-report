@@ -135,3 +135,33 @@ export async function fixGpxElevations(filePath, corrections) {
   await backupFile(filePath);
   await writeFile(filePath, result, "utf-8");
 }
+
+// Each point's position, in file order, for a lookup by position such as
+// terrain elevation.
+export function gpxTrackPointPositions(xml) {
+  return [...xml.matchAll(TRKPT_RE)].map((match) => ({
+    lat: Number(/\blat="([^"]+)"/.exec(match[0])?.[1]),
+    lon: Number(/\blon="([^"]+)"/.exec(match[0])?.[1]),
+  }));
+}
+
+// Replaces each point's <ele> with `elevations[i]` and keeps the recorded
+// value as <recordedEle> in the point's <extensions>, so the source file still
+// shows what the device reported. A null elevation leaves its point as it is.
+export function replaceGpxElevations(xml, elevations) {
+  let i = 0;
+  return xml.replace(TRKPT_RE, (block) => {
+    const elevation = elevations[i++];
+    if (elevation == null) return block;
+    const recorded = /<ele>([\s\S]*?)<\/ele>/.exec(block)?.[1];
+    let result = ELE_RE.test(block)
+      ? block.replace(ELE_RE, `<ele>${elevation}</ele>`)
+      : block.replace(/^(<trkpt\b[^>]*>)/, `$1<ele>${elevation}</ele>`);
+    if (recorded == null) return result;
+    const kept = `<recordedEle>${recorded}</recordedEle>`;
+    result = result.includes("</extensions>")
+      ? result.replace("</extensions>", `${kept}</extensions>`)
+      : result.replace(/<\/trkpt>/, `<extensions>${kept}</extensions></trkpt>`);
+    return result;
+  });
+}

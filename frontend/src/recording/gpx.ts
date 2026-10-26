@@ -15,11 +15,14 @@ function escapeXml(value: string) {
 // activity type lands at ingest with no follow-up mutation.
 // The phone's own accuracy estimates go in <extensions>, which the parser
 // ignores; they are there to diagnose a bad recording from its source file.
+// The platform goes in `creator`: the server replaces an Android recording's
+// altitude with terrain elevation (see `saveRecordedActivity`).
 export function buildGpxXml(
   points: TrackPoint[],
   title: string,
   activityType: string,
   note: string | null = null,
+  platform: string | null = null,
 ) {
   const segments = new Map<number, TrackPoint[]>();
   for (const p of points) {
@@ -48,7 +51,7 @@ export function buildGpxXml(
   const type = activityType !== "Unknown" ? `\n  <type>${escapeXml(activityType)}</type>` : "";
   const desc = note ? `\n  <desc>${escapeXml(note)}</desc>` : "";
   return `<?xml version="1.0" encoding="UTF-8"?>
-<gpx creator="gpx-report" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+<gpx creator="${platform ? `gpx-report ${platform}` : "gpx-report"}" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
  <trk>
   <name>${escapeXml(title)}</name>${desc}${type}
 ${trksegs}

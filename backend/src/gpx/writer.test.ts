@@ -9,6 +9,8 @@ import {
   trimGpxTrack,
   removeGpxTrackPoints,
   fixGpxElevations,
+  gpxTrackPointPositions,
+  replaceGpxElevations,
 } from "./writer.js";
 import { parseGpxFile } from "./parser.js";
 
@@ -176,6 +178,46 @@ describe("gpx writer", () => {
       const filePath = await writeGpx("fix-no-points.gpx", gpxDoc({ points: [] }));
       await expect(fixGpxElevations(filePath, new Map([[0, 100]]))).rejects.toThrow(
         /No <trkpt> elements/,
+      );
+    });
+  });
+
+  describe("gpxTrackPointPositions", () => {
+    it("lists every point's position in file order", () => {
+      expect(gpxTrackPointPositions(gpxDoc())).toEqual([
+        { lat: 45.0, lon: 7.0 },
+        { lat: 45.001, lon: 7.0 },
+        { lat: 45.002, lon: 7.0 },
+        { lat: 45.003, lon: 7.0 },
+      ]);
+    });
+  });
+
+  describe("replaceGpxElevations", () => {
+    it("replaces <ele> and keeps the recorded value as <recordedEle>", async () => {
+      const xml = replaceGpxElevations(gpxDoc(), [900, null, 920.5, 930]);
+      expect(xml).toContain(
+        "<ele>900</ele><time>2024-01-01T00:00:00Z</time><extensions><recordedEle>1000</recordedEle></extensions></trkpt>",
+      );
+      const result = await parseGpxFile(await writeGpx("replace.gpx", xml));
+      expect(result.points.map((p) => p.elevation)).toEqual([900, 1010, 920.5, 930]);
+    });
+
+    it("adds to existing extensions and inserts an <ele> where a point has none", () => {
+      const xml = replaceGpxElevations(
+        gpxDoc({
+          points: [
+            `<trkpt lat="45.0" lon="7.0"><ele>1000</ele><time>2024-01-01T00:00:00Z</time><extensions><accuracy>4.0</accuracy></extensions></trkpt>`,
+            `<trkpt lat="45.001" lon="7.0"><time>2024-01-01T00:00:10Z</time></trkpt>`,
+          ],
+        }),
+        [900, 905],
+      );
+      expect(xml).toContain(
+        "<extensions><accuracy>4.0</accuracy><recordedEle>1000</recordedEle></extensions>",
+      );
+      expect(xml).toContain(
+        `<trkpt lat="45.001" lon="7.0"><ele>905</ele><time>2024-01-01T00:00:10Z</time></trkpt>`,
       );
     });
   });

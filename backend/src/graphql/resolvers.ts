@@ -17,6 +17,8 @@ import {
   trimGpxTrack,
   removeGpxTrackPoints,
   fixGpxElevations,
+  gpxTrackPointPositions,
+  replaceGpxElevations,
 } from "../gpx/writer.js";
 import {
   updateSkizTitle,
@@ -316,6 +318,24 @@ async function terrainCorrectedPoints(id, activity) {
     ),
     elevations,
   };
+}
+
+// Android reports altitude above the WGS84 ellipsoid, about 19 m below sea
+// level in Colorado. Some Android phones also switch to a second altitude
+// source for about a minute every five minutes, reading 40-85 m low, which
+// doubles the elevation gain. Terrain elevation replaces both. A failed
+// terrain lookup keeps the recorded altitude, because an upload must never
+// fail over elevation. The owner can still apply terrain later.
+const ANDROID_RECORDING_RE = /<gpx\b[^>]*\bcreator="gpx-report android"/;
+
+async function withTerrainElevation(gpxContent) {
+  try {
+    const elevations = await terrainElevations(gpxTrackPointPositions(gpxContent));
+    return replaceGpxElevations(gpxContent, elevations);
+  } catch (err) {
+    console.error("Terrain elevation failed for an Android recording:", err);
+    return gpxContent;
+  }
 }
 
 export const resolvers = {
@@ -1107,9 +1127,12 @@ export const resolvers = {
         ? `recorded-${clientId}.gpx`
         : `recorded-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomBytes(3).toString("hex")}.gpx`;
       const filename = `${person}/${basename}`;
+      const content = ANDROID_RECORDING_RE.test(gpxContent)
+        ? await withTerrainElevation(gpxContent)
+        : gpxContent;
       await mkdir(path.join(GPX_FILES_DIRECTORY, person), { recursive: true });
       try {
-        await writeFile(path.join(GPX_FILES_DIRECTORY, filename), gpxContent, {
+        await writeFile(path.join(GPX_FILES_DIRECTORY, filename), content, {
           encoding: "utf-8",
           flag: "wx",
         });

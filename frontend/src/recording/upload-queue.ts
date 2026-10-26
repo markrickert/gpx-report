@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { clientFor } from "@/lib/apollo";
 import {
   ADD_MANUAL_ACTIVITY,
@@ -52,6 +53,7 @@ async function drain(now: number) {
         rec.title ?? "Recorded activity",
         rec.activityType,
         rec.note,
+        Platform.OS,
       );
       const { data } = await clientFor(rec.person).mutate({
         mutation: SAVE_RECORDED_ACTIVITY,
