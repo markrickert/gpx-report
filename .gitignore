@@ -16,3 +16,6 @@ data/gpx/*
 .agents/settings.local.json
 .agents/scheduled_tasks.lock
 skills-lock.json
+
+# macOS Finder metadata
+.DS_Store
