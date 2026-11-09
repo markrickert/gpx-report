@@ -10,11 +10,26 @@ export async function requestLocationPermissions(): Promise<PermissionResult> {
   return { granted: true, background: bg.granted };
 }
 
-export async function startLocation() {
+const LOW_POWER_KEY = "gpx-report-low-power";
+
+/** Read at each Start and Resume, so a change applies from the next one. */
+export function getLowPower() {
+  return localStorage.getItem(LOW_POWER_KEY) === "true";
+}
+
+export function setLowPower(enabled: boolean) {
+  localStorage.setItem(LOW_POWER_KEY, String(enabled));
+}
+
+// Low power keeps High accuracy, because Android's lower tiers use Wi-Fi and
+// cell towers and get no fix on a remote trail. It saves battery with fewer
+// points and with one-minute batches, so the app wakes and writes less often.
+export async function startLocation(lowPower: boolean) {
   await Location.startLocationUpdatesAsync(LOCATION_TASK, {
     accuracy: Location.Accuracy.High,
-    distanceInterval: 10,
-    timeInterval: 5000,
+    distanceInterval: lowPower ? 20 : 10,
+    timeInterval: lowPower ? 15_000 : 5000,
+    deferredUpdatesInterval: lowPower ? 60_000 : 0,
     activityType: Location.ActivityType.Fitness,
     pausesUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: true,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ActivityTypePicker } from "@/components/activity-type-picker";
@@ -17,6 +17,7 @@ import {
   stopRecording,
 } from "@/recording/recorder";
 import { detectLiftSegments } from "@/recording/lift-detection";
+import { getLowPower, setLowPower } from "@/recording/location-source";
 import { suggestActivityTypes } from "@/recording/suggest-type";
 import type { TrackPoint } from "@/recording/types";
 import { formatDuration, trackDistanceMeters } from "@/utils/geo";
@@ -52,6 +53,7 @@ export function RecordScreen({ person }: { person: string | null }) {
   const [activityType, setActivityType] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const [lowPower, setLowPowerState] = useState(getLowPower);
 
   const status = recording?.status ?? "idle";
   const active = useAppActive();
@@ -237,6 +239,26 @@ export function RecordScreen({ person }: { person: string | null }) {
           </View>
         )}
 
+        {(status === "idle" || status === "paused") && (
+          <View style={styles.lowPower}>
+            <View style={styles.lowPowerText}>
+              <Text style={[styles.label, { color: colors.text }]}>Low power</Text>
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                Fewer GPS points, saved once a minute, for long days away from a charger. Applies at
+                the next {status === "idle" ? "Start" : "Resume"}.
+              </Text>
+            </View>
+            <Switch
+              accessibilityLabel="Low power"
+              value={lowPower}
+              onValueChange={(enabled) => {
+                setLowPower(enabled);
+                setLowPowerState(enabled);
+              }}
+            />
+          </View>
+        )}
+
         <View style={styles.controls}>
           {status === "idle" && (
             <Button label="Start" color="#16a34a" onPress={handleStart} disabled={busy} />
@@ -362,6 +384,8 @@ const styles = StyleSheet.create({
   label: { fontSize: 15, fontWeight: "600" },
   input: { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 16 },
   noteInput: { minHeight: 88, textAlignVertical: "top" },
+  lowPower: { flexDirection: "row", alignItems: "center", gap: 12 },
+  lowPowerText: { flex: 1, gap: 2 },
   controls: { flexDirection: "row", gap: 12 },
   button: { flex: 1, paddingVertical: 16, borderRadius: 12, alignItems: "center" },
   buttonText: { color: "#fff", fontSize: 18, fontWeight: "600" },

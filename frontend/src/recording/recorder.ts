@@ -2,7 +2,12 @@ import { randomUUID } from "expo-crypto";
 import * as store from "./store";
 import { syncLiveStatus } from "./live-status";
 import { requestPermission as requestLiveStatusPermission } from "./live-status-display";
-import { requestLocationPermissions, startLocation, stopLocation } from "./location-source";
+import {
+  getLowPower,
+  requestLocationPermissions,
+  startLocation,
+  stopLocation,
+} from "./location-source";
 import { drainUploadQueue } from "./upload-queue";
 import type { Recording } from "./types";
 
@@ -19,7 +24,7 @@ export async function startRecording(person: string) {
   await requestLiveStatusPermission();
   store.createRecording(randomUUID(), Date.now(), person);
   try {
-    await startLocation();
+    await startLocation(getLowPower());
   } catch (err) {
     const rec = store.getActiveRecording();
     if (rec) store.deleteRecording(rec.id);
@@ -50,7 +55,7 @@ export async function resumeRecording(rec: Recording, now = Date.now()) {
     segment: rec.segment + 1,
     segmentStartedAt: now,
   });
-  await startLocation();
+  await startLocation(getLowPower());
   syncLiveStatus();
 }
 
