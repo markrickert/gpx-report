@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { Platform } from "react-native";
 import { LOCATION_TASK } from "./task";
 
 export type PermissionResult = { granted: boolean; background: boolean };
@@ -21,14 +22,21 @@ export function setLowPower(enabled: boolean) {
   localStorage.setItem(LOW_POWER_KEY, String(enabled));
 }
 
+// Android keeps 5 m / 2 s while we test whether the longer interval causes
+// the periodic altitude dips seen on Android recordings. Low power must
+// never lengthen the Android interval. At 15 s the receiver turned off
+// between fixes, and the track jumped 100–265 m off the trail.
+const ANDROID = Platform.OS === "android";
+
 // Low power keeps High accuracy, because Android's lower tiers use Wi-Fi and
-// cell towers and get no fix on a remote trail. It saves battery with fewer
-// points and with one-minute batches, so the app wakes and writes less often.
+// cell towers and get no fix on a remote trail. It saves battery with
+// one-minute batches, so the app wakes and writes less often. Only iOS also
+// takes fewer points.
 export async function startLocation(lowPower: boolean) {
   await Location.startLocationUpdatesAsync(LOCATION_TASK, {
     accuracy: Location.Accuracy.High,
-    distanceInterval: lowPower ? 20 : 10,
-    timeInterval: lowPower ? 15_000 : 5000,
+    distanceInterval: ANDROID ? 5 : lowPower ? 20 : 10,
+    timeInterval: ANDROID ? 2000 : lowPower ? 15_000 : 5000,
     deferredUpdatesInterval: lowPower ? 60_000 : 0,
     activityType: Location.ActivityType.Fitness,
     pausesUpdatesAutomatically: false,

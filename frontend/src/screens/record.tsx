@@ -244,8 +244,8 @@ export function RecordScreen({ person }: { person: string | null }) {
             <View style={styles.lowPowerText}>
               <Text style={[styles.label, { color: colors.text }]}>Low power</Text>
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                Fewer GPS points, saved once a minute, for long days away from a charger. Applies at
-                the next {status === "idle" ? "Start" : "Resume"}.
+                GPS points saved once a minute, for long days away from a charger. Applies at the
+                next {status === "idle" ? "Start" : "Resume"}.
               </Text>
             </View>
             <Switch
